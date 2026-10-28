@@ -26,7 +26,16 @@ public final class SettingsPage extends RetroPage {
     mode.getItems().setAll(IsolationMode.values());
     mode.setValue(config.isolation());
     mode.setMaxWidth(Double.MAX_VALUE);
-    Label hint = new Label("已有实例时游戏根目录固定；切换隔离模式不会自动移动已有数据。");
+    ComboBox<DownloadSource> source = new RetroComboBox<>();
+    source.setId("download-source");
+    source.getItems().setAll(DownloadSource.values());
+    source.setValue(config.downloadSource());
+    source.setMaxWidth(Double.MAX_VALUE);
+    Label hint =
+        new Label(
+            "已有实例时游戏根目录固定；切换隔离模式不会自动移动已有数据。\n"
+                + "BMCLAPI 加速游戏资源和加载器；南京大学主要加速依赖库。\n"
+                + "镜像缺失或不可用时回退官方源；微软登录始终连接官方服务。");
     hint.setWrapText(true);
     hint.setStyle("-fx-font-size: 15px;");
     Button save =
@@ -38,7 +47,9 @@ public final class SettingsPage extends RetroPage {
                 Path normalized = Path.of(root.getText()).toAbsolutePath().normalize();
                 if (mode.getValue() != config.isolation()
                     && !confirm("更改全局隔离模式", "跟随全局设置的实例将切换游戏目录。\n旧存档和模组保留在原目录，不会自动迁移。是否继续？")) return;
-                vm.saveSettings(new LauncherSettings(normalized.toString(), mode.getValue()));
+                vm.saveSettings(
+                    new LauncherSettings(
+                        normalized.toString(), mode.getValue(), source.getValue()));
               } catch (IllegalArgumentException ex) {
                 message(Alert.AlertType.ERROR, "设置无效", ex.getMessage());
               }
@@ -49,7 +60,7 @@ public final class SettingsPage extends RetroPage {
         new VBox(
             25,
             label("启动器设置", "section-title"),
-            form(new String[] {"游戏根目录:", "默认隔离:"}, new Node[] {root, mode}),
+            form(new String[] {"游戏根目录:", "默认隔离:", "下载源:"}, new Node[] {root, mode, source}),
             hint,
             new HBox(10, save, data));
     content.setPadding(new Insets(30));

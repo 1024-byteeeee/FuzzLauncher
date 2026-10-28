@@ -93,15 +93,16 @@ public final class DownloadsPage extends RetroPage {
             name.setText(
                 v.id() + (loader.getValue() == LoaderType.VANILLA ? "" : " " + loader.getValue()));
           }
-          vm.loadLoaders(loader.getValue(), v);
+          if (getScene() != null) vm.loadLoaders(loader.getValue(), v);
         };
     games.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> query.run());
     loader.valueProperty().addListener((o, a, b) -> query.run());
     filtered.addListener(
         (ListChangeListener<GameVersion>)
             change -> {
-              if (games.getSelectionModel().getSelectedItem() == null && !filtered.isEmpty())
-                games.getSelectionModel().selectFirst();
+              if (getScene() != null
+                  && games.getSelectionModel().getSelectedItem() == null
+                  && !filtered.isEmpty()) games.getSelectionModel().selectFirst();
             });
     if (!filtered.isEmpty()) games.getSelectionModel().selectFirst();
     loaderVersion
@@ -149,12 +150,38 @@ public final class DownloadsPage extends RetroPage {
     VBox list = new VBox(10, filters, search, games);
     list.setPrefWidth(360);
     VBox.setVgrow(games, Priority.ALWAYS);
-    Label note = new Label("资源和依赖来自官方服务。\n安装完成后实例会出现在“游戏实例”页。\n游戏 Java 会在需要时自动检测或下载。");
+    Label note = new Label("镜像缺失或不可用时回退官方源。\n安装完成后实例会出现在“游戏实例”页。\n游戏 Java 会在需要时自动检测或下载。");
     note.setWrapText(true);
+    Label sourceLabel = new Label();
+    sourceLabel
+        .textProperty()
+        .bind(
+            javafx.beans.binding.Bindings.createStringBinding(
+                () -> "下载源：" + vm.settingsProperty().get().downloadSource(),
+                vm.settingsProperty()));
+    Hyperlink sourceLink = new Hyperlink();
+    sourceLink
+        .textProperty()
+        .bind(
+            javafx.beans.binding.Bindings.createStringBinding(
+                () -> vm.settingsProperty().get().downloadSource().website(),
+                vm.settingsProperty()));
+    sourceLink.setOnAction(
+        event -> {
+          try {
+            java.awt.Desktop.getDesktop().browse(java.net.URI.create(sourceLink.getText()));
+          } catch (Exception ex) {
+            message(Alert.AlertType.ERROR, "无法打开下载源网站", ex.getMessage());
+          }
+        });
+    sourceLink.setWrapText(true);
+    sourceLink.setMaxWidth(Double.MAX_VALUE);
+    VBox sourceInfo = new VBox(3, sourceLabel, sourceLink);
     GridPane options =
         form(new String[] {"实例名称:", "加载器:", "加载器版本:"}, new Node[] {name, loader, loaderVersion});
     VBox config =
-        new VBox(22, label("安装选项", "section-title"), options, refreshLoader, note, install);
+        new VBox(
+            22, label("安装选项", "section-title"), options, refreshLoader, sourceInfo, note, install);
     config.setMinWidth(0);
     HBox.setHgrow(config, Priority.ALWAYS);
     config.getStyleClass().add("details-box");

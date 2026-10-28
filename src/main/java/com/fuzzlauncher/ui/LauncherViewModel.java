@@ -255,7 +255,12 @@ public final class LauncherViewModel implements AutoCloseable {
           return config;
         },
         saved -> {
+          boolean sourceChanged = settings.get().downloadSource() != saved.downloadSource();
           settings.set(saved);
+          if (sourceChanged) {
+            versions.clear();
+            loaderVersions.clear();
+          }
           status.set("设置已保存");
         });
   }

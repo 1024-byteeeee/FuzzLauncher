@@ -40,11 +40,13 @@ public final class FuzzApplication extends Application {
       SettingsStore settings = new SettingsStore(data);
       InstanceRepository instances = new JsonInstanceRepository(data);
       HttpTransport http = new HttpTransport();
+      http.setDownloadSource(settings.load().downloadSource());
       VersionCatalog catalog = new VersionCatalog(http);
       VersionResolver resolver = new VersionResolver();
       GameFiles files = new GameFiles(http);
       JavaRuntimeManager runtimes = new JavaRuntimeManager(http, data.resolve("runtimes"));
-      MicrosoftAuthentication authentication = new MicrosoftAuthentication(http, data);
+      MicrosoftAuthentication authentication =
+          new MicrosoftAuthentication(new HttpTransport(), data);
       Map<LoaderType, LoaderInstaller> installers =
           Map.of(
               LoaderType.FABRIC,
@@ -65,6 +67,11 @@ public final class FuzzApplication extends Application {
               data.resolve("logs"));
       viewModel =
           new LauncherViewModel(settings, instances, catalog, authentication, install, launch);
+      viewModel
+          .settingsProperty()
+          .addListener(
+              (observable, oldSettings, newSettings) ->
+                  http.setDownloadSource(newSettings.downloadSource()));
       stage.initStyle(StageStyle.UNDECORATED);
       Scene scene = new Scene(new LauncherView(stage, viewModel), 1200, 860);
       scene.getStylesheets().add(getClass().getResource("retro.css").toExternalForm());

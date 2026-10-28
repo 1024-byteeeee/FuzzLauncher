@@ -1,6 +1,7 @@
 package com.fuzzlauncher.infrastructure;
 
 import com.fuzzlauncher.application.TaskContext;
+import com.fuzzlauncher.domain.DownloadSource;
 import com.google.gson.*;
 import java.io.*;
 import java.net.URI;
@@ -9,9 +10,25 @@ import java.nio.file.*;
 import java.security.*;
 import java.time.Duration;
 import java.util.*;
+import java.util.function.UnaryOperator;
 import javax.net.ssl.SSLException;
 
 public final class HttpTransport {
+  private volatile DownloadSource downloadSource = DownloadSource.OFFICIAL;
+  private final UnaryOperator<String> downloadUrl;
+
+  public HttpTransport() {
+    downloadUrl = url -> DownloadMirrors.resolve(downloadSource, url);
+  }
+
+  HttpTransport(UnaryOperator<String> downloadUrl) {
+    this.downloadUrl = Objects.requireNonNull(downloadUrl);
+  }
+
+  public void setDownloadSource(DownloadSource source) {
+    downloadSource = Objects.requireNonNull(source);
+  }
+
   public static final class HttpStatusException extends IOException {
     private final int statusCode;
 
@@ -32,7 +49,18 @@ public final class HttpTransport {
           .build();
 
   public JsonObject getJson(String url) throws IOException, InterruptedException {
-    return json(HttpRequest.newBuilder(URI.create(url)).GET().build());
+    String mirror = downloadUrl.apply(url);
+    try {
+      return json(HttpRequest.newBuilder(URI.create(mirror)).GET().build());
+    } catch (IOException ex) {
+      if (mirror.equals(url)) throw ex;
+      try {
+        return json(HttpRequest.newBuilder(URI.create(url)).GET().build());
+      } catch (IOException official) {
+        official.addSuppressed(ex);
+        throw official;
+      }
+    }
   }
 
   public JsonObject authorizedGet(String url, String token)
@@ -83,6 +111,21 @@ public final class HttpTransport {
   }
 
   public String getText(String url) throws IOException, InterruptedException {
+    String mirror = downloadUrl.apply(url);
+    try {
+      return getTextDirect(mirror);
+    } catch (IOException ex) {
+      if (mirror.equals(url)) throw ex;
+      try {
+        return getTextDirect(url);
+      } catch (IOException official) {
+        official.addSuppressed(ex);
+        throw official;
+      }
+    }
+  }
+
+  private String getTextDirect(String url) throws IOException, InterruptedException {
     HttpResponse<String> response =
         client.send(
             HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(60)).GET().build(),
@@ -101,14 +144,17 @@ public final class HttpTransport {
         && digest(destination, "SHA-1").equalsIgnoreCase(sha1)) return;
     Files.createDirectories(destination.toAbsolutePath().getParent());
     IOException failure = null;
+    String mirror = downloadUrl.apply(url);
     for (int attempt = 0; attempt < 3; attempt++) {
       task.checkCancelled();
+      String downloadUrl = attempt < 2 ? mirror : url;
+      if (attempt == 2 && !mirror.equals(url)) task.report("镜像下载失败，回退官方源", -1);
       Path partial =
           Files.createTempFile(destination.toAbsolutePath().getParent(), ".download-", ".part");
       try {
         HttpResponse<InputStream> response =
             client.send(
-                HttpRequest.newBuilder(URI.create(url))
+                HttpRequest.newBuilder(URI.create(downloadUrl))
                     .timeout(Duration.ofMinutes(5))
                     .header("User-Agent", "FuzzLauncher/0.2.0")
                     .GET()
@@ -117,7 +163,7 @@ public final class HttpTransport {
         try (InputStream input = response.body()) {
           if (response.statusCode() / 100 != 2)
             throw new IOException(
-                "下载失败 HTTP " + response.statusCode() + ": " + URI.create(url).getHost());
+                "下载失败 HTTP " + response.statusCode() + ": " + URI.create(downloadUrl).getHost());
           try (OutputStream output = Files.newOutputStream(partial)) {
             byte[] buffer = new byte[64 * 1024];
             int count;

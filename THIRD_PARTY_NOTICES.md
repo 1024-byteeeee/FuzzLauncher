@@ -8,6 +8,8 @@ Fuzz's source is independently implemented. HMCL and PCL are design references; 
 - JNA / JNA Platform: LGPL-2.1-or-later or Apache-2.0, https://github.com/java-native-access/jna
 - SLF4J: MIT, https://www.slf4j.org
 
-Dependency JARs retain their original embedded licenses and notices. Maven resolves transitive dependencies; see `mvn dependency:tree` and the JARs in `app/lib`.
-Fabric, Forge, NeoForge and their processor artifacts are downloaded from their official repositories at installation time. Their respective licenses continue to apply.
+Dependency JARs retain their original embedded licenses and notices. Gradle resolves transitive dependencies; see `gradlew dependencies` and the JARs in `app/lib`.
+Fabric, Forge, NeoForge and their processor artifacts are downloaded from official repositories or the selected mirror at installation time. Their respective licenses continue to apply.
+- BMCLAPI public download mirror: https://bmclapi2.bangbang93.com/ — API documentation: https://bmclapidoc.bangbang93.com/
+- Nanjing University public Maven library mirror: https://mirror.nju.edu.cn/bmclapi/
 UI images are extracted from the user-approved AI-generated reference image.

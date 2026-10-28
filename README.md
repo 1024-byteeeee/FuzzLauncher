@@ -10,6 +10,7 @@ Windows x64 / JavaFX，Windows 95 风格 Minecraft Java 启动器。
 - 原版、Fabric、Forge、NeoForge 客户端自动安装；下载校验、取消、重试、安装失败不登记实例。
 - 微软浏览器授权、Xbox / XSTS / Minecraft 权益校验、加密缓存和正版启动入口。没有离线登录或失败回退。
 - 游戏 Java 自动检测及缺失时下载，与启动器内置 Java 分开。
+- 设置可选择官方源、BMCLAPI 或南京大学依赖库镜像；保存后生效并持久化，镜像失败时回退官方源，下载仍验证哈希。认证服务始终使用官方地址。
 - 游戏输出日志和异常退出提示；Windows 目录锁避免重复运行。
 
 ## 运行
@@ -56,6 +57,7 @@ $env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21'
 ## 设计与验收
 
 - [架构、目录与边界](docs/architecture.md)
+- [下载源范围与回退](docs/download-sources.md)
 - [测试与兼容性记录](docs/verification.md)
 - [第三方组件说明](THIRD_PARTY_NOTICES.md)
 
