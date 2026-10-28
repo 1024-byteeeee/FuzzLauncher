@@ -45,7 +45,7 @@ public final class LaunchGame {
     GameSession session =
         account.isOffline() ? GameSession.offline(account) : authentication.refresh(account, task);
     Path root = Path.of(settings.gameRoot()).toAbsolutePath().normalize();
-    JsonObject version = resolver.resolve(root, instance.id());
+    JsonObject version = resolver.resolveInstance(root, instance);
     Path java =
         instance.javaPath().isBlank()
             ? null

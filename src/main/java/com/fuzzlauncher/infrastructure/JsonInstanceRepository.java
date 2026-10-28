@@ -30,6 +30,9 @@ public final class JsonInstanceRepository implements InstanceRepository {
   @Override
   public synchronized void save(GameInstance instance) throws IOException {
     List<GameInstance> items = new ArrayList<>(findAll());
+    for (GameInstance item : items)
+      if (!item.id().equals(instance.id()) && item.name().equalsIgnoreCase(instance.name()))
+        throw new IOException("实例名称已存在，请使用不同名称：" + instance.name());
     int existing = -1;
     for (int i = 0; i < items.size(); i++)
       if (items.get(i).id().equals(instance.id())) {

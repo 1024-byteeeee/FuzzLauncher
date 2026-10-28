@@ -22,7 +22,10 @@ public final class LaunchArguments {
       throws IOException {
     String client = version.get("_clientVersion").getAsString();
     List<Path> classpath = new ArrayList<>(libraries);
-    classpath.add(root.resolve("versions").resolve(client).resolve(client + ".jar"));
+    classpath.add(
+        version.has("_clientJarPath")
+            ? JsonFiles.safeResolve(root, version.get("_clientJarPath").getAsString())
+            : root.resolve("versions").resolve(client).resolve(client + ".jar"));
     Map<String, String> values = new HashMap<>();
     values.put("natives_directory", natives.toAbsolutePath().toString());
     values.put("launcher_name", "FuzzLauncher");
@@ -42,7 +45,7 @@ public final class LaunchArguments {
         session.account().isOffline()
             ? "0"
             : "token:" + session.accessToken() + ":" + session.account().uuid());
-    values.put("version_name", instance.id());
+    values.put("version_name", instance.name());
     values.put("game_directory", gameDir.toAbsolutePath().toString());
     values.put("assets_root", root.resolve("assets").toAbsolutePath().toString());
     values.put(

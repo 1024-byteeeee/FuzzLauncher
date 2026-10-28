@@ -13,6 +13,8 @@ public final class IsolationPolicy {
               global == IsolationMode.ALL
                   || global == IsolationMode.MODDED && instance.loader() != LoaderType.VANILLA;
         };
-    return isolate ? root.resolve("versions").resolve(instance.id()).normalize() : root.normalize();
+    return isolate
+        ? root.resolve("versions").resolve(instance.name()).normalize()
+        : root.normalize();
   }
 }

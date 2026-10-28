@@ -117,8 +117,10 @@ public final class GameFiles {
       JsonObject client = version.getAsJsonObject("downloads").getAsJsonObject("client");
       http.download(
           client.get("url").getAsString(),
-          JsonFiles.safeResolve(
-              root.resolve("versions"), clientVersion + "/" + clientVersion + ".jar"),
+          version.has("_clientJarPath")
+              ? JsonFiles.safeResolve(root, version.get("_clientJarPath").getAsString())
+              : JsonFiles.safeResolve(
+                  root.resolve("versions"), clientVersion + "/" + clientVersion + ".jar"),
           JsonFiles.string(client, "sha1", ""),
           task);
     }

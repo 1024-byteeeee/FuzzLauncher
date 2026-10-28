@@ -128,17 +128,18 @@ public class OfflineLaunchFixture {
             "local-test",
             LoaderType.VANILLA,
             null,
-            IsolationOverride.SHARED,
+            IsolationOverride.ISOLATED,
             5000,
             Path.of(System.getProperty("java.home"), "bin/java.exe").toString());
     Account account = Account.offline("Steve");
     var running =
         launch.execute(
-            new LauncherSettings(root.toString(), IsolationMode.SHARED), instance, account, task);
+            new LauncherSettings(root.toString(), IsolationMode.ALL), instance, account, task);
     try {
       assertTrue(running.process().waitFor(15, TimeUnit.SECONDS));
       assertEquals(0, running.process().exitValue());
-      String received = Files.readString(root.resolve("received.txt"));
+      String received = Files.readString(root.resolve("versions/Local fixture/received.txt"));
+      assertFalse(Files.exists(root.resolve("versions/local-test")));
       assertTrue(received.contains("--username\nSteve"));
       assertTrue(received.contains("--uuid\n" + account.uuid()));
       assertTrue(received.contains("--accessToken\n0"));

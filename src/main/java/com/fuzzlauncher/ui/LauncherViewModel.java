@@ -61,6 +61,13 @@ public final class LauncherViewModel implements AutoCloseable {
     this.launch = launch;
     settings.set(settingsStore.load());
     instances.setAll(repository.findAll());
+    for (GameInstance instance : instances) {
+      try {
+        InstanceDirectories.migrate(Path.of(settings.get().gameRoot()), instance);
+      } catch (IOException ex) {
+        status.set("实例目录迁移未完成：" + ex.getMessage());
+      }
+    }
     if (!instances.isEmpty()) selected.set(instances.getFirst());
     account.set(authentication.savedAccount().orElse(null));
   }
@@ -228,7 +235,13 @@ public final class LauncherViewModel implements AutoCloseable {
           if (!instance.javaPath().isBlank())
             com.fuzzlauncher.infrastructure.game.JavaRuntimeManager.configuredExecutable(
                 instance.javaPath());
-          repository.save(instance);
+          GameInstance previous =
+              repository.findAll().stream()
+                  .filter(item -> item.id().equals(instance.id()))
+                  .findFirst()
+                  .orElseThrow(() -> new IOException("实例已不存在"));
+          InstanceDirectories.save(
+              Path.of(settings.get().gameRoot()), previous, instance, repository);
           return instance;
         },
         saved -> {

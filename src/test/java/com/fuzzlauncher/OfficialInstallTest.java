@@ -66,7 +66,7 @@ class OfficialInstallTest {
       GameInstance instance =
           install.execute(
               directory.resolve(".minecraft"), game, type, loaderVersion, "测试 " + type, context);
-      var profile = resolver.resolve(directory.resolve(".minecraft"), instance.id());
+      var profile = resolver.resolveInstance(directory.resolve(".minecraft"), instance);
       assertNotNull(profile.get("mainClass"));
       assertEquals("1.20.4", profile.get("_clientVersion").getAsString());
       assertTrue(Files.isRegularFile(directory.resolve(".minecraft/versions/1.20.4/1.20.4.jar")));

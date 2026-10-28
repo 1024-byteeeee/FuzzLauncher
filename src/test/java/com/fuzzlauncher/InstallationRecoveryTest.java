@@ -143,4 +143,40 @@ class InstallationRecoveryTest {
       assertTrue(paths.anyMatch(p -> p.getFileName().toString().equals("incomplete-profile")));
     }
   }
+
+  @Test
+  void installationsUseDisplayNameFoldersIncludingTheSharedBaseVersionName() throws Exception {
+    String client = endpoint("/named-client", "client fixture");
+    JsonObject base =
+        JsonParser.parseString("{\"id\":\"base\",\"mainClass\":\"FixtureMain\",\"libraries\":[]}")
+            .getAsJsonObject();
+    JsonObject download = new JsonObject(), downloads = new JsonObject();
+    download.addProperty("url", client);
+    downloads.add("client", download);
+    base.add("downloads", downloads);
+    String metadata = endpoint("/named-metadata", base.toString());
+    var repo = new JsonInstanceRepository(temp.resolve("named-state"));
+    Path root = temp.resolve("named-game");
+    var installer =
+        new InstallGame(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
+    var game = new GameVersion("base", "release", metadata, "");
+    GameInstance first = installer.execute(root, game, LoaderType.VANILLA, null, "base", task);
+    GameInstance second = installer.execute(root, game, LoaderType.VANILLA, null, "另一个实例", task);
+    assertTrue(Files.isRegularFile(root.resolve("versions/base/base.json")));
+    assertTrue(Files.isRegularFile(root.resolve("versions/base/base.jar")));
+    for (GameInstance item : List.of(first, second)) {
+      assertTrue(Files.isRegularFile(InstanceDirectories.profile(root, item)));
+      assertFalse(Files.exists(root.resolve("versions").resolve(item.id())));
+      assertEquals(
+          root.resolve("versions").resolve(item.name()),
+          new IsolationPolicy().gameDirectory(root, item, IsolationMode.ALL));
+      assertEquals(
+          "base",
+          new VersionResolver().resolveInstance(root, item).get("_clientVersion").getAsString());
+    }
+    assertThrows(
+        IOException.class,
+        () -> installer.execute(root, game, LoaderType.VANILLA, null, "BASE", task));
+    assertEquals(2, repo.findAll().size());
+  }
 }

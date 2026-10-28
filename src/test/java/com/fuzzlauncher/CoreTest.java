@@ -48,7 +48,7 @@ class CoreTest {
                       && (global == IsolationMode.ALL
                           || global == IsolationMode.MODDED && loader != LoaderType.VANILLA);
           assertEquals(
-              expected ? temp.resolve("versions/test-instance") : temp,
+              expected ? temp.resolve("versions/测试") : temp,
               policy.gameDirectory(temp, instance(loader, override), global));
         }
   }

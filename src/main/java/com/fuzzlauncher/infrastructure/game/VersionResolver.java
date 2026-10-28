@@ -1,5 +1,7 @@
 package com.fuzzlauncher.infrastructure.game;
 
+import com.fuzzlauncher.domain.GameInstance;
+import com.fuzzlauncher.infrastructure.InstanceDirectories;
 import com.fuzzlauncher.infrastructure.JsonFiles;
 import com.google.gson.*;
 import java.io.IOException;
@@ -11,10 +13,33 @@ public final class VersionResolver {
     return resolve(root, id, new HashSet<>());
   }
 
+  public JsonObject resolveInstance(Path root, GameInstance instance) throws IOException {
+    InstanceDirectories.migrate(root, instance);
+    Path profile = InstanceDirectories.profile(root, instance);
+    if (!Files.isRegularFile(profile)) return resolve(root, instance.id());
+    JsonObject child = JsonFiles.read(profile);
+    if (!instance.id().equals(JsonFiles.string(child, "id", "")))
+      throw new IOException("实例目录属于其他实例，不能启动：" + instance.name());
+    JsonObject resolved = resolveChild(root, child, instance.id(), new HashSet<>());
+    if (!child.has("inheritsFrom")) {
+      String client = resolved.get("_clientVersion").getAsString();
+      Path jar = JsonFiles.safeResolve(profile.getParent(), client + ".jar");
+      if (!child.has("jar") || Files.isRegularFile(jar))
+        resolved.addProperty(
+            "_clientJarPath", root.toAbsolutePath().normalize().relativize(jar).toString());
+    }
+    return resolved;
+  }
+
   private JsonObject resolve(Path root, String id, Set<String> visited) throws IOException {
     if (!visited.add(id)) throw new IOException("版本继承出现循环: " + id);
     Path path = JsonFiles.safeResolve(root.resolve("versions"), id + "/" + id + ".json");
     JsonObject child = JsonFiles.read(path);
+    return resolveChild(root, child, id, visited);
+  }
+
+  private JsonObject resolveChild(Path root, JsonObject child, String id, Set<String> visited)
+      throws IOException {
     if (!child.has("inheritsFrom")) {
       child.addProperty("_clientVersion", JsonFiles.string(child, "jar", id));
       return child;

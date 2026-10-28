@@ -39,6 +39,7 @@ public final class InstallGame {
     GameInstance instance =
         new GameInstance(
             id, name.strip(), game.id(), loader, loaderVersion, IsolationOverride.INHERIT, 4096);
+    InstanceDirectories.checkAvailable(root, instance, instances.findAll());
     Files.createDirectories(root);
     Path staging = Files.createTempDirectory(root.resolve(createStagingRoot(root)), "install-");
     files.installVanilla(root, game, task);
@@ -55,13 +56,19 @@ public final class InstallGame {
     if (!profile.has("inheritsFrom")) profile.addProperty("inheritsFrom", game.id());
     Path stagedVersion = staging.resolve("profile");
     Files.createDirectories(stagedVersion);
-    JsonFiles.write(stagedVersion.resolve(id + ".json"), profile);
+    JsonFiles.write(stagedVersion.resolve(InstanceDirectories.PROFILE), profile);
     // Resolve and verify the complete manifest before publishing the instance.
-    Path pending = root.resolve("versions").resolve(id);
-    Files.move(stagedVersion, pending);
+    Path pending = InstanceDirectories.directory(root, instance);
+    InstanceDirectories.checkAvailable(root, instance, instances.findAll());
+    boolean createdDirectory = !Files.exists(pending);
+    if (createdDirectory) Files.move(stagedVersion, pending);
+    else
+      Files.move(
+          stagedVersion.resolve(InstanceDirectories.PROFILE),
+          pending.resolve(InstanceDirectories.PROFILE));
     boolean committed = false;
     try {
-      files.prepare(root, resolver.resolve(root, id), task);
+      files.prepare(root, resolver.resolveInstance(root, instance), task);
       task.checkCancelled();
       instances.save(instance);
       committed = true;
@@ -70,8 +77,13 @@ public final class InstallGame {
     } finally {
       if (!committed) {
         // Preserve diagnostic files and keep incomplete versions outside the visible repository.
-        Files.move(
-            pending, staging.resolve("incomplete-profile"), StandardCopyOption.REPLACE_EXISTING);
+        if (createdDirectory) Files.move(pending, staging.resolve("incomplete-profile"));
+        else {
+          Path incomplete = Files.createDirectory(staging.resolve("incomplete-profile"));
+          Files.move(
+              pending.resolve(InstanceDirectories.PROFILE),
+              incomplete.resolve(InstanceDirectories.PROFILE));
+        }
       }
     }
   }

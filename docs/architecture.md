@@ -16,8 +16,9 @@ Java 源码使用 google-java-format 1.24.0 格式，2 空格缩进。
 默认启动器数据在 `%LOCALAPPDATA%/FuzzLauncher`，可在首次安装前修改游戏根目录。
 
 游戏根目录包含共享 `assets`、`libraries` 和 `versions`。
-每个实例有独立 UUID 标识，描述文件为 `versions/fuzz-UUID/fuzz-UUID.json`，继承官方基础版本。
-隔离时 `--gameDir` 和 `ProcessBuilder.directory` 使用同一个解析结果：`versions/fuzz-UUID`；不隔离时都使用游戏根目录。
+每个实例在登记文件中仍有稳定的内部 ID，文件夹按显示名称命名为 `versions/<实例名>/`，实例描述为该文件夹内的 `.fuzz-instance.json`，继承官方基础版本。基础版本的 JSON/JAR 继续共享，允许实例名与基础版本号相同。
+隔离时 `--gameDir` 和 `ProcessBuilder.directory` 使用同一个解析结果：`versions/<实例名>/`；不隔离时都使用游戏根目录。
+`InstanceDirectories` 负责旧 UUID 目录迁移和重命名，连同存档、模组和设置一起移动；共享基础 JSON/JAR 留在原处。移动不覆盖同名数据，登记保存失败时回滚目录移动。名称拒绝 Windows 禁用字符和保留名，登记层防止不区分大小写的重名。未登记的旧目录不自动推测归属。
 全局支持全部隔离、仅模组隔离、共享；实例支持继承、强制隔离、强制共享。
 切换模式不会迁移文件，界面会要求确认。移除实例仅取消登记，不删除存档。
 

@@ -191,13 +191,19 @@ public final class InstancesPage extends RetroPage {
     Button folder =
         button(
             "打开游戏目录",
-            () ->
+            () -> {
+              try {
+                Path root = Path.of(vm.settingsProperty().get().gameRoot());
+                com.fuzzlauncher.infrastructure.InstanceDirectories.migrate(root, instance);
+                com.fuzzlauncher.infrastructure.InstanceDirectories.checkAvailable(
+                    root, instance, vm.instances());
                 openFolder(
                     new IsolationPolicy()
-                        .gameDirectory(
-                            Path.of(vm.settingsProperty().get().gameRoot()),
-                            instance,
-                            vm.settingsProperty().get().isolation())));
+                        .gameDirectory(root, instance, vm.settingsProperty().get().isolation()));
+              } catch (java.io.IOException ex) {
+                message(Alert.AlertType.ERROR, "无法打开实例目录", ex.getMessage());
+              }
+            });
     HBox actions = new HBox(8, save, folder);
     VBox panel = new VBox(12, label("实例详情", "section-title"), preview, form, directory, actions);
     panel.setMinWidth(0);

@@ -12,11 +12,19 @@ public record GameInstance(
     int memoryMb,
     String javaPath) {
   public GameInstance {
+    name = name == null ? null : name.strip();
     javaPath = javaPath == null ? "" : javaPath.strip();
     if (id == null || !id.matches("[a-zA-Z0-9._-]+") || id.equals(".") || id.equals(".."))
       throw new IllegalArgumentException("非法实例 ID");
     if (name == null || name.isBlank() || name.length() > 80)
       throw new IllegalArgumentException("实例名称应为 1–80 个字符");
+    if (name.equals(".")
+        || name.equals("..")
+        || name.endsWith(".")
+        || name.codePoints().anyMatch(Character::isISOControl)
+        || name.matches(".*[<>:\"/\\\\|?*\\p{Cntrl}].*")
+        || name.matches("(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\\..*)?"))
+      throw new IllegalArgumentException("实例名称不能包含 Windows 文件名禁用字符或保留名称");
     Objects.requireNonNull(gameVersion);
     if (gameVersion.isBlank()) throw new IllegalArgumentException("游戏版本不能为空");
     Objects.requireNonNull(loader);
