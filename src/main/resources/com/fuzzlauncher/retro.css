@@ -37,7 +37,9 @@
 .list-view .list-cell:filled:selected { -fx-background-color: #000080; -fx-text-fill: white; }
 .list-cell:empty { -fx-background-color: white; }
 .combo-box .list-cell { -fx-padding: 4 8; -fx-font-size: 18px; }
-.combo-box .arrow-button, .spinner .increment-arrow-button, .spinner .decrement-arrow-button { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-border-color: white #202020 #202020 white; -fx-border-width: 1; }
+.combo-box { -fx-padding: 0; -fx-background-insets: 0; }
+.combo-box > .arrow-button { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-padding: 0 8; -fx-min-width: 32; -fx-pref-width: 32; -fx-max-width: 32; -fx-background-insets: 0; -fx-border-insets: 0, 1; -fx-border-width: 1, 1; -fx-border-color: white #202020 #202020 white, #dfdfdf #808080 #808080 #dfdfdf; }
+.spinner .increment-arrow-button, .spinner .decrement-arrow-button { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-border-color: white #202020 #202020 white; -fx-border-width: 1; }
 .spinner .text-field { -fx-border-width: 0; -fx-background-insets: 0; }
 .progress-bar { -fx-background-radius: 0; -fx-background-color: #808080; -fx-padding: 2; }
 .progress-bar .track { -fx-background-color: #c0c0c0; -fx-background-radius: 0; }
