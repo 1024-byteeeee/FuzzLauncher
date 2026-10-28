@@ -1,0 +1,98 @@
+plugins {
+    id('java')
+    id('application')
+}
+
+group = project.maven_group
+version = project.launcher_version
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
+
+dependencies {
+    // This launcher targets Windows x64, including its JavaFX native libraries.
+    for (def module : ['base', 'graphics', 'controls', 'swing']) {
+        implementation("org.openjfx:javafx-${module}:${javafx_version}:win") {
+            transitive = false
+        }
+    }
+    implementation("com.google.code.gson:gson:${gson_version}")
+    implementation("com.microsoft.azure:msal4j:${msal_version}")
+    implementation("net.java.dev.jna:jna-platform:${jna_version}")
+    runtimeOnly("org.slf4j:slf4j-nop:${slf4j_version}")
+    testImplementation(platform("org.junit:junit-bom:${junit_version}"))
+    testImplementation('org.junit.jupiter:junit-jupiter')
+    testRuntimeOnly('org.junit.platform:junit-platform-launcher')
+}
+
+application {
+    mainClass = 'com.fuzzlauncher.Launcher'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+def fuzzProperties = providers.systemPropertiesPrefixedBy('fuzz.')
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    systemProperties(fuzzProperties.get())
+    // Re-run explicitly requested network/UI verification even if sources did not change.
+    if (fuzzProperties.get().values().any { it == 'true' }) {
+        outputs.upToDateWhen { false }
+    }
+    testLogging {
+        events('failed', 'skipped')
+        exceptionFormat = 'full'
+    }
+}
+
+tasks.named('run', JavaExec) {
+    systemProperties(fuzzProperties.get())
+}
+
+def javafxLibraries = configurations.runtimeClasspath.filter { it.name.startsWith('javafx-') }
+def runtimeLibraries = configurations.runtimeClasspath.filter { !it.name.startsWith('javafx-') }
+
+tasks.named('jar', Jar) {
+    inputs.files(runtimeLibraries)
+    manifest {
+        attributes('Main-Class': application.mainClass.get())
+    }
+    doFirst {
+        manifest.attributes('Class-Path': runtimeLibraries.collect { "lib/${it.name}" }.join(' '))
+    }
+}
+
+tasks.register('preparePackage', Sync) {
+    description = 'Stages the launcher and runtime dependencies for Windows jpackage.'
+    group = 'distribution'
+    dependsOn(tasks.named('jar'))
+    into(layout.buildDirectory.dir('package-input'))
+    from(tasks.named('jar'))
+    into('lib') {
+        from(runtimeLibraries)
+    }
+}
+
+tasks.register('prepareJavafx', Sync) {
+    description = 'Stages JavaFX modules and native DLLs for jlink.'
+    group = 'distribution'
+    into(layout.buildDirectory.dir('javafx'))
+    into('lib') {
+        from(javafxLibraries)
+    }
+    into('bin') {
+        from({ javafxLibraries.collect { zipTree(it) } })
+        include('**/*.dll')
+        eachFile { path = "bin/${name}" }
+        includeEmptyDirs = false
+    }
+}

@@ -1,0 +1,17 @@
+/build/
+/dist/
+/target/
+/tools/
+/.gradle/
+/.idea/
+/.vscode/
+/out/
+/ui-preview.png
+*.iml
+*.log
+.env
+.env.*
+!.env.example
+credentials.dpapi
+account.json
+launcher.lock

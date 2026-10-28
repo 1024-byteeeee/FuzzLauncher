@@ -1,0 +1,50 @@
+package com.fuzzlauncher.infrastructure;
+
+import com.fuzzlauncher.application.InstanceRepository;
+import com.fuzzlauncher.domain.GameInstance;
+import java.io.IOException;
+import java.nio.file.*;
+import java.util.*;
+
+/** Serializes read-modify-write operations and publishes configuration atomically. */
+public final class JsonInstanceRepository implements InstanceRepository {
+  private final Path file;
+
+  public JsonInstanceRepository(Path directory) {
+    file = directory.resolve("instances.json");
+  }
+
+  @Override
+  public synchronized List<GameInstance> findAll() throws IOException {
+    if (!Files.exists(file)) return List.of();
+    try {
+      GameInstance[] instances =
+          JsonFiles.GSON.fromJson(JsonFiles.read(file).get("instances"), GameInstance[].class);
+      if (instances == null) throw new IOException("实例清单不完整");
+      return List.of(instances);
+    } catch (com.google.gson.JsonParseException ex) {
+      throw new IOException("实例配置损坏，请恢复备份", ex);
+    }
+  }
+
+  @Override
+  public synchronized void save(GameInstance instance) throws IOException {
+    List<GameInstance> items = new ArrayList<>(findAll());
+    int existing = -1;
+    for (int i = 0; i < items.size(); i++)
+      if (items.get(i).id().equals(instance.id())) {
+        existing = i;
+        break;
+      }
+    if (existing >= 0) items.set(existing, instance);
+    else items.add(instance);
+    JsonFiles.write(file, Map.of("instances", items));
+  }
+
+  @Override
+  public synchronized void remove(String id) throws IOException {
+    List<GameInstance> items = new ArrayList<>(findAll());
+    items.removeIf(item -> item.id().equals(id));
+    JsonFiles.write(file, Map.of("instances", items));
+  }
+}

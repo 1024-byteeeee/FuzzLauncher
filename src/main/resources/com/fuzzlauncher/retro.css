@@ -1,0 +1,49 @@
+.root { -fx-font-family: "Microsoft YaHei"; -fx-font-size: 19px; -fx-base: #c0c0c0; -fx-background-color: #c0c0c0; -fx-text-fill: black; }
+.window { -fx-padding: 4; -fx-border-color: white #202020 #202020 white; -fx-border-width: 2; -fx-background-color: #c0c0c0; }
+.title-bar { -fx-background-color: #000080; -fx-padding: 3 4 3 8; -fx-spacing: 8; }
+.title { -fx-font-family: "Consolas"; -fx-font-size: 25px; -fx-font-weight: bold; -fx-text-fill: white; }
+.button { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-border-radius: 0; -fx-border-color: white #202020 #202020 white, #dfdfdf #808080 #808080 #dfdfdf; -fx-border-width: 2, 1; -fx-border-insets: 0, 2; -fx-padding: 5 12; -fx-text-fill: black; -fx-effect: null; }
+.button:pressed { -fx-border-color: #202020 white white #202020; -fx-translate-y: 1; }
+.window-control { -fx-min-width: 31; -fx-pref-width: 31; -fx-min-height: 29; -fx-pref-height: 29; -fx-font-family: "Consolas"; -fx-font-size: 25; -fx-font-weight: bold; -fx-padding: -2 0 0 0; }
+.menu-bar { -fx-padding: 4 5 10 5; -fx-background-color: #c0c0c0; -fx-border-color: transparent transparent white transparent; -fx-border-width: 0 0 2 0; }
+.menu-button { -fx-border-width: 0; -fx-background-color: transparent; -fx-padding: 3 10; -fx-font-size: 22; }
+.content { -fx-padding: 15 5 15 5; }
+.navigation { -fx-padding: 4 10 0 0; -fx-border-color: transparent white transparent transparent; -fx-border-width: 0 2 0 0; }
+.nav-button { -fx-pref-height: 78; -fx-font-size: 23; -fx-padding: 8 12; }
+.selected-nav { -fx-background-color: #b7b8d7; -fx-border-color: #202020 white white #202020, white; -fx-border-insets: 0, 5; -fx-border-width: 2, 1; -fx-border-style: solid, dotted; }
+.instances { -fx-padding: 0 14 0 0; -fx-border-color: transparent white transparent transparent; -fx-border-width: 0 2 0 0; }
+.section-title { -fx-font-size: 23; -fx-font-weight: bold; }
+.tool-button { -fx-pref-width: 34; -fx-min-width: 32; -fx-pref-height: 36; -fx-font-size: 25; -fx-font-weight: bold; -fx-padding: 0; }
+.delete-button { -fx-text-fill: #ba0000; }
+.instance-list { -fx-background-color: white; -fx-padding: 4; -fx-border-color: #808080 white white #808080, #202020 #dfdfdf #dfdfdf #202020; -fx-border-insets: 0, 2; -fx-border-width: 2, 1; }
+.instance-row { -fx-padding: 6 8; -fx-min-height: 52; }
+.instance-name { -fx-font-size: 24; }
+.selected-row { -fx-background-color: #000080; }
+.selected-row .label { -fx-text-fill: white; }
+.details-column { -fx-padding: 0 2 0 0; }
+.details-box { -fx-padding: 10 14 20 14; -fx-border-color: #808080 white white #808080, white #808080 #808080 white; -fx-border-width: 1, 1; -fx-border-insets: 0, 1; }
+.preview { -fx-background-color: #808080; -fx-padding: 3; -fx-border-color: #808080 white white #808080; -fx-border-width: 2; }
+.field-label { -fx-font-size: 22; }
+.text-field, .select-field { -fx-background-color: white; -fx-background-radius: 0; -fx-border-color: #808080 white white #808080, #202020 #dfdfdf #dfdfdf #202020; -fx-border-width: 2, 1; -fx-border-insets: 0, 2; -fx-padding: 3 6; -fx-font-size: 21; -fx-pref-height: 39; }
+.select-field { -fx-padding: 2 2 2 6; -fx-alignment: center-left; }
+.field-value { -fx-font-family: "Consolas", "Microsoft YaHei"; -fx-font-size: 22; }
+.select-arrow { -fx-font-size: 17; -fx-padding: 0 5; -fx-min-height: 29; -fx-min-width: 29; }
+.launch-button { -fx-font-size: 28; -fx-pref-height: 76; -fx-font-weight: bold; }
+.status-bar { -fx-padding: 3; -fx-border-color: white #808080 #808080 white; -fx-border-width: 2; }
+.status-cell { -fx-padding: 3 12; -fx-font-size: 19; -fx-border-color: #808080 white white #808080; -fx-border-width: 1; }
+/* Runtime controls use the same Win95 bevels as the reference. */
+.list-view, .combo-box, .spinner, .text-area { -fx-background-color: white; -fx-background-radius: 0; -fx-border-radius: 0; -fx-border-color: #808080 white white #808080; -fx-border-width: 2; }
+.list-view { -fx-padding: 3; }
+.list-cell { -fx-background-color: white; -fx-text-fill: black; -fx-padding: 10 8; -fx-font-size: 21px; -fx-graphic-text-gap: 12px; }
+.list-view .list-cell:filled:selected { -fx-background-color: #000080; -fx-text-fill: white; }
+.list-cell:empty { -fx-background-color: white; }
+.combo-box .list-cell { -fx-padding: 4 8; -fx-font-size: 18px; }
+.combo-box .arrow-button, .spinner .increment-arrow-button, .spinner .decrement-arrow-button { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-border-color: white #202020 #202020 white; -fx-border-width: 1; }
+.spinner .text-field { -fx-border-width: 0; -fx-background-insets: 0; }
+.progress-bar { -fx-background-radius: 0; -fx-background-color: #808080; -fx-padding: 2; }
+.progress-bar .track { -fx-background-color: #c0c0c0; -fx-background-radius: 0; }
+.progress-bar .bar { -fx-background-color: #000080; -fx-background-radius: 0; -fx-background-insets: 1; }
+.button:disabled { -fx-opacity: 0.55; }
+.context-menu { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-border-color: white #202020 #202020 white; -fx-border-width: 2; }
+.menu-item:focused { -fx-background-color: #000080; }
+.menu-item:focused .label { -fx-text-fill: white; }
