@@ -71,6 +71,9 @@ public final class DownloadsPage extends RetroPage {
         .disableProperty()
         .bind(vm.busyProperty().or(loader.valueProperty().isEqualTo(LoaderType.VANILLA)));
     Button refresh = button("刷新版本", vm::loadVersions);
+    refresh.minHeightProperty().bind(type.heightProperty());
+    refresh.prefHeightProperty().bind(type.heightProperty());
+    refresh.maxHeightProperty().bind(type.heightProperty());
     refresh.disableProperty().bind(vm.busyProperty());
     Button refreshLoader =
         button(
@@ -96,7 +99,10 @@ public final class DownloadsPage extends RetroPage {
     loader.disableProperty().bind(vm.busyProperty());
     type.disableProperty().bind(vm.busyProperty());
     search.disableProperty().bind(vm.busyProperty());
-    VBox list = new VBox(10, new HBox(8, type, refresh), search, games);
+    HBox filters = new HBox(8, type, refresh);
+    filters.setAlignment(Pos.CENTER_LEFT);
+    filters.setFillHeight(false);
+    VBox list = new VBox(10, filters, search, games);
     list.setPrefWidth(360);
     VBox.setVgrow(games, Priority.ALWAYS);
     Label note = new Label("资源和依赖来自官方服务。\n安装完成后实例会出现在“游戏实例”页。\n游戏 Java 会在需要时自动检测或下载。");
