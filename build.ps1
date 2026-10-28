@@ -30,7 +30,7 @@ if ($Package) {
     & "$JdkPath\bin\jlink.exe" --module-path "$JdkPath\jmods;$sdk" --add-modules java.se,javafx.controls,javafx.swing,jdk.httpserver,jdk.crypto.ec,jdk.unsupported --strip-debug --no-header-files --no-man-pages --output $runtime
     if ($LASTEXITCODE -ne 0) { throw 'Runtime creation failed.' }
     Copy-Item -Path build\javafx\bin\*.dll -Destination "$runtime\bin" -Force
-    & "$JdkPath\bin\jpackage.exe" --type app-image --name FuzzLauncher --dest $destination --input $inputDir --main-jar "fuzz-launcher-$version.jar" --main-class com.fuzzlauncher.Launcher --runtime-image $runtime --app-version $version --vendor Fuzz --java-options '--add-modules=javafx.controls,javafx.swing,jdk.httpserver'
+    & "$JdkPath\bin\jpackage.exe" --type app-image --name FuzzLauncher --dest $destination --input $inputDir --main-jar "fuzz-launcher-$version.jar" --main-class com.fuzzlauncher.Launcher --runtime-image $runtime --app-version $version --vendor Fuzz --icon 'src/main/resources/com/fuzzlauncher/launcher.ico' --java-options '--add-modules=javafx.controls,javafx.swing,jdk.httpserver'
     if ($LASTEXITCODE -ne 0) { throw 'Packaging failed.' }
     Copy-Item -LiteralPath README.md,THIRD_PARTY_NOTICES.md -Destination "$destination\FuzzLauncher"
     Copy-Item -LiteralPath docs -Destination "$destination\FuzzLauncher" -Recurse

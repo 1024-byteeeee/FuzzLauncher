@@ -18,6 +18,7 @@ public final class FuzzApplication extends Application {
   private LauncherViewModel viewModel;
   private java.nio.channels.FileChannel instanceChannel;
   private java.nio.channels.FileLock instanceLock;
+  private List<String> restartCommand;
 
   @Override
   public void start(Stage stage) {
@@ -62,6 +63,16 @@ public final class FuzzApplication extends Application {
               data.resolve("logs"));
       viewModel =
           new LauncherViewModel(settings, instances, catalog, authentication, install, launch);
+      viewModel.onRestartRequired(
+          () -> {
+            try {
+              restartCommand = LauncherRestart.command();
+              Platform.exit();
+            } catch (java.io.IOException ex) {
+              new Alert(Alert.AlertType.ERROR, "自动重启失败，请手动重新打开启动器：" + ex.getMessage())
+                  .showAndWait();
+            }
+          });
       viewModel
           .settingsProperty()
           .addListener(
@@ -72,6 +83,9 @@ public final class FuzzApplication extends Application {
       scene.getStylesheets().add(getClass().getResource("retro.css").toExternalForm());
       stage.setScene(scene);
       stage.setTitle("Fuzz Launcher");
+      stage
+          .getIcons()
+          .add(new javafx.scene.image.Image(getClass().getResourceAsStream("launcher.png")));
       stage.setMinWidth(1100);
       stage.setMinHeight(780);
       stage.show();
@@ -103,6 +117,15 @@ public final class FuzzApplication extends Application {
       if (instanceChannel != null) instanceChannel.close();
     } catch (java.io.IOException ex) {
       System.err.println("无法关闭启动器目录锁: " + ex.getMessage());
+    }
+    if (restartCommand != null) {
+      List<String> command = restartCommand;
+      restartCommand = null;
+      try {
+        LauncherRestart.launch(command);
+      } catch (java.io.IOException ex) {
+        new Alert(Alert.AlertType.ERROR, "自动重启失败，请手动重新打开启动器：" + ex.getMessage()).showAndWait();
+      }
     }
   }
 }

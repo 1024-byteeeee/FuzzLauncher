@@ -47,6 +47,11 @@ public final class LauncherViewModel implements AutoCloseable {
   private final StringProperty status = new SimpleStringProperty("就绪");
   private final StringProperty error = new SimpleStringProperty("");
   private final BooleanProperty gameRunning = new SimpleBooleanProperty();
+  private Runnable restart = () -> {};
+
+  public void onRestartRequired(Runnable action) {
+    restart = Objects.requireNonNull(action);
+  }
 
   public LauncherViewModel(
       SettingsStore settingsStore,
@@ -339,14 +344,14 @@ public final class LauncherViewModel implements AutoCloseable {
             versions.clear();
             loaderVersions.clear();
           }
-          status.set(
-              saved.dataDirectory().isBlank()
-                      || Path.of(saved.dataDirectory())
-                          .toAbsolutePath()
-                          .normalize()
-                          .equals(dataDirectory())
-                  ? "设置已保存"
-                  : "设置已保存，启动器数据目录将在重启后切换");
+          boolean changed =
+              !saved.dataDirectory().isBlank()
+                  && !Path.of(saved.dataDirectory())
+                      .toAbsolutePath()
+                      .normalize()
+                      .equals(dataDirectory());
+          status.set(changed ? "设置已保存，正在重启启动器…" : "设置已保存");
+          if (changed) restart.run();
         });
   }
 

@@ -29,8 +29,6 @@ public final class DataLocations {
   }
 
   public static Path resolve() throws IOException {
-    String override = System.getProperty("fuzz.dataDir");
-    if (override != null) return Path.of(override).toAbsolutePath().normalize();
     return resolve(bootstrapDirectory());
   }
 

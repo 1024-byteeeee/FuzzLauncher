@@ -56,7 +56,7 @@ public final class SettingsPage extends RetroPage {
             "已有实例时游戏根目录固定；切换隔离模式不会自动移动已有数据。\n"
                 + "自动模式按系统地区选择；镜像模式使用 BMCLAPI 和腾讯 Maven 镜像。\n"
                 + "下载失败时尝试备用源；微软登录始终连接官方服务。\n"
-                + "数据目录修改后重启生效，迁移配置、账号和日志；游戏目录保持原位置。目标目录需为空。");
+                + "保存数据目录后自动重启，迁移配置、账号和日志；游戏目录保持原位置。目标目录需为空。");
     hint.setWrapText(true);
     hint.setStyle("-fx-font-size: 15px;");
     Button save =
