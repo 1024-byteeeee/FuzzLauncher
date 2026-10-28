@@ -42,7 +42,6 @@ public final class AccountsPage extends RetroPage {
     logout
         .disableProperty()
         .bind(vm.busyProperty().or(vm.gameRunningProperty()).or(vm.accountProperty().isNull()));
-    Button configure = button("配置 Microsoft Client ID", () -> showPage(3));
     VBox content =
         new VBox(
             25,
@@ -50,8 +49,7 @@ public final class AccountsPage extends RetroPage {
             icon("player", 64),
             account,
             instructions,
-            new HBox(15, login, logout),
-            configure);
+            new HBox(15, login, logout));
     content.setPadding(new Insets(30));
     return content;
   }

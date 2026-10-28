@@ -158,10 +158,9 @@ public final class LauncherViewModel implements AutoCloseable {
   }
 
   public void login() {
-    String client = settings.get().microsoftClientId();
     submit(
         "微软登录",
-        context -> authentication.login(client, context),
+        authentication::login,
         session -> {
           account.set(session.account());
           status.set("已登录正版账号: " + session.account().name());
@@ -169,7 +168,6 @@ public final class LauncherViewModel implements AutoCloseable {
   }
 
   public void logout() {
-    String client = settings.get().microsoftClientId();
     submit(
         "退出登录",
         context -> {

@@ -25,12 +25,11 @@ class AuthenticationGateTest {
             return Optional.empty();
           }
 
-          public GameSession login(String clientId, TaskContext task) throws IOException {
+          public GameSession login(TaskContext task) throws IOException {
             throw new IOException("Rejected");
           }
 
-          public GameSession refresh(String clientId, Account account, TaskContext task)
-              throws IOException {
+          public GameSession refresh(Account account, TaskContext task) throws IOException {
             refreshes.incrementAndGet();
             throw new IOException("No valid entitlement");
           }
@@ -59,7 +58,7 @@ class AuthenticationGateTest {
         new GameInstance(
             "test", "test", "1.20.4", LoaderType.VANILLA, null, IsolationOverride.ISOLATED, 4096);
     LauncherSettings settings =
-        new LauncherSettings(temp.resolve("game").toString(), IsolationMode.ALL, "");
+        new LauncherSettings(temp.resolve("game").toString(), IsolationMode.ALL);
     assertThrows(IOException.class, () -> launch.execute(settings, instance, null, task));
     assertEquals(0, refreshes.get());
     assertThrows(

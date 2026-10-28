@@ -16,6 +16,7 @@ import java.util.concurrent.*;
 public final class MicrosoftAuthentication
     implements com.fuzzlauncher.application.AccountAuthenticator {
   private static final Set<String> SCOPES = Set.of("XboxLive.signin");
+  private static final String CLIENT_ID = "76c4eab4-d8c4-49df-9fa1-c996e33748a8";
   private final HttpTransport http;
   private final Path identityFile;
   private final WindowsSecretStore secrets;
@@ -32,13 +33,7 @@ public final class MicrosoftAuthentication
         JsonFiles.GSON.fromJson(JsonFiles.read(identityFile).get("account"), Account.class));
   }
 
-  private PublicClientApplication application(String configuredClientId) throws Exception {
-    String clientId = configuredClientId == null ? "" : configuredClientId.strip();
-    if (clientId.isEmpty()) clientId = Objects.toString(System.getenv("FUZZ_MSA_CLIENT_ID"), "");
-    if (!clientId.matches(
-        "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"))
-      throw new IOException(
-          "请在设置中填写 Fuzz 的 Microsoft Client ID，并完成 Minecraft 应用准入。无需填写 Client Secret。");
+  private PublicClientApplication application() throws Exception {
     ITokenCacheAccessAspect cache =
         new ITokenCacheAccessAspect() {
           @Override
@@ -61,15 +56,16 @@ public final class MicrosoftAuthentication
               }
           }
         };
-    return PublicClientApplication.builder(clientId)
+    return PublicClientApplication.builder(CLIENT_ID)
         .authority("https://login.microsoftonline.com/consumers/")
         .setTokenCacheAccessAspect(cache)
         .build();
   }
 
-  public GameSession login(String clientId, TaskContext task) throws Exception {
+  public GameSession login(TaskContext task) throws Exception {
+    task.checkCancelled();
     task.report("请在系统浏览器中完成微软登录", -1);
-    PublicClientApplication app = application(clientId);
+    PublicClientApplication app = application();
     var parameters =
         InteractiveRequestParameters.builder(URI.create("http://localhost"))
             .scopes(SCOPES)
@@ -82,9 +78,9 @@ public final class MicrosoftAuthentication
     return session;
   }
 
-  public GameSession refresh(String clientId, Account account, TaskContext task) throws Exception {
+  public GameSession refresh(Account account, TaskContext task) throws Exception {
     task.report("验证正版账号与游戏权限", -1);
-    PublicClientApplication app = application(clientId);
+    PublicClientApplication app = application();
     IAccount cached =
         await(app.getAccounts(), task).stream()
             .filter(a -> a.homeAccountId().equals(account.homeAccountId()))

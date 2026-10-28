@@ -184,10 +184,35 @@ class CoreTest {
   }
 
   @Test
-  void missingClientIdNeverCreatesAnOfflineIdentity() {
+  void cancelledLoginNeverOpensBrowserOrCreatesAnOfflineIdentity() {
     MicrosoftAuthentication auth = new MicrosoftAuthentication(new HttpTransport(), temp);
-    assertThrows(IOException.class, () -> auth.login("", context));
+    TaskContext cancelled =
+        new TaskContext() {
+          public void report(String text, double progress) {}
+
+          public boolean cancelled() {
+            return true;
+          }
+        };
+    assertThrows(CancellationException.class, () -> auth.login(cancelled));
     assertFalse(Files.exists(temp.resolve("account.json")));
+  }
+
+  @Test
+  void legacySettingsIgnoreClientIdAndPreserveGameSettings() throws Exception {
+    JsonObject legacy = new JsonObject();
+    String root = temp.resolve("custom-game").toString();
+    legacy.addProperty("gameRoot", root);
+    legacy.addProperty("isolation", "ALL");
+    legacy.addProperty("microsoftClientId", "legacy-custom-id");
+    JsonFiles.write(temp.resolve("settings.json"), legacy);
+    SettingsStore store = new SettingsStore(temp);
+    LauncherSettings settings = store.load();
+    assertEquals(root, settings.gameRoot());
+    assertEquals(IsolationMode.ALL, settings.isolation());
+    store.save(settings);
+    assertFalse(JsonFiles.read(temp.resolve("settings.json")).has("microsoftClientId"));
+    assertEquals(settings, store.load());
   }
 
   @Test

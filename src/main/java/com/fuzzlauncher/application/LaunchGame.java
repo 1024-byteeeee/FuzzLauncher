@@ -42,7 +42,7 @@ public final class LaunchGame {
       LauncherSettings settings, GameInstance instance, Account account, TaskContext task)
       throws Exception {
     if (account == null) throw new IOException("请先登录拥有 Minecraft Java 版的微软正版账号");
-    GameSession session = authentication.refresh(settings.microsoftClientId(), account, task);
+    GameSession session = authentication.refresh(account, task);
     Path root = Path.of(settings.gameRoot()).toAbsolutePath().normalize();
     JsonObject version = resolver.resolve(root, instance.id());
     files.prepare(root, version, task);
@@ -74,7 +74,7 @@ public final class LaunchGame {
     files.legacyResources(root, gameDir, version, task);
     Path java = runtimes.resolve(runtimes.requiredMajor(version), task);
     if (!session.expiresAt().isAfter(Instant.now().plusSeconds(60)))
-      session = authentication.refresh(settings.microsoftClientId(), account, task);
+      session = authentication.refresh(account, task);
     List<String> command = new ArrayList<>();
     command.add(java.toString());
     command.addAll(arguments.build(root, gameDir, natives, instance, session, version, classpath));

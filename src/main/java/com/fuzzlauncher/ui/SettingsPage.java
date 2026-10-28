@@ -26,13 +26,7 @@ public final class SettingsPage extends RetroPage {
     mode.getItems().setAll(IsolationMode.values());
     mode.setValue(config.isolation());
     mode.setMaxWidth(Double.MAX_VALUE);
-    TextField client = new TextField(Objects.toString(config.microsoftClientId(), ""));
-    client.setPromptText("Fuzz 自有的 Microsoft 应用 Client ID");
-    Label hint =
-        new Label(
-            "Client ID 是公开的应用标识，无需 Client Secret。\n"
-                + "需注册个人微软账号应用、配置桌面应用 localhost 回调，并申请 Minecraft API 准入。\n"
-                + "已有实例时游戏根目录固定；切换隔离模式不会自动移动已有数据。");
+    Label hint = new Label("已有实例时游戏根目录固定；切换隔离模式不会自动移动已有数据。");
     hint.setWrapText(true);
     hint.setStyle("-fx-font-size: 15px;");
     Button save =
@@ -42,12 +36,9 @@ public final class SettingsPage extends RetroPage {
               try {
                 if (root.getText().isBlank()) throw new IllegalArgumentException("游戏根目录不能为空");
                 Path normalized = Path.of(root.getText()).toAbsolutePath().normalize();
-                String id = client.getText().strip();
-                if (!id.isBlank() && !id.matches("[0-9a-fA-F-]{36}"))
-                  throw new IllegalArgumentException("Client ID 应为应用注册页面显示的 UUID");
                 if (mode.getValue() != config.isolation()
                     && !confirm("更改全局隔离模式", "跟随全局设置的实例将切换游戏目录。\n旧存档和模组保留在原目录，不会自动迁移。是否继续？")) return;
-                vm.saveSettings(new LauncherSettings(normalized.toString(), mode.getValue(), id));
+                vm.saveSettings(new LauncherSettings(normalized.toString(), mode.getValue()));
               } catch (IllegalArgumentException ex) {
                 message(Alert.AlertType.ERROR, "设置无效", ex.getMessage());
               }
@@ -58,7 +49,7 @@ public final class SettingsPage extends RetroPage {
         new VBox(
             25,
             label("启动器设置", "section-title"),
-            form(new String[] {"游戏根目录:", "默认隔离:", "Client ID:"}, new Node[] {root, mode, client}),
+            form(new String[] {"游戏根目录:", "默认隔离:"}, new Node[] {root, mode}),
             hint,
             new HBox(10, save, data));
     content.setPadding(new Insets(30));

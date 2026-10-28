@@ -8,9 +8,9 @@ import java.util.Optional;
 public interface AccountAuthenticator {
   Optional<Account> savedAccount() throws IOException;
 
-  GameSession login(String clientId, TaskContext task) throws Exception;
+  GameSession login(TaskContext task) throws Exception;
 
-  GameSession refresh(String clientId, Account account, TaskContext task) throws Exception;
+  GameSession refresh(Account account, TaskContext task) throws Exception;
 
   void logout(TaskContext task) throws Exception;
 }

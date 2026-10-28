@@ -38,8 +38,8 @@ Forge 声明的 sanitize 操作使用安装器自身对应的 srgutils 版本执
 
 ## 尚未验收
 
-Fuzz 没有注册 Microsoft 应用，没有可用的自有 Client ID。
-因此尚未进行真实账号的微软授权、Minecraft 权益及进入游戏的端到端验收。
+迁移前尚未注册 Microsoft 应用。后续已注册并内置自有 Client ID、提交应用准入申请，真实账号尝试登录时 Minecraft Services 返回 HTTP 403。
+尚未完成 Minecraft 权益及进入游戏的端到端验收。
 测试不会用虚构身份实际启动游戏，不能把安装成功等同于所有游戏组合均可运行。
 历史版本、旧版 Forge、NeoForge 1.20.1 以及最新游戏版本需要后续扩大兼容性测试。
 
