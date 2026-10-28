@@ -11,5 +11,6 @@ Fuzz's source is independently implemented. HMCL and PCL are design references; 
 Dependency JARs retain their original embedded licenses and notices. Gradle resolves transitive dependencies; see `gradlew dependencies` and the JARs in `app/lib`.
 Fabric, Forge, NeoForge and their processor artifacts are downloaded from official repositories or the selected mirror at installation time. Their respective licenses continue to apply.
 - BMCLAPI public download mirror: https://bmclapi2.bangbang93.com/ — API documentation: https://bmclapidoc.bangbang93.com/
-- Nanjing University public Maven library mirror: https://mirror.nju.edu.cn/bmclapi/
+- Tencent Cloud public Maven mirror: https://mirrors.cloud.tencent.com/nexus/repository/maven-public/
+- NeoForge fallback CDN: https://neoforged.forgecdn.net/
 UI images are extracted from the user-approved AI-generated reference image.

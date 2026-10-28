@@ -19,7 +19,7 @@ class DownloadMirrorsTest {
     assertMirror(
         "https://piston-data.mojang.com/v1/objects/hash/client.jar", "/v1/objects/hash/client.jar");
     assertMirror("http://resources.download.minecraft.net/ab/hash", "/assets/ab/hash");
-    assertMirror("https://libraries.minecraft.net/a/b.jar", "/maven/a/b.jar");
+    assertMirror("https://libraries.minecraft.net/a/b.jar", "/libraries/a/b.jar");
     assertMirror(
         "https://meta.fabricmc.net/v2/versions/loader/1.20.4",
         "/fabric-meta/v2/versions/loader/1.20.4");
@@ -37,22 +37,54 @@ class DownloadMirrorsTest {
   private static void assertMirror(String original, String path) {
     assertEquals(
         "https://bmclapi2.bangbang93.com" + path,
-        DownloadMirrors.resolve(DownloadSource.BMCLAPI, original));
+        DownloadMirrors.resolve(DownloadSource.MIRROR, original));
   }
 
   @Test
-  void njuOnlyMirrorsMavenDependenciesAndPreservesQueries() {
+  void prioritiesFollowSystemRegionAndMetadataUsesOfficialFirstInAutoMode() {
+    java.util.Locale previous = java.util.Locale.getDefault();
+    String url = "https://libraries.minecraft.net/a.jar";
+    String mirror = "https://bmclapi2.bangbang93.com/libraries/a.jar";
+    try {
+      java.util.Locale.setDefault(java.util.Locale.CHINA);
+      assertEquals(
+          java.util.List.of(mirror, url),
+          DownloadMirrors.candidates(DownloadSource.AUTO, url, false));
+      assertEquals(
+          java.util.List.of(url, mirror),
+          DownloadMirrors.candidates(DownloadSource.AUTO, url, true));
+      assertEquals(
+          java.util.List.of(url, mirror),
+          DownloadMirrors.candidates(DownloadSource.OFFICIAL, url, false));
+      java.util.Locale.setDefault(java.util.Locale.US);
+      assertEquals(
+          java.util.List.of(url), DownloadMirrors.candidates(DownloadSource.AUTO, url, false));
+      assertEquals(
+          java.util.List.of(mirror, url),
+          DownloadMirrors.candidates(DownloadSource.MIRROR, url, false));
+    } finally {
+      java.util.Locale.setDefault(previous);
+    }
+  }
+
+  @Test
+  void tencentAndNeoForgeCdnMatchCurrentHmclEndpoints() {
     assertEquals(
-        "https://mirror.nju.edu.cn/bmclapi/net/fabricmc/a.jar?key=value",
+        "https://mirrors.cloud.tencent.com/nexus/repository/maven-public/com/example/a.jar?key=value",
         DownloadMirrors.resolve(
-            DownloadSource.NJU, "https://maven.fabricmc.net/net/fabricmc/a.jar?key=value"));
+            DownloadSource.MIRROR,
+            "https://repo.maven.apache.org/maven2/com/example/a.jar?key=value"));
     assertEquals(
-        "https://mirror.nju.edu.cn/bmclapi/net/neoforged/a.jar",
+        "https://mirrors.cloud.tencent.com/nexus/repository/maven-public/com/example/a.jar",
         DownloadMirrors.resolve(
-            DownloadSource.NJU, "https://maven.neoforged.net/releases/net/neoforged/a.jar"));
-    String manifest = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
-    assertEquals(manifest, DownloadMirrors.resolve(DownloadSource.NJU, manifest));
-    assertEquals(manifest, DownloadMirrors.resolve(DownloadSource.OFFICIAL, manifest));
+            DownloadSource.MIRROR, "https://repo1.maven.org/maven2/com/example/a.jar"));
+    String original = "https://maven.neoforged.net/releases/net/neoforged/a.jar";
+    assertEquals(
+        java.util.List.of(
+            "https://bmclapi2.bangbang93.com/maven/net/neoforged/a.jar",
+            original,
+            "https://neoforged.forgecdn.net/releases/net/neoforged/a.jar"),
+        DownloadMirrors.candidates(DownloadSource.MIRROR, original, false));
   }
 
   @Test
@@ -71,14 +103,20 @@ class DownloadMirrorsTest {
   }
 
   @Test
-  void oldSettingsDefaultToOfficialAndSelectedMirrorSurvivesRestart() throws Exception {
+  void oldSettingsAndRemovedMirrorNamesMigrateWithoutLosingOtherSettings() throws Exception {
     var json = new com.google.gson.JsonObject();
     json.addProperty("gameRoot", temp.resolve("game").toString());
     json.addProperty("isolation", "ALL");
     JsonFiles.write(temp.resolve("settings.json"), json);
     SettingsStore store = new SettingsStore(temp);
     LauncherSettings old = store.load();
-    assertEquals(DownloadSource.OFFICIAL, old.downloadSource());
+    assertEquals(DownloadSource.AUTO, old.downloadSource());
+    for (String oldName : new String[] {"BMCLAPI", "NJU"}) {
+      json.addProperty("downloadSource", oldName);
+      JsonFiles.write(temp.resolve("settings.json"), json);
+      assertEquals(DownloadSource.MIRROR, store.load().downloadSource());
+      assertEquals(old.gameRoot(), store.load().gameRoot());
+    }
     for (DownloadSource source : DownloadSource.values()) {
       store.save(new LauncherSettings(old.gameRoot(), old.isolation(), source));
       assertEquals(source, new SettingsStore(temp).load().downloadSource());

@@ -18,7 +18,7 @@ public final class HttpTransport {
   private final UnaryOperator<String> downloadUrl;
 
   public HttpTransport() {
-    downloadUrl = url -> DownloadMirrors.resolve(downloadSource, url);
+    downloadUrl = null;
   }
 
   HttpTransport(UnaryOperator<String> downloadUrl) {
@@ -27,6 +27,11 @@ public final class HttpTransport {
 
   public void setDownloadSource(DownloadSource source) {
     downloadSource = Objects.requireNonNull(source);
+  }
+
+  private List<String> candidates(String url, boolean metadata) {
+    if (downloadUrl == null) return DownloadMirrors.candidates(downloadSource, url, metadata);
+    return java.util.stream.Stream.of(downloadUrl.apply(url), url).distinct().toList();
   }
 
   public static final class HttpStatusException extends IOException {
@@ -49,18 +54,16 @@ public final class HttpTransport {
           .build();
 
   public JsonObject getJson(String url) throws IOException, InterruptedException {
-    String mirror = downloadUrl.apply(url);
-    try {
-      return json(HttpRequest.newBuilder(URI.create(mirror)).GET().build());
-    } catch (IOException ex) {
-      if (mirror.equals(url)) throw ex;
+    IOException failure = null;
+    for (String candidate : candidates(url, true)) {
       try {
-        return json(HttpRequest.newBuilder(URI.create(url)).GET().build());
-      } catch (IOException official) {
-        official.addSuppressed(ex);
-        throw official;
+        return json(HttpRequest.newBuilder(URI.create(candidate)).GET().build());
+      } catch (IOException ex) {
+        if (failure != null) ex.addSuppressed(failure);
+        failure = ex;
       }
     }
+    throw Objects.requireNonNull(failure);
   }
 
   public JsonObject authorizedGet(String url, String token)
@@ -111,18 +114,16 @@ public final class HttpTransport {
   }
 
   public String getText(String url) throws IOException, InterruptedException {
-    String mirror = downloadUrl.apply(url);
-    try {
-      return getTextDirect(mirror);
-    } catch (IOException ex) {
-      if (mirror.equals(url)) throw ex;
+    IOException failure = null;
+    for (String candidate : candidates(url, true)) {
       try {
-        return getTextDirect(url);
-      } catch (IOException official) {
-        official.addSuppressed(ex);
-        throw official;
+        return getTextDirect(candidate);
+      } catch (IOException ex) {
+        if (failure != null) ex.addSuppressed(failure);
+        failure = ex;
       }
     }
+    throw Objects.requireNonNull(failure);
   }
 
   private String getTextDirect(String url) throws IOException, InterruptedException {
@@ -144,11 +145,15 @@ public final class HttpTransport {
         && digest(destination, "SHA-1").equalsIgnoreCase(sha1)) return;
     Files.createDirectories(destination.toAbsolutePath().getParent());
     IOException failure = null;
-    String mirror = downloadUrl.apply(url);
+    List<String> urls = candidates(url, false);
+    String previousUrl = urls.getFirst();
     for (int attempt = 0; attempt < 3; attempt++) {
       task.checkCancelled();
-      String downloadUrl = attempt < 2 ? mirror : url;
-      if (attempt == 2 && !mirror.equals(url)) task.report("镜像下载失败，回退官方源", -1);
+      int index = urls.size() == 2 ? (attempt < 2 ? 0 : 1) : Math.min(attempt, urls.size() - 1);
+      String downloadUrl = urls.get(index);
+      if (!downloadUrl.equals(previousUrl))
+        task.report("切换备用下载地址：" + URI.create(downloadUrl).getHost(), -1);
+      previousUrl = downloadUrl;
       Path partial =
           Files.createTempFile(destination.toAbsolutePath().getParent(), ".download-", ".part");
       try {

@@ -34,8 +34,8 @@ public final class SettingsPage extends RetroPage {
     Label hint =
         new Label(
             "已有实例时游戏根目录固定；切换隔离模式不会自动移动已有数据。\n"
-                + "BMCLAPI 加速游戏资源和加载器；南京大学主要加速依赖库。\n"
-                + "镜像缺失或不可用时回退官方源；微软登录始终连接官方服务。");
+                + "自动模式按系统地区选择；镜像模式使用 BMCLAPI 和腾讯 Maven 镜像。\n"
+                + "下载失败时尝试备用源；微软登录始终连接官方服务。");
     hint.setWrapText(true);
     hint.setStyle("-fx-font-size: 15px;");
     Button save =

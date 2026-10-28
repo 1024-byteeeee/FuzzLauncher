@@ -1,9 +1,12 @@
 package com.fuzzlauncher.domain;
 
 public enum DownloadSource {
+  AUTO("自动选择", "https://bmclapi2.bangbang93.com/"),
   OFFICIAL("官方源", "https://www.minecraft.net/"),
-  BMCLAPI("BMCLAPI 镜像", "https://bmclapi2.bangbang93.com/"),
-  NJU("南京大学镜像（依赖库）", "https://mirror.nju.edu.cn/bmclapi/");
+  @com.google.gson.annotations.SerializedName(
+      value = "MIRROR",
+      alternate = {"BMCLAPI", "NJU"})
+  MIRROR("镜像源（BMCLAPI）", "https://bmclapi2.bangbang93.com/");
 
   private final String label;
   private final String website;

@@ -150,7 +150,7 @@ public final class DownloadsPage extends RetroPage {
     VBox list = new VBox(10, filters, search, games);
     list.setPrefWidth(360);
     VBox.setVgrow(games, Priority.ALWAYS);
-    Label note = new Label("镜像缺失或不可用时回退官方源。\n安装完成后实例会出现在“游戏实例”页。\n游戏 Java 会在需要时自动检测或下载。");
+    Label note = new Label("下载失败时尝试备用源。\n安装完成后实例会出现在“游戏实例”页。\n游戏 Java 会在需要时自动检测或下载。");
     note.setWrapText(true);
     Label sourceLabel = new Label();
     sourceLabel
