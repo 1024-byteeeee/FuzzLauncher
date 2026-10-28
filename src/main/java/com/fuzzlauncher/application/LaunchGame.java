@@ -107,7 +107,7 @@ public final class LaunchGame {
                 System.err.println("游戏日志写入失败: " + ex.getClass().getSimpleName());
               }
             });
-    task.report("游戏已启动，日志: " + log, 1);
+    task.report("游戏已启动", 1);
     return new RunningGame(process, log);
   }
 }

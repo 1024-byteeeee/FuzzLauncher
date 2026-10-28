@@ -238,7 +238,7 @@ public final class LauncherViewModel implements AutoCloseable {
         context -> launch.execute(config, instance, identity, context),
         running -> {
           gameRunning.set(true);
-          status.set("游戏运行中，日志: " + running.log());
+          status.set("游戏运行中");
           running
               .process()
               .onExit()
@@ -247,8 +247,7 @@ public final class LauncherViewModel implements AutoCloseable {
                       Platform.runLater(
                           () -> {
                             gameRunning.set(false);
-                            status.set(
-                                "游戏已退出，退出码 " + process.exitValue() + "，日志: " + running.log());
+                            status.set("游戏已退出，退出码 " + process.exitValue());
                             if (process.exitValue() != 0)
                               error.set(
                                   "游戏异常退出（" + process.exitValue() + "），请查看日志: " + running.log());
@@ -425,7 +424,7 @@ public final class LauncherViewModel implements AutoCloseable {
     task.setOnCancelled(
         event -> {
           if (!finish(task)) return;
-          status.set(catalog ? "已停止获取版本列表" : "任务已取消；已有缓存和诊断文件保留");
+          status.set(catalog ? "已停止获取版本列表" : "任务已取消");
           LauncherLog.LOGGER.info(title + "已取消");
         });
     executor.execute(task);

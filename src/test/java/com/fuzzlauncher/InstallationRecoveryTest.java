@@ -137,11 +137,140 @@ class InstallationRecoveryTest {
                 task));
     assertTrue(repo.findAll().isEmpty());
     try (var dirs = Files.list(root.resolve("versions"))) {
-      assertEquals(List.of("base"), dirs.map(p -> p.getFileName().toString()).toList());
+      assertEquals(0, dirs.count());
     }
-    try (var paths = Files.walk(root.resolve(".fuzz-staging"))) {
-      assertTrue(paths.anyMatch(p -> p.getFileName().toString().equals("incomplete-profile")));
-    }
+    assertFalse(Files.exists(root.resolve(".fuzz-staging")));
+  }
+
+  private GameVersion fixtureGame() {
+    String client = endpoint("/fixture-client", "client fixture");
+    String json =
+        "{\"id\":\"base\",\"mainClass\":\"FixtureMain\",\"libraries\":[],\"downloads\":{\"client\":{\"url\":\""
+            + client
+            + "\"}}}";
+    return new GameVersion("base", "release", endpoint("/fixture-metadata", json), "");
+  }
+
+  @Test
+  void cancellationAfterPublicationDeletesNestedBaseNamedInstance() throws Exception {
+    Path root = temp.resolve("published-cancel");
+    var repo = new JsonInstanceRepository(temp.resolve("published-state"));
+    var installer =
+        new InstallGame(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
+    TaskContext cancelled =
+        new TaskContext() {
+          public void report(String message, double value) {}
+
+          public boolean cancelled() {
+            if (!Files.exists(root.resolve("versions/base/" + InstanceDirectories.PROFILE)))
+              return false;
+            try {
+              Path nested = root.resolve("versions/base/nested/download/partial.part");
+              Files.createDirectories(nested.getParent());
+              Files.writeString(nested, "partial");
+            } catch (IOException ex) {
+              throw new UncheckedIOException(ex);
+            }
+            return true;
+          }
+        };
+    assertThrows(
+        java.util.concurrent.CancellationException.class,
+        () -> installer.execute(root, fixtureGame(), LoaderType.VANILLA, null, "base", cancelled));
+    assertFalse(Files.exists(root.resolve("versions/base")));
+    assertFalse(Files.exists(root.resolve(".fuzz-staging")));
+    assertTrue(repo.findAll().isEmpty());
+  }
+
+  @Test
+  void cancellationBeforeLoaderPublicationDeletesNestedWorkspaceAndNewBase() throws Exception {
+    var repo = new JsonInstanceRepository(temp.resolve("cancel-state"));
+    Path root = temp.resolve("cancel-game");
+    LoaderInstaller cancelled =
+        (gameRoot, staging, game, loaderVersion, context) -> {
+          Files.createDirectories(staging.resolve("libraries/nested/partial"));
+          Files.writeString(staging.resolve("libraries/nested/partial/download.part"), "partial");
+          throw new java.util.concurrent.CancellationException("cancel fixture");
+        };
+    var installer =
+        new InstallGame(
+            repo,
+            new GameFiles(new HttpTransport()),
+            new VersionResolver(),
+            Map.of(LoaderType.FABRIC, cancelled));
+    assertThrows(
+        java.util.concurrent.CancellationException.class,
+        () -> installer.execute(root, fixtureGame(), LoaderType.FABRIC, "1", "取消实例", task));
+    assertFalse(Files.exists(root.resolve("versions/base")));
+    assertFalse(Files.exists(root.resolve("versions/取消实例")));
+    assertFalse(Files.exists(root.resolve(".fuzz-staging")));
+    assertTrue(repo.findAll().isEmpty());
+  }
+
+  @Test
+  void failedRegistrationDeletesPublishedNestedDirectoryAndPreservesExistingInstance()
+      throws Exception {
+    var repo = new JsonInstanceRepository(temp.resolve("existing-state"));
+    Path root = temp.resolve("existing-game");
+    GameVersion game = fixtureGame();
+    var installer =
+        new InstallGame(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
+    GameInstance existing = installer.execute(root, game, LoaderType.VANILLA, null, "已有实例", task);
+    Files.createDirectories(InstanceDirectories.directory(root, existing).resolve("saves/world"));
+    Path saved = InstanceDirectories.directory(root, existing).resolve("saves/world/level.dat");
+    Files.writeString(saved, "existing world");
+    assertFalse(Files.exists(root.resolve(".fuzz-staging")));
+    InstanceRepository failing =
+        new InstanceRepository() {
+          public List<GameInstance> findAll() throws IOException {
+            return repo.findAll();
+          }
+
+          public void remove(String id) throws IOException {
+            repo.remove(id);
+          }
+
+          public void save(GameInstance item) throws IOException {
+            Path partial =
+                InstanceDirectories.directory(root, item).resolve("nested/partial/download.part");
+            Files.createDirectories(partial.getParent());
+            Files.writeString(partial, "partial");
+            throw new IOException("fixture registration failure");
+          }
+        };
+    var broken =
+        new InstallGame(
+            failing, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
+    assertThrows(
+        IOException.class,
+        () -> broken.execute(root, game, LoaderType.VANILLA, null, "失败实例", task));
+    assertFalse(Files.exists(root.resolve("versions/失败实例")));
+    assertFalse(Files.exists(root.resolve(".fuzz-staging")));
+    assertTrue(Files.isRegularFile(root.resolve("versions/base/base.jar")));
+    assertEquals("existing world", Files.readString(saved));
+    assertEquals(List.of(existing), repo.findAll());
+  }
+
+  @Test
+  void failedVanillaMetadataDownloadRemovesNewVersionDirectory() throws Exception {
+    String metadata = endpoint("/invalid-metadata", "invalid json");
+    Path root = temp.resolve("metadata-game");
+    var repo = new JsonInstanceRepository(temp.resolve("metadata-state"));
+    var installer =
+        new InstallGame(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
+    assertThrows(
+        Exception.class,
+        () ->
+            installer.execute(
+                root,
+                new GameVersion("base", "release", metadata, ""),
+                LoaderType.VANILLA,
+                null,
+                "下载失败",
+                task));
+    assertFalse(Files.exists(root.resolve("versions/base")));
+    assertFalse(Files.exists(root.resolve(".fuzz-staging")));
+    assertTrue(repo.findAll().isEmpty());
   }
 
   @Test
