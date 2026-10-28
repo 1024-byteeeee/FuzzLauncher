@@ -4,6 +4,8 @@ import com.fuzzlauncher.domain.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.function.Consumer;
+import javafx.beans.value.ChangeListener;
+import javafx.collections.ListChangeListener;
 import javafx.collections.transformation.FilteredList;
 import javafx.geometry.*;
 import javafx.scene.Node;
@@ -17,6 +19,24 @@ public final class DownloadsPage extends RetroPage {
   public DownloadsPage(Stage stage, LauncherViewModel vm, Consumer<Integer> navigate) {
     super(stage, vm, navigate);
     setCenter(build());
+    boolean[] pendingInitialLoad = {true};
+    Runnable loadWhenReady =
+        () -> {
+          if (getScene() != null && pendingInitialLoad[0] && !vm.busyProperty().get()) {
+            pendingInitialLoad[0] = false;
+            if (vm.versions().isEmpty()) vm.loadVersions();
+          }
+        };
+    ChangeListener<Boolean> busyListener = (observable, wasBusy, busy) -> loadWhenReady.run();
+    sceneProperty()
+        .addListener(
+            (observable, oldScene, scene) -> {
+              if (oldScene != null) vm.busyProperty().removeListener(busyListener);
+              if (scene != null) {
+                vm.busyProperty().addListener(busyListener);
+                loadWhenReady.run();
+              }
+            });
   }
 
   private Node build() {
@@ -46,12 +66,22 @@ public final class DownloadsPage extends RetroPage {
     search.textProperty().addListener((o, a, b) -> filter.run());
     filter.run();
     ListView<GameVersion> games = new ListView<>(filtered);
-    games.setPlaceholder(new Label("点击“刷新版本”读取官方清单"));
+    games.setId("game-version-list");
+    Label empty = new Label();
+    empty
+        .textProperty()
+        .bind(
+            javafx.beans.binding.Bindings.when(vm.busyProperty())
+                .then("正在加载版本列表…")
+                .otherwise("暂无匹配版本，可点击“刷新版本”重试"));
+    games.setPlaceholder(empty);
     ComboBox<LoaderType> loader = new RetroComboBox<>();
+    loader.setId("loader-type");
     loader.getItems().setAll(LoaderType.values());
     loader.setValue(LoaderType.VANILLA);
     loader.setMaxWidth(Double.MAX_VALUE);
     ComboBox<String> loaderVersion = new RetroComboBox<>(vm.loaderVersions());
+    loaderVersion.setId("loader-version");
     loaderVersion.setMaxWidth(Double.MAX_VALUE);
     loaderVersion.setPromptText("选择兼容的加载器版本");
     TextField name = new TextField();
@@ -62,11 +92,18 @@ public final class DownloadsPage extends RetroPage {
           if (v != null) {
             name.setText(
                 v.id() + (loader.getValue() == LoaderType.VANILLA ? "" : " " + loader.getValue()));
-            vm.loadLoaders(loader.getValue(), v);
           }
+          vm.loadLoaders(loader.getValue(), v);
         };
     games.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> query.run());
-    loader.setOnAction(e -> query.run());
+    loader.valueProperty().addListener((o, a, b) -> query.run());
+    filtered.addListener(
+        (ListChangeListener<GameVersion>)
+            change -> {
+              if (games.getSelectionModel().getSelectedItem() == null && !filtered.isEmpty())
+                games.getSelectionModel().selectFirst();
+            });
+    if (!filtered.isEmpty()) games.getSelectionModel().selectFirst();
     loaderVersion
         .disableProperty()
         .bind(vm.busyProperty().or(loader.valueProperty().isEqualTo(LoaderType.VANILLA)));
@@ -79,9 +116,14 @@ public final class DownloadsPage extends RetroPage {
     refresh.disableProperty().bind(vm.busyProperty());
     Button refreshLoader =
         button(
-            "查询加载器",
+            "刷新加载器",
             () -> vm.loadLoaders(loader.getValue(), games.getSelectionModel().getSelectedItem()));
-    refreshLoader.disableProperty().bind(vm.busyProperty());
+    refreshLoader
+        .disableProperty()
+        .bind(
+            vm.busyProperty()
+                .or(games.getSelectionModel().selectedItemProperty().isNull())
+                .or(loader.valueProperty().isEqualTo(LoaderType.VANILLA)));
     Button install =
         button(
             "下载并安装",
