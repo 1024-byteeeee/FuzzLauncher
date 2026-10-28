@@ -1,5 +1,7 @@
 # Microsoft 登录
 
+“账号”页也提供独立的离线登录入口，无需 Microsoft Client ID 或服务端准入。离线账号用于单人游戏和允许离线账号的服务器；微软账号认证与权益校验规则保持不变。
+
 FuzzLauncher 已内置自有 Microsoft Client ID，用户无需注册应用或填写 ID。在“账号”页点击“微软登录”即可。
 
 当前 Client ID：`76c4eab4-d8c4-49df-9fa1-c996e33748a8`。

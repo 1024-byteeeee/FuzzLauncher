@@ -180,6 +180,16 @@ public final class LauncherViewModel implements AutoCloseable {
         });
   }
 
+  public void loginOffline(String name) {
+    submit(
+        "离线登录",
+        context -> authentication.loginOffline(name, context),
+        session -> {
+          account.set(session.account());
+          status.set("已使用离线账号: " + session.account().name());
+        });
+  }
+
   public void launch() {
     GameInstance instance = selected.get();
     Account identity = account.get();

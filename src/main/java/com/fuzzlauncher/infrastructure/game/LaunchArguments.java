@@ -37,7 +37,11 @@ public final class LaunchArguments {
     values.put("auth_player_name", session.account().name());
     values.put("auth_uuid", session.account().uuid());
     values.put("auth_access_token", session.accessToken());
-    values.put("auth_session", "token:" + session.accessToken() + ":" + session.account().uuid());
+    values.put(
+        "auth_session",
+        session.account().isOffline()
+            ? "0"
+            : "token:" + session.accessToken() + ":" + session.account().uuid());
     values.put("version_name", instance.id());
     values.put("game_directory", gameDir.toAbsolutePath().toString());
     values.put("assets_root", root.resolve("assets").toAbsolutePath().toString());
@@ -52,7 +56,7 @@ public final class LaunchArguments {
             .resolve(values.get("assets_index_name"))
             .toAbsolutePath()
             .toString());
-    values.put("user_type", "msa");
+    values.put("user_type", session.account().isOffline() ? "legacy" : "msa");
     values.put("user_properties", "{}");
     values.put("version_type", JsonFiles.string(version, "type", "release"));
     values.put("clientid", "");

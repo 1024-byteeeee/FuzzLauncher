@@ -41,8 +41,9 @@ public final class LaunchGame {
   public RunningGame execute(
       LauncherSettings settings, GameInstance instance, Account account, TaskContext task)
       throws Exception {
-    if (account == null) throw new IOException("请先登录拥有 Minecraft Java 版的微软账号");
-    GameSession session = authentication.refresh(account, task);
+    if (account == null) throw new IOException("请先在账号页登录微软账号或创建离线账号");
+    GameSession session =
+        account.isOffline() ? GameSession.offline(account) : authentication.refresh(account, task);
     Path root = Path.of(settings.gameRoot()).toAbsolutePath().normalize();
     JsonObject version = resolver.resolve(root, instance.id());
     files.prepare(root, version, task);
@@ -73,7 +74,7 @@ public final class LaunchGame {
     }
     files.legacyResources(root, gameDir, version, task);
     Path java = runtimes.resolve(runtimes.requiredMajor(version), task);
-    if (!session.expiresAt().isAfter(Instant.now().plusSeconds(60)))
+    if (!account.isOffline() && !session.expiresAt().isAfter(Instant.now().plusSeconds(60)))
       session = authentication.refresh(account, task);
     List<String> command = new ArrayList<>();
     command.add(java.toString());
@@ -85,6 +86,7 @@ public final class LaunchGame {
     Process process =
         new ProcessBuilder(command).directory(gameDir.toFile()).redirectErrorStream(true).start();
     String token = session.accessToken();
+    boolean redactToken = !account.isOffline();
     Thread.ofVirtual()
         .name("game-log-" + process.pid())
         .start(
@@ -93,7 +95,7 @@ public final class LaunchGame {
                   BufferedWriter output = Files.newBufferedWriter(log, StandardCharsets.UTF_8)) {
                 String line;
                 while ((line = input.readLine()) != null) {
-                  output.write(line.replace(token, "[REDACTED]"));
+                  output.write(redactToken ? line.replace(token, "[REDACTED]") : line);
                   output.newLine();
                   output.flush();
                 }

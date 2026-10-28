@@ -185,8 +185,9 @@ public final class InstancesPage extends RetroPage {
             Bindings.createStringBinding(
                 () ->
                     vm.accountProperty().get() == null
-                        ? "请先在“账号”页完成微软登录"
-                        : "正版账号: " + vm.accountProperty().get().name(),
+                        ? "请先在“账号”页选择微软登录或离线登录"
+                        : (vm.accountProperty().get().isOffline() ? "离线账号: " : "微软账号: ")
+                            + vm.accountProperty().get().name(),
                 vm.accountProperty()));
     loginHint.setStyle("-fx-font-size: 14px;");
     VBox right = new VBox(12, panel, start, loginHint);

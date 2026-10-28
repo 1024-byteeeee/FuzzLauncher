@@ -29,6 +29,10 @@ class AuthenticationGateTest {
             throw new IOException("Rejected");
           }
 
+          public GameSession loginOffline(String name, TaskContext task) {
+            return GameSession.offline(Account.offline(name));
+          }
+
           public GameSession refresh(Account account, TaskContext task) throws IOException {
             refreshes.incrementAndGet();
             throw new IOException("No valid entitlement");
@@ -64,6 +68,11 @@ class AuthenticationGateTest {
     assertThrows(
         IOException.class,
         () -> launch.execute(settings, instance, new Account("test", "test", "test"), task));
+    assertEquals(1, refreshes.get());
+    // An explicit offline identity skips Microsoft authentication and reaches version resolution.
+    assertThrows(
+        IOException.class,
+        () -> launch.execute(settings, instance, Account.offline("PlayerOne"), task));
     assertEquals(1, refreshes.get());
     assertFalse(Files.exists(temp.resolve("game")));
     assertFalse(Files.exists(temp.resolve("logs")));

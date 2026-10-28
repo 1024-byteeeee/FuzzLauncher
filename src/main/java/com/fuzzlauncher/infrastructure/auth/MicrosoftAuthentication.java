@@ -33,6 +33,15 @@ public final class MicrosoftAuthentication
         JsonFiles.GSON.fromJson(JsonFiles.read(identityFile).get("account"), Account.class));
   }
 
+  @Override
+  public GameSession loginOffline(String name, TaskContext task) throws IOException {
+    task.checkCancelled();
+    Account account = Account.offline(name);
+    logout(task);
+    JsonFiles.write(identityFile, Map.of("account", account));
+    return GameSession.offline(account);
+  }
+
   private PublicClientApplication application() throws Exception {
     ITokenCacheAccessAspect cache =
         new ITokenCacheAccessAspect() {

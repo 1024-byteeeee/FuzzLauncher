@@ -137,7 +137,8 @@ public final class LauncherView extends RetroPage {
                 () ->
                     vm.accountProperty().get() == null
                         ? "未登录"
-                        : "用户: " + vm.accountProperty().get().name(),
+                        : (vm.accountProperty().get().isOffline() ? "离线: " : "用户: ")
+                            + vm.accountProperty().get().name(),
                 vm.accountProperty()));
     identity.getStyleClass().add("status-cell");
     Label status = new Label();

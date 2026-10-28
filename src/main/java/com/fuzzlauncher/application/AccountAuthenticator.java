@@ -4,11 +4,13 @@ import com.fuzzlauncher.domain.*;
 import java.io.IOException;
 import java.util.Optional;
 
-/** Only authenticated, entitled Minecraft Java identities may produce a game session. */
+/** Microsoft authentication and explicitly selected local identities. */
 public interface AccountAuthenticator {
   Optional<Account> savedAccount() throws IOException;
 
   GameSession login(TaskContext task) throws Exception;
+
+  GameSession loginOffline(String name, TaskContext task) throws Exception;
 
   GameSession refresh(Account account, TaskContext task) throws Exception;
 
