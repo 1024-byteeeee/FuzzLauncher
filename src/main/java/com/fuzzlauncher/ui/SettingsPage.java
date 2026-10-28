@@ -34,10 +34,14 @@ public final class SettingsPage extends RetroPage {
         button(
             "浏览",
             () -> {
-              javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
-              chooser.setTitle("选择启动器数据目录");
-              java.io.File chosen = chooser.showDialog(stage);
-              if (chosen != null) dataPath.setText(chosen.getAbsolutePath());
+              Path initial;
+              try {
+                initial = Path.of(dataPath.getText());
+              } catch (InvalidPathException ex) {
+                initial = vm.dataDirectory();
+              }
+              RetroPathDialog.directory(stage, "选择启动器数据目录", initial)
+                  .ifPresent(chosen -> dataPath.setText(chosen.toString()));
             });
     browse.setMinWidth(Region.USE_PREF_SIZE);
     HBox dataControl = new HBox(6, dataPath, browse);

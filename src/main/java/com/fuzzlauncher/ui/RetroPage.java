@@ -74,20 +74,11 @@ public class RetroPage extends BorderPane {
   }
 
   protected void message(Alert.AlertType type, String title, String text) {
-    Alert alert = new Alert(type);
-    alert.initOwner(stage);
-    alert.setTitle(title);
-    alert.setHeaderText(null);
-    alert.setContentText(text);
-    alert.getDialogPane().setMinWidth(550);
-    alert.showAndWait();
+    RetroDialogs.alert(stage, type, title, text).showAndWait();
   }
 
   protected boolean confirm(String title, String text) {
-    Alert alert = new Alert(Alert.AlertType.CONFIRMATION, text, ButtonType.OK, ButtonType.CANCEL);
-    alert.initOwner(stage);
-    alert.setTitle(title);
-    alert.setHeaderText(null);
+    Alert alert = RetroDialogs.alert(stage, Alert.AlertType.CONFIRMATION, title, text);
     return alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
   }
 

@@ -160,15 +160,17 @@ public final class InstancesPage extends RetroPage {
         button(
             "浏览",
             () -> {
-              javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
-              chooser.setTitle("选择此实例的 Java");
-              chooser
-                  .getExtensionFilters()
-                  .add(
-                      new javafx.stage.FileChooser.ExtensionFilter(
-                          "Java 程序", "java.exe", "javaw.exe"));
-              java.io.File chosen = chooser.showOpenDialog(stage);
-              if (chosen != null) javaPath.setText(chosen.getAbsolutePath());
+              Path initial;
+              try {
+                initial =
+                    javaPath.getText().isBlank()
+                        ? Path.of(System.getProperty("java.home"))
+                        : Path.of(javaPath.getText());
+              } catch (InvalidPathException ex) {
+                initial = Path.of(System.getProperty("java.home"));
+              }
+              RetroPathDialog.javaExecutable(stage, initial)
+                  .ifPresent(chosen -> javaPath.setText(chosen.toString()));
             });
     browseJava.setMinWidth(Region.USE_PREF_SIZE);
     HBox javaControl = new HBox(6, javaPath, browseJava);

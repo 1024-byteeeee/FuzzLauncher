@@ -2,7 +2,7 @@
 .window { -fx-padding: 4; -fx-border-color: white #202020 #202020 white; -fx-border-width: 2; -fx-background-color: #c0c0c0; }
 .title-bar { -fx-background-color: #000080; -fx-padding: 3 4 3 8; -fx-spacing: 8; }
 .title { -fx-font-size: 25px; -fx-font-weight: bold; -fx-text-fill: white; }
-.dialog-pane.download-window { -fx-padding: 4; -fx-background-radius: 0; }
+.dialog-pane.retro-dialog { -fx-padding: 4; -fx-background-radius: 0; }
 .button { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-border-radius: 0; -fx-border-color: white #202020 #202020 white, #dfdfdf #808080 #808080 #dfdfdf; -fx-border-width: 2, 1; -fx-border-insets: 0, 2; -fx-padding: 5 12; -fx-text-fill: black; -fx-effect: null; }
 .button:pressed { -fx-border-color: #202020 white white #202020; -fx-translate-y: 1; }
 .version-refresh { -fx-padding: 0 12; -fx-alignment: center; }

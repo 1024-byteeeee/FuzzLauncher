@@ -69,7 +69,8 @@ public final class FuzzApplication extends Application {
               restartCommand = LauncherRestart.command();
               Platform.exit();
             } catch (java.io.IOException ex) {
-              new Alert(Alert.AlertType.ERROR, "自动重启失败，请手动重新打开启动器：" + ex.getMessage())
+              RetroDialogs.alert(
+                      stage, Alert.AlertType.ERROR, "自动重启失败", "请手动重新打开启动器：" + ex.getMessage())
                   .showAndWait();
             }
           });
@@ -103,7 +104,7 @@ public final class FuzzApplication extends Application {
               Platform.exit();
             });
     } catch (Exception ex) {
-      new Alert(Alert.AlertType.ERROR, "启动器初始化失败: " + ex.getMessage()).showAndWait();
+      RetroDialogs.alert(stage, Alert.AlertType.ERROR, "启动器初始化失败", ex.getMessage()).showAndWait();
       Platform.exit();
     }
   }
@@ -124,7 +125,8 @@ public final class FuzzApplication extends Application {
       try {
         LauncherRestart.launch(command);
       } catch (java.io.IOException ex) {
-        new Alert(Alert.AlertType.ERROR, "自动重启失败，请手动重新打开启动器：" + ex.getMessage()).showAndWait();
+        RetroDialogs.alert(null, Alert.AlertType.ERROR, "自动重启失败", "请手动重新打开启动器：" + ex.getMessage())
+            .showAndWait();
       }
     }
   }
