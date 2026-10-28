@@ -76,16 +76,17 @@ public final class AccountsPage extends RetroPage {
     Button logout = button("退出登录", vm::logout);
     logout.setId(offline ? "offline-logout" : "microsoft-logout");
     logout
-        .visibleProperty()
+        .disableProperty()
         .bind(
-            Bindings.createBooleanBinding(
-                () -> {
-                  Account identity = vm.accountProperty().get();
-                  return identity != null && identity.isOffline() == offline;
-                },
-                vm.accountProperty()));
-    logout.managedProperty().bind(logout.visibleProperty());
-    logout.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
+            vm.busyProperty()
+                .or(vm.gameRunningProperty())
+                .or(
+                    Bindings.createBooleanBinding(
+                        () -> {
+                          Account identity = vm.accountProperty().get();
+                          return identity == null || identity.isOffline() != offline;
+                        },
+                        vm.accountProperty())));
     return logout;
   }
 }
