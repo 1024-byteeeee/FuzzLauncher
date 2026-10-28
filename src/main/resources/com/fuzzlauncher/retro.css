@@ -1,7 +1,7 @@
-.root { -fx-font-family: "Microsoft YaHei UI"; -fx-font-size: 18px; -fx-font-smoothing-type: gray; -fx-base: #c0c0c0; -fx-background-color: #c0c0c0; -fx-text-fill: black; }
+.root { -fx-font-family: "System"; -fx-font-size: 18px; -fx-base: #c0c0c0; -fx-background-color: #c0c0c0; -fx-text-fill: black; }
 .window { -fx-padding: 4; -fx-border-color: white #202020 #202020 white; -fx-border-width: 2; -fx-background-color: #c0c0c0; }
 .title-bar { -fx-background-color: #000080; -fx-padding: 3 4 3 8; -fx-spacing: 8; }
-.title { -fx-font-family: "Consolas"; -fx-font-size: 25px; -fx-font-weight: bold; -fx-text-fill: white; }
+.title { -fx-font-size: 25px; -fx-font-weight: bold; -fx-text-fill: white; }
 .button { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-border-radius: 0; -fx-border-color: white #202020 #202020 white, #dfdfdf #808080 #808080 #dfdfdf; -fx-border-width: 2, 1; -fx-border-insets: 0, 2; -fx-padding: 5 12; -fx-text-fill: black; -fx-effect: null; }
 .button:pressed { -fx-border-color: #202020 white white #202020; -fx-translate-y: 1; }
 .version-refresh { -fx-padding: 0 12; -fx-alignment: center; }
@@ -25,7 +25,7 @@
 .field-label { -fx-font-size: 22; }
 .text-field, .select-field { -fx-background-color: white; -fx-background-radius: 0; -fx-border-color: #808080 white white #808080, #202020 #dfdfdf #dfdfdf #202020; -fx-border-width: 2, 1; -fx-border-insets: 0, 2; -fx-padding: 3 6; -fx-font-size: 19; -fx-pref-height: 39; }
 .select-field { -fx-padding: 2 2 2 6; -fx-alignment: center-left; }
-.field-value { -fx-font-family: "Microsoft YaHei UI"; -fx-font-size: 19; }
+.field-value { -fx-font-size: 19; }
 .select-arrow { -fx-font-size: 17; -fx-padding: 0 5; -fx-min-height: 29; -fx-min-width: 29; }
 .launch-button { -fx-font-size: 24; -fx-pref-height: 76; -fx-font-weight: bold; }
 .status-bar { -fx-padding: 3; -fx-border-color: white #808080 #808080 white; -fx-border-width: 2; }
