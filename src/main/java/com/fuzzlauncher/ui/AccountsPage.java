@@ -20,25 +20,12 @@ public final class AccountsPage extends RetroPage {
   }
 
   private Node build() {
-    Label account = new Label();
-    account
-        .textProperty()
-        .bind(
-            Bindings.createStringBinding(
-                () ->
-                    vm.accountProperty().get() == null
-                        ? "未登录"
-                        : (vm.accountProperty().get().isOffline() ? "离线账号: " : "微软账号: ")
-                            + vm.accountProperty().get().name()
-                            + "\nUUID: "
-                            + vm.accountProperty().get().uuid(),
-                vm.accountProperty()));
+    Label microsoftAccount = accountInfo(false);
+    Label offlineAccount = accountInfo(true);
     Button login = button("微软登录", vm::login);
     login.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
-    Button logout = button("退出登录", vm::logout);
-    logout
-        .disableProperty()
-        .bind(vm.busyProperty().or(vm.gameRunningProperty()).or(vm.accountProperty().isNull()));
+    Button microsoftLogout = logoutButton(false);
+    Button offlineLogout = logoutButton(true);
     TextField username = new TextField();
     username.setPromptText("3–16 位英文字母、数字或下划线");
     username.setMaxWidth(420);
@@ -56,13 +43,49 @@ public final class AccountsPage extends RetroPage {
             25,
             label("微软账号", "section-title"),
             icon("player", 64),
-            account,
-            new HBox(15, login, logout),
+            microsoftAccount,
+            new HBox(15, login, microsoftLogout),
             label("离线账号", "section-title"),
+            offlineAccount,
             username,
             offlineHint,
-            offline);
+            new HBox(15, offline, offlineLogout));
     content.setPadding(new Insets(30));
     return content;
+  }
+
+  private Label accountInfo(boolean offline) {
+    Label info = new Label();
+    info.setId(offline ? "offline-account-info" : "microsoft-account-info");
+    info.textProperty()
+        .bind(
+            Bindings.createStringBinding(
+                () -> {
+                  Account identity = vm.accountProperty().get();
+                  if (identity == null || identity.isOffline() != offline) return "未登录";
+                  return (offline ? "离线账号: " : "微软账号: ")
+                      + identity.name()
+                      + "\nUUID: "
+                      + identity.uuid();
+                },
+                vm.accountProperty()));
+    return info;
+  }
+
+  private Button logoutButton(boolean offline) {
+    Button logout = button("退出登录", vm::logout);
+    logout.setId(offline ? "offline-logout" : "microsoft-logout");
+    logout
+        .visibleProperty()
+        .bind(
+            Bindings.createBooleanBinding(
+                () -> {
+                  Account identity = vm.accountProperty().get();
+                  return identity != null && identity.isOffline() == offline;
+                },
+                vm.accountProperty()));
+    logout.managedProperty().bind(logout.visibleProperty());
+    logout.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
+    return logout;
   }
 }
