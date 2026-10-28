@@ -8,8 +8,13 @@ import com.fuzzlauncher.infrastructure.*;
 import java.nio.file.*;
 import java.util.concurrent.*;
 import javafx.application.Platform;
+import javafx.event.Event;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.control.skin.ComboBoxListViewSkin;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -74,6 +79,7 @@ class UiSmokeTest {
                   "png",
                   Path.of("build/ui-check/page-" + page + ".png").toFile());
             }
+            verifyDropdownHighlight(view);
             result.complete(null);
           } catch (Throwable ex) {
             result.completeExceptionally(ex);
@@ -88,5 +94,60 @@ class UiSmokeTest {
     } finally {
       System.clearProperty("fuzz.dataDir");
     }
+  }
+
+  private static void verifyDropdownHighlight(LauncherView view) {
+    ComboBox<?> combo = (ComboBox<?>) view.lookup(".combo-box");
+    Object original = combo.getValue();
+    combo.show();
+    ListView<?> list = (ListView<?>) ((ComboBoxListViewSkin<?>) combo.getSkin()).getPopupContent();
+    list.applyCss();
+    list.layout();
+    ListCell<?> second = cell(list, 1);
+    ListCell<?> third = cell(list, 2);
+    Event.fireEvent(second, mouse(second, MouseEvent.MOUSE_MOVED));
+    list.applyCss();
+    assertEquals(Color.NAVY, second.getBackground().getFills().getFirst().getFill());
+    Event.fireEvent(third, mouse(third, MouseEvent.MOUSE_MOVED));
+    Event.fireEvent(list, mouse(list, MouseEvent.MOUSE_EXITED));
+    list.applyCss();
+    assertEquals(Color.WHITE, second.getBackground().getFills().getFirst().getFill());
+    assertEquals(Color.NAVY, third.getBackground().getFills().getFirst().getFill());
+    assertEquals(original, combo.getValue(), "Hover must not commit a selection");
+    Event.fireEvent(third, mouse(third, MouseEvent.MOUSE_PRESSED));
+    Event.fireEvent(third, mouse(third, MouseEvent.MOUSE_RELEASED));
+    assertEquals(third.getItem(), combo.getValue(), "Click must commit the hovered item");
+    combo.hide();
+  }
+
+  private static ListCell<?> cell(ListView<?> list, int index) {
+    return list.lookupAll(".list-cell").stream()
+        .filter(node -> node instanceof ListCell<?> cell && cell.getIndex() == index)
+        .map(node -> (ListCell<?>) node)
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static MouseEvent mouse(Node target, javafx.event.EventType<MouseEvent> type) {
+    var point = target.localToScene(5, 5);
+    return new MouseEvent(
+        type,
+        point.getX(),
+        point.getY(),
+        point.getX(),
+        point.getY(),
+        MouseButton.PRIMARY,
+        1,
+        false,
+        false,
+        false,
+        false,
+        type == MouseEvent.MOUSE_PRESSED,
+        false,
+        false,
+        false,
+        false,
+        true,
+        new javafx.scene.input.PickResult(target, point.getX(), point.getY()));
   }
 }

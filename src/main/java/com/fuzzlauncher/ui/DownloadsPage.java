@@ -20,7 +20,7 @@ public final class DownloadsPage extends RetroPage {
   }
 
   private Node build() {
-    ComboBox<String> type = new ComboBox<>();
+    ComboBox<String> type = new RetroComboBox<>();
     type.getItems().addAll("正式版", "快照", "历史版本", "全部");
     type.setValue("正式版");
     TextField search = new TextField();
@@ -47,11 +47,11 @@ public final class DownloadsPage extends RetroPage {
     filter.run();
     ListView<GameVersion> games = new ListView<>(filtered);
     games.setPlaceholder(new Label("点击“刷新版本”读取官方清单"));
-    ComboBox<LoaderType> loader = new ComboBox<>();
+    ComboBox<LoaderType> loader = new RetroComboBox<>();
     loader.getItems().setAll(LoaderType.values());
     loader.setValue(LoaderType.VANILLA);
     loader.setMaxWidth(Double.MAX_VALUE);
-    ComboBox<String> loaderVersion = new ComboBox<>(vm.loaderVersions());
+    ComboBox<String> loaderVersion = new RetroComboBox<>(vm.loaderVersions());
     loaderVersion.setMaxWidth(Double.MAX_VALUE);
     loaderVersion.setPromptText("选择兼容的加载器版本");
     TextField name = new TextField();

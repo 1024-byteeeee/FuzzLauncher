@@ -22,7 +22,7 @@ public final class SettingsPage extends RetroPage {
     LauncherSettings config = vm.settingsProperty().get();
     TextField root = new TextField(config.gameRoot());
     root.setEditable(vm.instances().isEmpty());
-    ComboBox<IsolationMode> mode = new ComboBox<>();
+    ComboBox<IsolationMode> mode = new RetroComboBox<>();
     mode.getItems().setAll(IsolationMode.values());
     mode.setValue(config.isolation());
     mode.setMaxWidth(Double.MAX_VALUE);

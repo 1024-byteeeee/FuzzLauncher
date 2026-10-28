@@ -114,7 +114,7 @@ public final class InstancesPage extends RetroPage {
                     ? ""
                     : " " + instance.loaderVersion()));
     loader.setEditable(false);
-    ComboBox<IsolationOverride> isolation = new ComboBox<>();
+    ComboBox<IsolationOverride> isolation = new RetroComboBox<>();
     isolation.getItems().setAll(IsolationOverride.values());
     isolation.setValue(instance.isolation());
     isolation.setMaxWidth(Double.MAX_VALUE);
