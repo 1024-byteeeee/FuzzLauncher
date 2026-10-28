@@ -143,9 +143,10 @@ public final class MicrosoftAuthentication
     try {
       response =
           http.postJson("https://api.minecraftservices.com/authentication/login_with_xbox", login);
-    } catch (IOException ex) {
+    } catch (HttpTransport.HttpStatusException ex) {
+      if (ex.statusCode() != 403) throw ex;
       throw new IOException(
-          "Minecraft 登录被拒绝。请检查 Fuzz Client ID 的应用准入、Xbox 账号状态及网络。" + ex.getMessage(), ex);
+          "Minecraft 服务返回 HTTP 403。请检查 Fuzz Client ID 的应用准入及账号状态。" + ex.getMessage(), ex);
     }
     String token = response.get("access_token").getAsString();
     JsonObject entitlements =

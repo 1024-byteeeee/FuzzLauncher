@@ -9,8 +9,22 @@ import java.nio.file.*;
 import java.security.*;
 import java.time.Duration;
 import java.util.*;
+import javax.net.ssl.SSLException;
 
 public final class HttpTransport {
+  public static final class HttpStatusException extends IOException {
+    private final int statusCode;
+
+    public HttpStatusException(int statusCode, String host) {
+      super("服务请求失败 HTTP " + statusCode + " (" + host + ")");
+      this.statusCode = statusCode;
+    }
+
+    public int statusCode() {
+      return statusCode;
+    }
+  }
+
   private final HttpClient client =
       HttpClient.newBuilder()
           .followRedirects(HttpClient.Redirect.NORMAL)
@@ -44,10 +58,23 @@ public final class HttpTransport {
             .timeout(Duration.ofSeconds(60))
             .header("User-Agent", "FuzzLauncher/0.2.0")
             .build();
-    HttpResponse<String> response = client.send(bounded, HttpResponse.BodyHandlers.ofString());
-    if (response.statusCode() / 100 != 2)
+    HttpResponse<String> response;
+    try {
+      response = client.send(bounded, HttpResponse.BodyHandlers.ofString());
+    } catch (IOException ex) {
+      for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+        if (cause instanceof SSLException)
+          throw new IOException(
+              "HTTPS/TLS 连接失败 ("
+                  + request.uri().getHost()
+                  + ")。请检查网络、系统代理及 HTTPS 拦截设置；尚未收到服务端的授权结果。",
+              cause);
+      }
       throw new IOException(
-          "服务请求失败 HTTP " + response.statusCode() + " (" + request.uri().getHost() + ")");
+          "网络请求失败 (" + request.uri().getHost() + "): " + ex.getClass().getSimpleName(), ex);
+    }
+    if (response.statusCode() / 100 != 2)
+      throw new HttpStatusException(response.statusCode(), request.uri().getHost());
     try {
       return JsonParser.parseString(response.body()).getAsJsonObject();
     } catch (JsonParseException | IllegalStateException ex) {

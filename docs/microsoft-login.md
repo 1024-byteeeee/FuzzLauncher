@@ -13,6 +13,8 @@ Client ID 是公开标识；不要填写 Client Secret，也不要把账号密�
 
 ## 诊断
 
+- 启动器默认读取 Windows 系统代理设置，修改代理后请完全退出并重新启动。可通过 JVM 参数 `-Djava.net.useSystemProxies=false` 禁用此行为。
+- `HTTPS/TLS 连接失败` 或 `Remote host terminated the handshake`：连接在收到 HTTP 授权结果前失败，先检查网络、代理和 HTTPS 拦截设置，不能据此判断应用准入是否通过。
 - 缺少 Client ID：先完成上述注册和配置。
 - Microsoft/Xbox 403：检查账号 Xbox 资料、家庭限制以及授权状态。
 - Minecraft 登录 403：检查应用准入和账号状态；仅注册 Entra 应用不等于获得 Minecraft 服务准入。
