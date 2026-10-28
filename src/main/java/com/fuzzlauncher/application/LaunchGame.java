@@ -46,6 +46,10 @@ public final class LaunchGame {
         account.isOffline() ? GameSession.offline(account) : authentication.refresh(account, task);
     Path root = Path.of(settings.gameRoot()).toAbsolutePath().normalize();
     JsonObject version = resolver.resolve(root, instance.id());
+    Path java =
+        instance.javaPath().isBlank()
+            ? null
+            : runtimes.resolve(runtimes.requiredMajor(version), instance.javaPath(), task);
     files.prepare(root, version, task);
     Path gameDir = isolation.gameDirectory(root, instance, settings.isolation());
     Files.createDirectories(gameDir);
@@ -73,7 +77,7 @@ public final class LaunchGame {
                 VersionResolver.mavenPath(library.get("name").getAsString())));
     }
     files.legacyResources(root, gameDir, version, task);
-    Path java = runtimes.resolve(runtimes.requiredMajor(version), task);
+    if (java == null) java = runtimes.resolve(runtimes.requiredMajor(version), task);
     if (!account.isOffline() && !session.expiresAt().isAfter(Instant.now().plusSeconds(60)))
       session = authentication.refresh(account, task);
     List<String> command = new ArrayList<>();

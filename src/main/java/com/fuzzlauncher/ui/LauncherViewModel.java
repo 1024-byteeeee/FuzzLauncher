@@ -225,6 +225,9 @@ public final class LauncherViewModel implements AutoCloseable {
     submit(
         "保存实例设置",
         context -> {
+          if (!instance.javaPath().isBlank())
+            com.fuzzlauncher.infrastructure.game.JavaRuntimeManager.configuredExecutable(
+                instance.javaPath());
           repository.save(instance);
           return instance;
         },

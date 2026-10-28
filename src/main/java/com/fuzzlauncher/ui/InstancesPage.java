@@ -123,12 +123,40 @@ public final class InstancesPage extends RetroPage {
     isolation.setValue(instance.isolation());
     isolation.setMaxWidth(Double.MAX_VALUE);
     Spinner<Integer> memory = new Spinner<>(512, 65536, instance.memoryMb(), 512);
-    memory.setEditable(false);
+    memory.setId("instance-memory");
+    memory.setEditable(true);
+    memory
+        .getEditor()
+        .setTextFormatter(
+            new TextFormatter<String>(
+                change -> change.getControlNewText().matches("[0-9]{0,5}") ? change : null));
     memory.setMaxWidth(Double.MAX_VALUE);
+    TextField javaPath = new TextField(instance.javaPath());
+    javaPath.setId("instance-java-path");
+    javaPath.setPromptText("留空自动选择，或输入 java.exe 路径");
+    javaPath.setMinWidth(0);
+    HBox.setHgrow(javaPath, Priority.ALWAYS);
+    Button browseJava =
+        button(
+            "浏览",
+            () -> {
+              javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+              chooser.setTitle("选择此实例的 Java");
+              chooser
+                  .getExtensionFilters()
+                  .add(
+                      new javafx.stage.FileChooser.ExtensionFilter(
+                          "Java 程序", "java.exe", "javaw.exe"));
+              java.io.File chosen = chooser.showOpenDialog(stage);
+              if (chosen != null) javaPath.setText(chosen.getAbsolutePath());
+            });
+    browseJava.setMinWidth(Region.USE_PREF_SIZE);
+    HBox javaControl = new HBox(6, javaPath, browseJava);
+    javaControl.setMinWidth(0);
     GridPane form =
         form(
-            new String[] {"名称(N):", "游戏版本:", "加载器:", "版本隔离:", "内存 MB:"},
-            new Node[] {name, version, loader, isolation, memory});
+            new String[] {"名称(N):", "游戏版本:", "加载器:", "版本隔离:", "内存 MB:", "Java 路径:"},
+            new Node[] {name, version, loader, isolation, memory, javaControl});
     Label directory = new Label();
     directory.setWrapText(true);
     directory.setMinHeight(40);
@@ -149,11 +177,16 @@ public final class InstancesPage extends RetroPage {
                   && !confirm("切换版本隔离", "切换后将使用另一游戏目录；现有存档和模组不会自动迁移。\n请先备份重要数据。是否继续？")) return;
               try {
                 vm.updateInstance(
-                    instance.withSettings(name.getText(), isolation.getValue(), memory.getValue()));
+                    instance.withSettings(
+                        name.getText(),
+                        isolation.getValue(),
+                        Integer.parseInt(memory.getEditor().getText()),
+                        javaPath.getText()));
               } catch (IllegalArgumentException ex) {
                 message(Alert.AlertType.ERROR, "设置无效", ex.getMessage());
               }
             });
+    save.setId("save-instance-settings");
     save.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
     Button folder =
         button(

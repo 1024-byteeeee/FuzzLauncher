@@ -16,6 +16,15 @@ import javax.net.ssl.SSLException;
 public final class HttpTransport {
   private volatile DownloadSource downloadSource = DownloadSource.OFFICIAL;
   private final UnaryOperator<String> downloadUrl;
+  private final java.util.concurrent.atomic.AtomicLong downloadedBytes =
+      new java.util.concurrent.atomic.AtomicLong();
+  private static final java.util.concurrent.ScheduledExecutorService DOWNLOAD_WATCHDOG =
+      java.util.concurrent.Executors.newScheduledThreadPool(
+          2, Thread.ofPlatform().daemon(true).name("download-watchdog-", 0).factory());
+
+  public long downloadedBytes() {
+    return downloadedBytes.get();
+  }
 
   public HttpTransport() {
     downloadUrl = null;
@@ -50,7 +59,7 @@ public final class HttpTransport {
   private final HttpClient client =
       HttpClient.newBuilder()
           .followRedirects(HttpClient.Redirect.NORMAL)
-          .connectTimeout(Duration.ofSeconds(20))
+          .connectTimeout(Duration.ofSeconds(10))
           .build();
 
   public JsonObject getJson(String url) throws IOException, InterruptedException {
@@ -144,59 +153,167 @@ public final class HttpTransport {
         && !sha1.isBlank()
         && digest(destination, "SHA-1").equalsIgnoreCase(sha1)) return;
     Files.createDirectories(destination.toAbsolutePath().getParent());
-    IOException failure = null;
+    Path partial =
+        Files.createTempFile(destination.toAbsolutePath().getParent(), ".download-", ".part");
     List<String> urls = candidates(url, false);
-    String previousUrl = urls.getFirst();
-    for (int attempt = 0; attempt < 3; attempt++) {
-      task.checkCancelled();
-      int index = urls.size() == 2 ? (attempt < 2 ? 0 : 1) : Math.min(attempt, urls.size() - 1);
-      String downloadUrl = urls.get(index);
-      if (!downloadUrl.equals(previousUrl))
-        task.report("切换备用下载地址：" + URI.create(downloadUrl).getHost(), -1);
-      previousUrl = downloadUrl;
-      Path partial =
-          Files.createTempFile(destination.toAbsolutePath().getParent(), ".download-", ".part");
-      try {
-        HttpResponse<InputStream> response =
-            client.send(
-                HttpRequest.newBuilder(URI.create(downloadUrl))
-                    .timeout(Duration.ofMinutes(5))
-                    .header("User-Agent", "FuzzLauncher/0.2.0")
-                    .GET()
-                    .build(),
-                HttpResponse.BodyHandlers.ofInputStream());
-        try (InputStream input = response.body()) {
-          if (response.statusCode() / 100 != 2)
-            throw new IOException(
-                "下载失败 HTTP " + response.statusCode() + ": " + URI.create(downloadUrl).getHost());
-          try (OutputStream output = Files.newOutputStream(partial)) {
-            byte[] buffer = new byte[64 * 1024];
-            int count;
-            while ((count = input.read(buffer)) != -1) {
+    String previousUrl = null;
+    String validator = null;
+    boolean resumable = false;
+    IOException failure = null;
+    try {
+      for (int attempt = 0; attempt < 3; attempt++) {
+        task.checkCancelled();
+        String candidate = urls.get(Math.min(attempt, urls.size() - 1));
+        if (!candidate.equals(previousUrl)) {
+          if (previousUrl != null) task.report("切换备用下载地址：" + URI.create(candidate).getHost(), -1);
+          resumable = false;
+          validator = null;
+        }
+        previousUrl = candidate;
+        long offset = resumable ? Files.size(partial) : 0;
+        HttpRequest.Builder request =
+            HttpRequest.newBuilder(URI.create(candidate))
+                .timeout(Duration.ofSeconds(30))
+                .header("User-Agent", "FuzzLauncher/0.2.0")
+                .header("Accept-Encoding", "identity")
+                .GET();
+        if (offset > 0)
+          request.header("Range", "bytes=" + offset + "-").header("If-Range", validator);
+        try {
+          HttpResponse<InputStream> response =
+              client.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
+          try (InputStream input = response.body()) {
+            int status = response.statusCode();
+            if (status != 200 && status != 206) {
+              resumable = false;
+              throw new IOException("下载失败 HTTP " + status + ": " + URI.create(candidate).getHost());
+            }
+            long total;
+            if (status == 206) {
+              var range =
+                  java.util.regex.Pattern.compile("bytes (\\d+)-(\\d+)/(\\d+)")
+                      .matcher(response.headers().firstValue("Content-Range").orElse(""));
+              if (offset == 0
+                  || !range.matches()
+                  || Long.parseLong(range.group(1)) != offset
+                  || Long.parseLong(range.group(2)) < offset
+                  || Long.parseLong(range.group(3)) <= Long.parseLong(range.group(2))) {
+                resumable = false;
+                throw new IOException("服务器返回的续传范围无效");
+              }
+              total = Long.parseLong(range.group(3));
+            } else {
+              offset = 0;
+              total = response.headers().firstValueAsLong("Content-Length").orElse(-1);
+            }
+            String etag =
+                response
+                    .headers()
+                    .firstValue("ETag")
+                    .filter(value -> !value.startsWith("W/"))
+                    .orElse(null);
+            String freshValidator =
+                etag != null ? etag : response.headers().firstValue("Last-Modified").orElse(null);
+            if (status == 206 && freshValidator != null && !freshValidator.equals(validator)) {
+              resumable = false;
+              throw new IOException("续传文件已变化，重新下载");
+            }
+            if (freshValidator != null || status == 200) validator = freshValidator;
+            resumable =
+                validator != null
+                    && total >= 0
+                    && response
+                        .headers()
+                        .firstValue("Content-Encoding")
+                        .orElse("identity")
+                        .equalsIgnoreCase("identity")
+                    && (status == 206
+                        || response
+                            .headers()
+                            .firstValue("Accept-Ranges")
+                            .orElse("")
+                            .equalsIgnoreCase("bytes"));
+            var lastRead = new java.util.concurrent.atomic.AtomicLong(System.nanoTime());
+            var stalled = new java.util.concurrent.atomic.AtomicBoolean();
+            Thread worker = Thread.currentThread();
+            var watchdog =
+                DOWNLOAD_WATCHDOG.scheduleAtFixedRate(
+                    () -> {
+                      if (worker.isInterrupted()
+                          || task.cancelled()
+                          || System.nanoTime() - lastRead.get()
+                              > Duration.ofSeconds(20).toNanos()) {
+                        stalled.set(true);
+                        try {
+                          input.close();
+                        } catch (IOException ignored) {
+                        }
+                      }
+                    },
+                    1,
+                    1,
+                    java.util.concurrent.TimeUnit.SECONDS);
+            long received = offset;
+            long start = System.nanoTime(), lastReport = start;
+            try (OutputStream output =
+                Files.newOutputStream(
+                    partial,
+                    StandardOpenOption.WRITE,
+                    offset > 0
+                        ? StandardOpenOption.APPEND
+                        : StandardOpenOption.TRUNCATE_EXISTING)) {
+              byte[] buffer = new byte[128 * 1024];
+              int count;
+              while ((count = input.read(buffer)) != -1) {
+                task.checkCancelled();
+                output.write(buffer, 0, count);
+                received += count;
+                downloadedBytes.addAndGet(count);
+                long now = System.nanoTime();
+                lastRead.set(now);
+                if (now - lastReport >= Duration.ofMillis(500).toNanos()) {
+                  double seconds = Math.max(0.001, (now - start) / 1e9);
+                  task.report(
+                      String.format(
+                          Locale.ROOT,
+                          "下载 %s · %.1f MiB · %.1f MiB/s",
+                          destination.getFileName(),
+                          received / 1048576.0,
+                          (received - offset) / 1048576.0 / seconds),
+                      total > 0 ? (double) received / total : -1);
+                  lastReport = now;
+                }
+              }
               task.checkCancelled();
-              output.write(buffer, 0, count);
+              if (stalled.get()) throw new IOException("下载连接中断或连续 20 秒没有接收到数据");
+              if (total >= 0 && received != total) throw new IOException("下载未完成，可从已接收位置续传");
+            } finally {
+              watchdog.cancel(false);
             }
           }
+          if (sha1 != null && !sha1.isBlank() && !digest(partial, "SHA-1").equalsIgnoreCase(sha1)) {
+            resumable = false;
+            throw new IOException("文件 SHA-1 校验失败: " + destination.getFileName());
+          }
+          task.checkCancelled();
+          try {
+            Files.move(
+                partial,
+                destination,
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING);
+          } catch (AtomicMoveNotSupportedException ex) {
+            Files.move(partial, destination, StandardCopyOption.REPLACE_EXISTING);
+          }
+          return;
+        } catch (IOException ex) {
+          failure = ex;
         }
-        if (sha1 != null && !sha1.isBlank() && !digest(partial, "SHA-1").equalsIgnoreCase(sha1))
-          throw new IOException("文件 SHA-1 校验失败: " + destination.getFileName());
-        try {
-          Files.move(
-              partial,
-              destination,
-              StandardCopyOption.ATOMIC_MOVE,
-              StandardCopyOption.REPLACE_EXISTING);
-        } catch (AtomicMoveNotSupportedException ex) {
-          Files.move(partial, destination, StandardCopyOption.REPLACE_EXISTING);
-        }
-        return;
-      } catch (IOException ex) {
-        failure = ex;
-      } finally {
-        Files.deleteIfExists(partial);
       }
+      throw Objects.requireNonNull(failure);
+    } finally {
+      Files.deleteIfExists(partial);
     }
-    throw Objects.requireNonNull(failure);
   }
 
   public static String digest(Path file, String algorithm) throws IOException {

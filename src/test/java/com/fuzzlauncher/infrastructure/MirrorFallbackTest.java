@@ -79,7 +79,7 @@ class MirrorFallbackTest {
             }
           });
       assertArrayEquals(expected, Files.readAllBytes(target));
-      assertEquals(2, mirrors.get());
+      assertEquals(1, mirrors.get());
       assertEquals(1, officials.get());
       try (var files = Files.list(target.getParent())) {
         assertEquals(1, files.count());

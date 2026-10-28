@@ -8,10 +8,12 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /** Downloads vanilla manifests, libraries, natives and assets using official metadata. */
 public final class GameFiles {
+  public static final int DOWNLOAD_CONCURRENCY =
+      Math.min(Runtime.getRuntime().availableProcessors() * 4, 64);
+
   public record Artifact(String url, Path path, String sha1, boolean nativeJar) {}
 
   private final HttpTransport http;
@@ -170,25 +172,59 @@ public final class GameFiles {
 
   private void downloadAll(List<Artifact> artifacts, String label, TaskContext task)
       throws Exception {
-    AtomicInteger completed = new AtomicInteger();
-    try (ExecutorService workers = Executors.newFixedThreadPool(6)) {
+    long initialBytes = http.downloadedBytes();
+    long start = System.nanoTime();
+    TaskContext workerContext =
+        new TaskContext() {
+          public void report(String message, double progress) {}
+
+          public boolean cancelled() {
+            return task.cancelled();
+          }
+        };
+    try (ExecutorService workers =
+        Executors.newFixedThreadPool(DOWNLOAD_CONCURRENCY, Thread.ofVirtual().factory())) {
+      CompletionService<Void> completions = new ExecutorCompletionService<>(workers);
       List<Future<?>> futures = new ArrayList<>();
       try {
         for (Artifact artifact : artifacts)
           futures.add(
-              workers.submit(
+              completions.submit(
                   () -> {
                     task.checkCancelled();
                     // Generated Forge libraries may not have a download URL or checksum.
                     if (!(artifact.sha1().isBlank() && Files.isRegularFile(artifact.path())))
-                      http.download(artifact.url(), artifact.path(), artifact.sha1(), task);
-                    int count = completed.incrementAndGet();
-                    task.report(
-                        label + " " + count + "/" + artifacts.size(),
-                        (double) count / Math.max(1, artifacts.size()));
+                      http.download(
+                          artifact.url(), artifact.path(), artifact.sha1(), workerContext);
                     return null;
                   }));
-        for (Future<?> future : futures) future.get();
+        int completed = 0;
+        long lastReport = 0;
+        while (completed < artifacts.size()) {
+          task.checkCancelled();
+          Future<Void> done = completions.poll(250, TimeUnit.MILLISECONDS);
+          if (done != null) {
+            done.get();
+            completed++;
+          }
+          long now = System.nanoTime();
+          if (now - lastReport >= TimeUnit.MILLISECONDS.toNanos(250)
+              || completed == artifacts.size()) {
+            long bytes = http.downloadedBytes() - initialBytes;
+            double seconds = Math.max(0.001, (now - start) / 1e9);
+            task.report(
+                String.format(
+                    Locale.ROOT,
+                    "%s %d/%d · %.1f MiB/s · 已下载 %.1f MiB",
+                    label,
+                    completed,
+                    artifacts.size(),
+                    bytes / 1048576.0 / seconds,
+                    bytes / 1048576.0),
+                (double) completed / artifacts.size());
+            lastReport = now;
+          }
+        }
       } catch (Exception ex) {
         futures.forEach(f -> f.cancel(true));
         workers.shutdownNow();

@@ -78,6 +78,54 @@ public final class JavaRuntimeManager {
     throw new IOException("Java 安装包缺少有效运行环境");
   }
 
+  public static Path configuredExecutable(String configured) throws IOException {
+    String value = configured.strip();
+    if (value.startsWith("\"") && value.endsWith("\"") && value.length() > 1)
+      value = value.substring(1, value.length() - 1);
+    Path executable = Path.of(value).toAbsolutePath().normalize();
+    if (Files.isDirectory(executable)) {
+      executable =
+          Files.isRegularFile(executable.resolve("java.exe"))
+              ? executable.resolve("java.exe")
+              : executable.resolve("bin/java.exe");
+    }
+    if (executable.getFileName().toString().equalsIgnoreCase("javaw.exe"))
+      executable = executable.resolveSibling("java.exe");
+    if (!executable.getFileName().toString().equalsIgnoreCase("java.exe")
+        || !Files.isRegularFile(executable))
+      throw new IOException("Java 路径无效，请选择 java.exe 或包含 bin/java.exe 的 Java 目录");
+    return executable;
+  }
+
+  public Path resolve(int required, String configured, TaskContext task) throws Exception {
+    if (configured == null || configured.isBlank()) return resolve(required, task);
+    task.checkCancelled();
+    Path executable = configuredExecutable(configured);
+    Path home = executable.getParent().getParent();
+    int actual = home == null ? -1 : major(home);
+    if (actual < 0) {
+      Process probe =
+          new ProcessBuilder(executable.toString(), "-version").redirectErrorStream(true).start();
+      try {
+        if (!probe.waitFor(10, java.util.concurrent.TimeUnit.SECONDS))
+          throw new IOException("所选 Java 版本检测超时");
+        String output =
+            new String(
+                probe.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        var matcher =
+            java.util.regex.Pattern.compile("version \"(?:1\\.)?(\\d+)").matcher(output);
+        if (probe.exitValue() != 0 || !matcher.find()) throw new IOException("无法识别所选 Java 版本");
+        actual = Integer.parseInt(matcher.group(1));
+      } finally {
+        probe.destroyForcibly();
+      }
+    }
+    if (actual < required)
+      throw new IOException("此实例需要 Java " + required + " 或更高版本，所选 Java 为 " + actual);
+    task.report("使用实例指定的 Java " + actual, -1);
+    return executable;
+  }
+
   private static int major(Path home) throws IOException {
     Path release = home.resolve("release");
     if (!Files.isRegularFile(release)) return -1;

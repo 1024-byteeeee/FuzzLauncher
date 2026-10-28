@@ -129,7 +129,8 @@ public class OfflineLaunchFixture {
             LoaderType.VANILLA,
             null,
             IsolationOverride.SHARED,
-            512);
+            5000,
+            Path.of(System.getProperty("java.home"), "bin/java.exe").toString());
     Account account = Account.offline("Steve");
     var running =
         launch.execute(
