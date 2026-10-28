@@ -71,6 +71,8 @@ public final class DownloadsPage extends RetroPage {
         .disableProperty()
         .bind(vm.busyProperty().or(loader.valueProperty().isEqualTo(LoaderType.VANILLA)));
     Button refresh = button("刷新版本", vm::loadVersions);
+    refresh.getStyleClass().add("version-refresh");
+    refresh.setMinWidth(Region.USE_PREF_SIZE);
     refresh.minHeightProperty().bind(type.heightProperty());
     refresh.prefHeightProperty().bind(type.heightProperty());
     refresh.maxHeightProperty().bind(type.heightProperty());
