@@ -66,7 +66,10 @@ public final class LaunchArguments {
     values.put("auth_xuid", "");
     List<String> result =
         new ArrayList<>(
-            List.of("-Xms256M", "-Xmx" + instance.memoryMb() + "M", "-Dfile.encoding=UTF-8"));
+            List.of(
+                "-Xms" + instance.minMemoryMb() + "M",
+                "-Xmx" + instance.memoryMb() + "M",
+                "-Dfile.encoding=UTF-8"));
     JsonObject arguments =
         version.has("arguments") ? version.getAsJsonObject("arguments") : new JsonObject();
     List<String> jvm =

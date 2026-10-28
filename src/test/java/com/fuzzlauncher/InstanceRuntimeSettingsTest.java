@@ -31,6 +31,8 @@ class InstanceRuntimeSettingsTest {
 """,
             GameInstance.class);
     assertEquals("", old.javaPath());
+    assertEquals(256, old.minMemoryMb());
+    assertEquals(4096, old.memoryMb());
     var repo = new JsonInstanceRepository(temp);
     GameInstance customized =
         old.withSettings("Custom", old.isolation(), 5000, "C:/My Java/bin/java.exe");
@@ -46,6 +48,47 @@ class InstanceRuntimeSettingsTest {
         customized.withSettings("Renamed", old.isolation(), 6000).javaPath());
     assertThrows(
         IllegalArgumentException.class, () -> old.withSettings("Bad", old.isolation(), 100));
+  }
+
+  @Test
+  void minimumAndMaximumMemoryPersistAndBecomeJvmArguments() throws Exception {
+    GameInstance instance =
+        new GameInstance(
+                "heap", "Heap", "1.20.4", LoaderType.VANILLA, null, IsolationOverride.INHERIT, 4096)
+            .withSettings("Heap", IsolationOverride.INHERIT, 1024, 6000, "");
+    var repo = new JsonInstanceRepository(temp);
+    repo.save(instance);
+    GameInstance loaded = repo.findAll().getFirst();
+    assertEquals(1024, loaded.minMemoryMb());
+    assertEquals(6000, loaded.memoryMb());
+    assertEquals(1024, loaded.withSettings("Renamed", loaded.isolation(), 7000).minMemoryMb());
+    var version =
+        com.google.gson.JsonParser.parseString(
+                "{\"_clientVersion\":\"1.20.4\",\"mainClass\":\"Main\",\"minecraftArguments\":\"--username"
+                    + " ${auth_player_name}\"}")
+            .getAsJsonObject();
+    var args =
+        new LaunchArguments()
+            .build(
+                temp,
+                temp,
+                temp.resolve("natives"),
+                loaded,
+                GameSession.offline(Account.offline("Steve")),
+                version,
+                java.util.List.of());
+    assertTrue(args.contains("-Xms1024M"));
+    assertTrue(args.contains("-Xmx6000M"));
+    assertFalse(args.contains("-Xms256M"));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> loaded.withSettings("Bad", loaded.isolation(), 7000, 6000, ""));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> loaded.withSettings("Bad", loaded.isolation(), 0, 6000, ""));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> loaded.withSettings("Bad", loaded.isolation(), 256, 70000, ""));
   }
 
   @Test

@@ -10,7 +10,8 @@ public record GameInstance(
     String loaderVersion,
     IsolationOverride isolation,
     int memoryMb,
-    String javaPath) {
+    String javaPath,
+    int minMemoryMb) {
   public GameInstance {
     name = name == null ? null : name.strip();
     javaPath = javaPath == null ? "" : javaPath.strip();
@@ -32,7 +33,24 @@ public record GameInstance(
       throw new IllegalArgumentException("缺少加载器版本");
     Objects.requireNonNull(isolation);
     if (memoryMb < 512 || memoryMb > 65536)
-      throw new IllegalArgumentException("内存应在 512–65536 MB 之间");
+      throw new IllegalArgumentException("最大内存应在 512–65536 MB 之间");
+    // Old instance files only stored the maximum; retain their previous 256 MB initial heap.
+    if (minMemoryMb == 0) minMemoryMb = 256;
+    if (minMemoryMb < 128 || minMemoryMb > 65536)
+      throw new IllegalArgumentException("最小内存应在 128–65536 MB 之间");
+    if (minMemoryMb > memoryMb) throw new IllegalArgumentException("最小内存不能大于最大内存");
+  }
+
+  public GameInstance(
+      String id,
+      String name,
+      String gameVersion,
+      LoaderType loader,
+      String loaderVersion,
+      IsolationOverride isolation,
+      int memoryMb,
+      String javaPath) {
+    this(id, name, gameVersion, loader, loaderVersion, isolation, memoryMb, javaPath, 256);
   }
 
   public GameInstance(
@@ -58,6 +76,33 @@ public record GameInstance(
   public GameInstance withSettings(
       String newName, IsolationOverride mode, int memory, String javaPath) {
     return new GameInstance(
-        id, newName.strip(), gameVersion, loader, loaderVersion, mode, memory, javaPath);
+        id,
+        newName.strip(),
+        gameVersion,
+        loader,
+        loaderVersion,
+        mode,
+        memory,
+        javaPath,
+        minMemoryMb);
+  }
+
+  public GameInstance withSettings(
+      String newName,
+      IsolationOverride mode,
+      int minimumMemory,
+      int maximumMemory,
+      String javaPath) {
+    if (minimumMemory < 128) throw new IllegalArgumentException("最小内存应在 128–65536 MB 之间");
+    return new GameInstance(
+        id,
+        newName.strip(),
+        gameVersion,
+        loader,
+        loaderVersion,
+        mode,
+        maximumMemory,
+        javaPath,
+        minimumMemory);
   }
 }

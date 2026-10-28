@@ -123,7 +123,7 @@ public final class InstancesPage extends RetroPage {
     landscape.setLayoutY(3);
     StackPane preview = new StackPane(landscape);
     preview.getStyleClass().add("preview");
-    preview.setMinSize(0, 140);
+    preview.setMinSize(0, 30);
     preview.setPrefHeight(210);
     VBox.setVgrow(preview, Priority.ALWAYS);
     landscape.fitWidthProperty().bind(preview.widthProperty().subtract(6));
@@ -142,15 +142,10 @@ public final class InstancesPage extends RetroPage {
     isolation.getItems().setAll(IsolationOverride.values());
     isolation.setValue(instance.isolation());
     isolation.setMaxWidth(Double.MAX_VALUE);
-    Spinner<Integer> memory = new Spinner<>(512, 65536, instance.memoryMb(), 512);
+    Spinner<Integer> minimumMemory = memorySpinner(128, instance.minMemoryMb(), 128);
+    minimumMemory.setId("instance-min-memory");
+    Spinner<Integer> memory = memorySpinner(512, instance.memoryMb(), 512);
     memory.setId("instance-memory");
-    memory.setEditable(true);
-    memory
-        .getEditor()
-        .setTextFormatter(
-            new TextFormatter<String>(
-                change -> change.getControlNewText().matches("[0-9]{0,5}") ? change : null));
-    memory.setMaxWidth(Double.MAX_VALUE);
     TextField javaPath = new TextField(instance.javaPath());
     javaPath.setId("instance-java-path");
     javaPath.setPromptText("留空自动选择，或输入 java.exe 路径");
@@ -177,8 +172,8 @@ public final class InstancesPage extends RetroPage {
     javaControl.setMinWidth(0);
     GridPane form =
         form(
-            new String[] {"名称:", "游戏版本:", "加载器:", "版本隔离:", "内存 MB:", "Java 路径:"},
-            new Node[] {name, version, loader, isolation, memory, javaControl});
+            new String[] {"名称:", "游戏版本:", "加载器:", "版本隔离:", "最小内存 MB:", "最大内存 MB:", "Java 路径:"},
+            new Node[] {name, version, loader, isolation, minimumMemory, memory, javaControl});
     Label directory = new Label();
     directory.setWrapText(true);
     directory.setMinHeight(40);
@@ -202,6 +197,7 @@ public final class InstancesPage extends RetroPage {
                     instance.withSettings(
                         name.getText(),
                         isolation.getValue(),
+                        Integer.parseInt(minimumMemory.getEditor().getText()),
                         Integer.parseInt(memory.getEditor().getText()),
                         javaPath.getText()));
               } catch (IllegalArgumentException ex) {
@@ -253,5 +249,17 @@ public final class InstancesPage extends RetroPage {
     loginHint.setStyle("-fx-font-size: 14px;");
     VBox right = new VBox(12, panel, start, loginHint);
     return right;
+  }
+
+  private Spinner<Integer> memorySpinner(int minimum, int initial, int step) {
+    Spinner<Integer> spinner = new Spinner<>(minimum, 65536, initial, step);
+    spinner.setEditable(true);
+    spinner
+        .getEditor()
+        .setTextFormatter(
+            new TextFormatter<String>(
+                change -> change.getControlNewText().matches("[0-9]{0,5}") ? change : null));
+    spinner.setMaxWidth(Double.MAX_VALUE);
+    return spinner;
   }
 }
