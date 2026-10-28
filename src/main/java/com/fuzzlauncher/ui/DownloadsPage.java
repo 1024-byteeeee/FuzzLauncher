@@ -24,14 +24,16 @@ public final class DownloadsPage extends RetroPage {
         () -> {
           if (getScene() != null && pendingInitialLoad[0] && !vm.busyProperty().get()) {
             pendingInitialLoad[0] = false;
-            if (vm.versions().isEmpty()) vm.loadVersions();
+            if (vm.versions().isEmpty()) vm.loadVersions(this);
           }
         };
-    ChangeListener<Boolean> busyListener = (observable, wasBusy, busy) -> loadWhenReady.run();
+    ChangeListener<Boolean> busyListener =
+        (observable, wasBusy, busy) -> javafx.application.Platform.runLater(loadWhenReady);
     sceneProperty()
         .addListener(
             (observable, oldScene, scene) -> {
               if (oldScene != null) vm.busyProperty().removeListener(busyListener);
+              if (scene == null) vm.cancelCatalogRequests(this);
               if (scene != null) {
                 vm.busyProperty().addListener(busyListener);
                 loadWhenReady.run();
@@ -93,7 +95,7 @@ public final class DownloadsPage extends RetroPage {
             name.setText(
                 v.id() + (loader.getValue() == LoaderType.VANILLA ? "" : " " + loader.getValue()));
           }
-          if (getScene() != null) vm.loadLoaders(loader.getValue(), v);
+          if (getScene() != null) vm.loadLoaders(loader.getValue(), v, this);
         };
     games.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> query.run());
     loader.valueProperty().addListener((o, a, b) -> query.run());
@@ -108,7 +110,7 @@ public final class DownloadsPage extends RetroPage {
     loaderVersion
         .disableProperty()
         .bind(vm.busyProperty().or(loader.valueProperty().isEqualTo(LoaderType.VANILLA)));
-    Button refresh = button("刷新版本", vm::loadVersions);
+    Button refresh = button("刷新版本", () -> vm.loadVersions(this));
     refresh.getStyleClass().add("version-refresh");
     refresh.setMinWidth(Region.USE_PREF_SIZE);
     refresh.minHeightProperty().bind(type.heightProperty());
@@ -118,7 +120,9 @@ public final class DownloadsPage extends RetroPage {
     Button refreshLoader =
         button(
             "刷新加载器",
-            () -> vm.loadLoaders(loader.getValue(), games.getSelectionModel().getSelectedItem()));
+            () ->
+                vm.loadLoaders(
+                    loader.getValue(), games.getSelectionModel().getSelectedItem(), this));
     refreshLoader
         .disableProperty()
         .bind(

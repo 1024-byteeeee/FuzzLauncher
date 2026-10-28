@@ -33,6 +33,9 @@ public final class LauncherViewModel implements AutoCloseable {
       Executors.newSingleThreadExecutor(
           Thread.ofPlatform().name("fuzz-operations").daemon(true).factory());
   private Task<?> active;
+  private Object catalogOwner;
+  private boolean catalogTask;
+  private final BooleanProperty installing = new SimpleBooleanProperty();
   private final ObjectProperty<LauncherSettings> settings = new SimpleObjectProperty<>();
   private final ObservableList<GameInstance> instances = FXCollections.observableArrayList();
   private final ObjectProperty<GameInstance> selected = new SimpleObjectProperty<>();
@@ -64,6 +67,7 @@ public final class LauncherViewModel implements AutoCloseable {
     for (GameInstance instance : instances) {
       try {
         InstanceDirectories.migrate(Path.of(settings.get().gameRoot()), instance);
+        InstanceCatalog.remember(Path.of(settings.get().gameRoot()), instance);
       } catch (IOException ex) {
         status.set("实例目录迁移未完成：" + ex.getMessage());
       }
@@ -120,21 +124,36 @@ public final class LauncherViewModel implements AutoCloseable {
     return gameRunning;
   }
 
+  public ReadOnlyBooleanProperty installingProperty() {
+    return installing;
+  }
+
   public Path dataDirectory() {
     return settingsStore.directory();
   }
 
   public void loadVersions() {
+    loadVersions(null);
+  }
+
+  public void loadVersions(Object owner) {
     submit(
         "获取游戏版本",
         context -> {
           context.report("读取官方版本清单", -1);
           return catalog.games();
         },
-        versions::setAll);
+        versions::setAll,
+        owner,
+        true);
   }
 
   public void loadLoaders(LoaderType type, GameVersion game) {
+    loadLoaders(type, game, null);
+  }
+
+  public void loadLoaders(LoaderType type, GameVersion game, Object owner) {
+    if (busy.get()) return;
     loaderVersions.clear();
     if (type == null || game == null || type == LoaderType.VANILLA) return;
     submit(
@@ -146,15 +165,19 @@ public final class LauncherViewModel implements AutoCloseable {
         values -> {
           loaderVersions.setAll(values);
           if (values.isEmpty()) status.set("此游戏版本没有兼容的 " + type + " 加载器");
-        });
+        },
+        owner,
+        true);
   }
 
   public void install(GameVersion game, LoaderType type, String loaderVersion, String name) {
+    if (busy.get()) return;
     if (game == null) {
       error.set("请选择游戏版本");
       return;
     }
     Path root = Path.of(settings.get().gameRoot());
+    installing.set(true);
     submit(
         "安装游戏",
         context -> install.execute(root, game, type, loaderVersion, name, context),
@@ -242,6 +265,11 @@ public final class LauncherViewModel implements AutoCloseable {
                   .orElseThrow(() -> new IOException("实例已不存在"));
           InstanceDirectories.save(
               Path.of(settings.get().gameRoot()), previous, instance, repository);
+          try {
+            InstanceCatalog.remember(Path.of(settings.get().gameRoot()), instance);
+          } catch (IOException ex) {
+            LauncherLog.LOGGER.warning("实例目录配置备份失败：" + ex.getMessage());
+          }
           return instance;
         },
         saved -> {
@@ -256,15 +284,31 @@ public final class LauncherViewModel implements AutoCloseable {
 
   public void unregister(GameInstance instance) {
     submit(
-        "移除实例",
+        "删除实例",
         context -> {
-          repository.remove(instance.id());
+          InstanceCatalog.delete(Path.of(settings.get().gameRoot()), instance, repository, context);
           return true;
         },
         ignored -> {
           instances.remove(instance);
           selected.set(instances.isEmpty() ? null : instances.getFirst());
-          status.set("实例已从列表移除，文件与存档保留");
+          status.set("实例及其独立目录数据已永久删除");
+        });
+  }
+
+  public void refreshInstances() {
+    String selectedId = selected.get() == null ? null : selected.get().id();
+    submit(
+        "刷新实例",
+        context -> InstanceCatalog.refresh(Path.of(settings.get().gameRoot()), repository),
+        values -> {
+          instances.setAll(values);
+          selected.set(
+              values.stream()
+                  .filter(item -> item.id().equals(selectedId))
+                  .findFirst()
+                  .orElse(values.isEmpty() ? null : values.getFirst()));
+          status.set("已读取 " + values.size() + " 个可用实例");
         });
   }
 
@@ -278,6 +322,14 @@ public final class LauncherViewModel implements AutoCloseable {
               && !Path.of(config.gameRoot()).toAbsolutePath().normalize().equals(previousRoot))
             throw new IOException("已有实例时不可直接切换游戏根目录，请先备份并迁移实例");
           settingsStore.save(config);
+          Path requested =
+              config.dataDirectory().isBlank() ? dataDirectory() : Path.of(config.dataDirectory());
+          try {
+            DataLocations.configure(DataLocations.bootstrapDirectory(), dataDirectory(), requested);
+          } catch (IOException ex) {
+            settingsStore.save(settings.get());
+            throw ex;
+          }
           return config;
         },
         saved -> {
@@ -287,7 +339,14 @@ public final class LauncherViewModel implements AutoCloseable {
             versions.clear();
             loaderVersions.clear();
           }
-          status.set("设置已保存");
+          status.set(
+              saved.dataDirectory().isBlank()
+                      || Path.of(saved.dataDirectory())
+                          .toAbsolutePath()
+                          .normalize()
+                          .equals(dataDirectory())
+                  ? "设置已保存"
+                  : "设置已保存，启动器数据目录将在重启后切换");
         });
   }
 
@@ -295,7 +354,21 @@ public final class LauncherViewModel implements AutoCloseable {
     if (active != null) active.cancel(true);
   }
 
+  public void cancelCatalogRequests(Object owner) {
+    if (active != null && catalogTask && catalogOwner == owner) {
+      Task<?> task = active;
+      task.cancel(true);
+      if (active == task) finish(task);
+      if (!busy.get()) status.set("已停止获取版本列表");
+    }
+  }
+
   private <T> void submit(String title, Work<T> work, Consumer<T> success) {
+    submit(title, work, success, null, false);
+  }
+
+  private <T> void submit(
+      String title, Work<T> work, Consumer<T> success, Object owner, boolean catalog) {
     if (busy.get()) return;
     error.set("");
     busy.set(true);
@@ -321,39 +394,50 @@ public final class LauncherViewModel implements AutoCloseable {
           }
         };
     active = task;
+    catalogOwner = owner;
+    catalogTask = catalog;
+    LauncherLog.LOGGER.info(title);
     status.bind(task.messageProperty());
     progress.bind(task.progressProperty());
     task.setOnSucceeded(
         event -> {
-          finish(task);
+          if (!finish(task)) return;
           success.accept(task.getValue());
+          LauncherLog.LOGGER.info(title + "完成");
         });
     task.setOnFailed(
         event -> {
-          finish(task);
+          if (!finish(task)) return;
           Throwable cause = task.getException();
           while (cause instanceof ExecutionException || cause instanceof CompletionException) {
             cause = cause.getCause();
           }
           String message = Objects.toString(cause.getMessage(), cause.getClass().getSimpleName());
-          error.set(message);
           status.set(title + "失败");
+          LauncherLog.LOGGER.warning(title + "失败：" + message);
+          error.set(message);
         });
     task.setOnCancelled(
         event -> {
-          finish(task);
-          status.set("任务已取消；已有缓存和诊断文件保留");
+          if (!finish(task)) return;
+          status.set(catalog ? "已停止获取版本列表" : "任务已取消；已有缓存和诊断文件保留");
+          LauncherLog.LOGGER.info(title + "已取消");
         });
     executor.execute(task);
   }
 
-  private void finish(Task<?> task) {
+  private boolean finish(Task<?> task) {
+    if (active != task) return false;
+    active = null;
+    catalogTask = false;
+    catalogOwner = null;
     status.unbind();
     progress.unbind();
     status.set(task.getMessage().isBlank() ? "就绪" : task.getMessage());
     progress.set(0);
+    installing.set(false);
     busy.set(false);
-    active = null;
+    return true;
   }
 
   @Override

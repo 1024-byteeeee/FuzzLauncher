@@ -22,13 +22,7 @@ public final class FuzzApplication extends Application {
   @Override
   public void start(Stage stage) {
     try {
-      String override = System.getProperty("fuzz.dataDir");
-      Path data =
-          override != null
-              ? Path.of(override)
-              : Path.of(
-                  Objects.toString(System.getenv("LOCALAPPDATA"), System.getProperty("user.home")),
-                  "FuzzLauncher");
+      Path data = DataLocations.resolve();
       java.nio.file.Files.createDirectories(data);
       instanceChannel =
           java.nio.channels.FileChannel.open(
@@ -37,6 +31,7 @@ public final class FuzzApplication extends Application {
               java.nio.file.StandardOpenOption.WRITE);
       instanceLock = instanceChannel.tryLock();
       if (instanceLock == null) throw new java.io.IOException("此数据目录已有 Fuzz Launcher 运行，请先关闭已有窗口");
+      LauncherLog.configure(data);
       SettingsStore settings = new SettingsStore(data);
       InstanceRepository instances = new JsonInstanceRepository(data);
       HttpTransport http = new HttpTransport();
@@ -102,6 +97,7 @@ public final class FuzzApplication extends Application {
   @Override
   public void stop() {
     if (viewModel != null) viewModel.close();
+    LauncherLog.close();
     try {
       if (instanceLock != null && instanceLock.isValid()) instanceLock.release();
       if (instanceChannel != null) instanceChannel.close();

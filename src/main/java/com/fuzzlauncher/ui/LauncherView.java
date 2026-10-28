@@ -17,6 +17,7 @@ public final class LauncherView extends RetroPage {
   private final List<Button> navigation = new ArrayList<>();
   private final Label title = new Label("游戏实例");
   private double dragX, dragY;
+  private InstallProgressDialog installDialog;
 
   public LauncherView(Stage stage, LauncherViewModel vm) {
     super(stage, vm, ignored -> {});
@@ -25,6 +26,17 @@ public final class LauncherView extends RetroPage {
     setLeft(navigation());
     setCenter(workspace);
     setBottom(status());
+    vm.installingProperty()
+        .addListener(
+            (observable, old, installing) -> {
+              if (installing) {
+                installDialog = new InstallProgressDialog(stage, vm);
+                installDialog.show();
+              } else if (installDialog != null) {
+                installDialog.close();
+                installDialog = null;
+              }
+            });
     vm.errorProperty()
         .addListener(
             (o, old, value) -> {

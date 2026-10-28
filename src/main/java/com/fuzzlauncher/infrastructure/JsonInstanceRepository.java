@@ -50,4 +50,13 @@ public final class JsonInstanceRepository implements InstanceRepository {
     items.removeIf(item -> item.id().equals(id));
     JsonFiles.write(file, Map.of("instances", items));
   }
+
+  @Override
+  public synchronized void replaceAll(List<GameInstance> instances) throws IOException {
+    Set<String> names = new HashSet<>(), ids = new HashSet<>();
+    for (GameInstance item : instances)
+      if (!names.add(item.name().toLowerCase(Locale.ROOT)) || !ids.add(item.id()))
+        throw new IOException("实例目录包含重复名称或标识：" + item.name());
+    JsonFiles.write(file, Map.of("instances", instances));
+  }
 }

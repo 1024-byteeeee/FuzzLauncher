@@ -44,21 +44,41 @@ public final class InstancesPage extends RetroPage {
             (o, a, b) -> {
               if (b != null) vm.selectInstance(b);
             });
-    Label heading = label("游戏实例(I)", "section-title");
+    Label heading = label("游戏实例", "section-title");
     Button add = button("新建", () -> showPage(1));
+    Button refresh = button("刷新", vm::refreshInstances);
+    refresh.setId("refresh-instances");
+    refresh.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
     Button remove =
         button(
-            "移除",
+            "删除",
             () -> {
               GameInstance item = vm.selectedProperty().get();
-              if (item != null && confirm("移除实例", "从列表移除“" + item.name() + "”？\n游戏文件、模组和存档将保留。"))
-                vm.unregister(item);
+              if (item != null) {
+                Path root =
+                    Path.of(vm.settingsProperty().get().gameRoot()).toAbsolutePath().normalize();
+                boolean shared =
+                    new IsolationPolicy()
+                        .gameDirectory(root, item, vm.settingsProperty().get().isolation())
+                        .equals(root);
+                String scope = shared ? "此实例使用共享游戏目录，共享存档和模组会保留。" : "包括其中的存档、模组和配置。";
+                if (confirm(
+                    "永久删除实例",
+                    "将永久删除“"
+                        + item.name()
+                        + "”的实例目录：\n"
+                        + com.fuzzlauncher.infrastructure.InstanceDirectories.directory(root, item)
+                        + "\n"
+                        + scope
+                        + "\n删除后无法恢复，请先备份重要数据。\n共享基础文件和依赖库会保留。是否继续？")) vm.unregister(item);
+              }
             });
+    remove.setId("delete-instance");
     remove
         .disableProperty()
         .bind(vm.busyProperty().or(vm.gameRunningProperty()).or(vm.selectedProperty().isNull()));
     add.disableProperty().bind(vm.busyProperty());
-    HBox toolbar = new HBox(6, heading, new Spacer(), add, remove);
+    VBox toolbar = new VBox(8, heading, new HBox(6, add, remove, refresh));
     toolbar.setAlignment(Pos.CENTER_LEFT);
     VBox left = new VBox(12, toolbar, list);
     left.setPrefWidth(330);
@@ -155,7 +175,7 @@ public final class InstancesPage extends RetroPage {
     javaControl.setMinWidth(0);
     GridPane form =
         form(
-            new String[] {"名称(N):", "游戏版本:", "加载器:", "版本隔离:", "内存 MB:", "Java 路径:"},
+            new String[] {"名称:", "游戏版本:", "加载器:", "版本隔离:", "内存 MB:", "Java 路径:"},
             new Node[] {name, version, loader, isolation, memory, javaControl});
     Label directory = new Label();
     directory.setWrapText(true);
@@ -209,7 +229,7 @@ public final class InstancesPage extends RetroPage {
     panel.setMinWidth(0);
     panel.getStyleClass().add("details-box");
     VBox.setVgrow(panel, Priority.ALWAYS);
-    Button start = button("启动游戏(L)", vm::launch);
+    Button start = button("启动游戏", vm::launch);
     start.setGraphic(icon("grass", 43));
     start.setGraphicTextGap(18);
     start.getStyleClass().add("launch-button");

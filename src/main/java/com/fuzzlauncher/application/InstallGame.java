@@ -53,6 +53,7 @@ public final class InstallGame {
               .install(root, staging, game, loaderVersion, task);
     task.checkCancelled();
     profile.addProperty("id", id);
+    profile.add("fuzzInstance", JsonFiles.GSON.toJsonTree(instance));
     if (!profile.has("inheritsFrom")) profile.addProperty("inheritsFrom", game.id());
     Path stagedVersion = staging.resolve("profile");
     Files.createDirectories(stagedVersion);
