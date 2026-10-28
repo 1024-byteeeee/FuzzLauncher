@@ -37,6 +37,9 @@
 .list-view .list-cell:filled:selected { -fx-background-color: #000080; -fx-text-fill: white; }
 .list-cell:empty { -fx-background-color: white; }
 .combo-box .list-cell { -fx-padding: 4 8; -fx-font-size: 18px; }
+/* In an open dropdown, the hovered row takes over the highlight without committing a choice. */
+.combo-box-popup .list-view:hover .list-cell:filled:selected { -fx-background-color: white; -fx-text-fill: black; }
+.combo-box-popup .list-view .list-cell:filled:hover, .combo-box-popup .list-view:hover .list-cell:filled:selected:hover { -fx-background-color: #000080; -fx-text-fill: white; }
 .combo-box { -fx-padding: 0; -fx-background-insets: 0; }
 .combo-box > .arrow-button { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-padding: 0 8; -fx-min-width: 32; -fx-pref-width: 32; -fx-max-width: 32; -fx-background-insets: 0; -fx-border-insets: 0, 1; -fx-border-width: 1, 1; -fx-border-color: white #202020 #202020 white, #dfdfdf #808080 #808080 #dfdfdf; }
 .spinner .increment-arrow-button, .spinner .decrement-arrow-button { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-border-color: white #202020 #202020 white; -fx-border-width: 1; }
