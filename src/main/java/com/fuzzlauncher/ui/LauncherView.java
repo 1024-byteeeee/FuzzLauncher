@@ -1,7 +1,6 @@
 package com.fuzzlauncher.ui;
 
 import com.fuzzlauncher.domain.*;
-import java.nio.file.*;
 import java.util.*;
 import javafx.beans.binding.Bindings;
 import javafx.geometry.*;
@@ -9,6 +8,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.*;
 import javafx.scene.layout.*;
+import javafx.scene.shape.SVGPath;
 import javafx.stage.Stage;
 
 /** Retro presentation only. Operations and persistent state live in the ViewModel. */
@@ -40,19 +40,24 @@ public final class LauncherView extends RetroPage {
     Region space = new Region();
     HBox.setHgrow(space, Priority.ALWAYS);
     bar.getChildren().add(space);
-    Button min = button("_", () -> stage.setIconified(true)),
-        max = button("□", () -> stage.setMaximized(!stage.isMaximized())),
+    Button min = windowControl("M0 0 H12 V2 H0 Z", () -> stage.setIconified(true)),
+        max =
+            windowControl(
+                "M0 0 H12 V10 H0 Z M2 3 V8 H10 V3 Z",
+                () -> stage.setMaximized(!stage.isMaximized())),
         close =
-            button(
-                "×",
+            windowControl(
+                "M0 0 H3 L6 3 L9 0 H12 L8 5 L12 10 H9 L6 7 L3 10 H0 L4 5 Z",
                 () -> {
                   if (!vm.busyProperty().get() || confirm("退出启动器", "当前任务将被取消。是否退出？")) {
                     vm.close();
                     stage.close();
                   }
                 });
+    min.setAccessibleText("最小化");
+    max.setAccessibleText("最大化或还原");
+    close.setAccessibleText("关闭");
     for (Button b : List.of(min, max, close)) {
-      b.getStyleClass().add("window-control");
       bar.getChildren().add(b);
     }
     bar.setOnMousePressed(
@@ -67,37 +72,23 @@ public final class LauncherView extends RetroPage {
             stage.setY(e.getScreenY() - dragY);
           }
         });
-    HBox menus = new HBox(12);
-    menus.getStyleClass().add("menu-bar");
-    MenuButton file = new MenuButton("文件(F)");
-    MenuItem download = new MenuItem("新建 / 下载实例");
-    download.setOnAction(e -> showPage(1));
-    MenuItem folder = new MenuItem("打开游戏根目录");
-    folder.setOnAction(e -> openFolder(Path.of(vm.settingsProperty().get().gameRoot())));
-    file.getItems().addAll(download, folder);
-    MenuButton view = new MenuButton("查看(V)");
-    for (int i = 0; i < 4; i++) {
-      int page = i;
-      MenuItem item = new MenuItem(new String[] {"游戏实例", "下载", "账号", "设置"}[i]);
-      item.setOnAction(e -> showPage(page));
-      view.getItems().add(item);
-    }
-    Button logs = button("日志(T)", () -> openFolder(vm.dataDirectory().resolve("logs")));
-    logs.getStyleClass().add("menu-button");
-    Button help =
-        button(
-            "帮助(H)",
-            () ->
-                message(
-                    Alert.AlertType.INFORMATION,
-                    "Fuzz Launcher 0.2.0",
-                    "仅支持微软正版账号。\n"
-                        + "下载页安装原版、Fabric、Forge 或 NeoForge。\n"
-                        + "实例设置控制版本隔离与内存。\n"
-                        + "游戏 Java 会自动检测或下载，和启动器内置 Java 分开管理。"));
-    help.getStyleClass().add("menu-button");
-    menus.getChildren().addAll(file, view, logs, help);
-    return new VBox(bar, menus);
+    return bar;
+  }
+
+  private Button windowControl(String path, Runnable action) {
+    SVGPath glyph = new SVGPath();
+    glyph.setContent(path);
+    glyph.setFillRule(javafx.scene.shape.FillRule.EVEN_ODD);
+    glyph.setSmooth(false);
+    glyph.setMouseTransparent(true);
+    StackPane graphic = new StackPane(glyph);
+    graphic.setMinSize(14, 14);
+    graphic.setPrefSize(14, 14);
+    graphic.setMaxSize(14, 14);
+    Button control = button("", action);
+    control.setGraphic(graphic);
+    control.getStyleClass().add("window-control");
+    return control;
   }
 
   private Node navigation() {
