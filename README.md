@@ -23,7 +23,7 @@ Windows x64 / JavaFX，Windows 95 风格 Minecraft Java 启动器。
 
 ## 微软登录当前状态
 
-Fuzz 的 Microsoft 应用已注册，Client ID 已内置，用户可直接点击“微软正版登录”，无需手动配置。
+Fuzz 的 Microsoft 应用已注册，Client ID 已内置，用户可直接点击“微软登录”，无需手动配置。
 Minecraft Services 准入申请已提交，当前登录曾返回 HTTP 403，尚未完成真实账号登录和进入游戏的端到端验收。
 代码不接受离线账号；缺少配置、没有权益或认证失败时会阻止启动。
 配置步骤见 [docs/microsoft-login.md](docs/microsoft-login.md)。

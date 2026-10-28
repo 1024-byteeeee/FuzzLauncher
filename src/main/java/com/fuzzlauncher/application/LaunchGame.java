@@ -41,7 +41,7 @@ public final class LaunchGame {
   public RunningGame execute(
       LauncherSettings settings, GameInstance instance, Account account, TaskContext task)
       throws Exception {
-    if (account == null) throw new IOException("请先登录拥有 Minecraft Java 版的微软正版账号");
+    if (account == null) throw new IOException("请先登录拥有 Minecraft Java 版的微软账号");
     GameSession session = authentication.refresh(account, task);
     Path root = Path.of(settings.gameRoot()).toAbsolutePath().normalize();
     JsonObject version = resolver.resolve(root, instance.id());

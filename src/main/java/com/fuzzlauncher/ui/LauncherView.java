@@ -118,7 +118,7 @@ public final class LauncherView extends RetroPage {
       navigation.get(i).getStyleClass().remove("selected-nav");
       if (i == page) navigation.get(i).getStyleClass().add("selected-nav");
     }
-    title.setText(new String[] {"游戏实例", "下载游戏", "微软正版账号", "启动器设置"}[page]);
+    title.setText(new String[] {"游戏实例", "下载游戏", "微软账号", "启动器设置"}[page]);
     workspace.setCenter(
         switch (page) {
           case 1 -> new DownloadsPage(stage, vm, this::showPage);

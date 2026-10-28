@@ -10,6 +10,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.*;
 import javafx.scene.layout.*;
+import javafx.scene.text.TextAlignment;
 import javafx.stage.Stage;
 
 /** InstancesPage presentation; all application operations are delegated to the ViewModel. */
@@ -21,7 +22,10 @@ public final class InstancesPage extends RetroPage {
 
   private Node build() {
     ListView<GameInstance> list = new ListView<>(vm.instances());
-    list.setPlaceholder(new Label("尚无实例\n点击“新建”下载游戏"));
+    Label empty = new Label("尚无实例\n点击“新建”下载游戏");
+    empty.setAlignment(Pos.CENTER);
+    empty.setTextAlignment(TextAlignment.CENTER);
+    list.setPlaceholder(empty);
     list.setCellFactory(
         ignored ->
             new ListCell<>() {
@@ -181,7 +185,7 @@ public final class InstancesPage extends RetroPage {
             Bindings.createStringBinding(
                 () ->
                     vm.accountProperty().get() == null
-                        ? "请先在“账号”页完成微软正版登录"
+                        ? "请先在“账号”页完成微软登录"
                         : "正版账号: " + vm.accountProperty().get().name(),
                 vm.accountProperty()));
     loginHint.setStyle("-fx-font-size: 14px;");

@@ -36,7 +36,7 @@ public final class AccountsPage extends RetroPage {
         new Label(
             "使用拥有 Minecraft Java 版权益的微软账号登录。\n将在系统浏览器打开微软授权页面，启动器不接收密码。\n每次启动前验证账号权限，不提供离线登录。");
     instructions.setWrapText(true);
-    Button login = button("微软正版登录", vm::login);
+    Button login = button("微软登录", vm::login);
     login.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
     Button logout = button("退出登录", vm::logout);
     logout
@@ -45,7 +45,7 @@ public final class AccountsPage extends RetroPage {
     VBox content =
         new VBox(
             25,
-            label("微软正版账号", "section-title"),
+            label("微软账号", "section-title"),
             icon("player", 64),
             account,
             instructions,
