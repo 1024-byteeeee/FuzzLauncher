@@ -55,14 +55,6 @@ public final class SettingsPage extends RetroPage {
     source.getItems().setAll(DownloadSource.values());
     source.setValue(config.downloadSource());
     source.setMaxWidth(Double.MAX_VALUE);
-    Label hint =
-        new Label(
-            "已有实例时游戏根目录固定；切换隔离模式不会自动移动已有数据。\n"
-                + "自动模式按系统地区选择；镜像模式使用 BMCLAPI 和腾讯 Maven 镜像。\n"
-                + "下载失败时尝试备用源；微软登录始终连接官方服务。\n"
-                + "保存数据目录后自动重启，迁移配置、账号和日志；游戏目录保持原位置。目标目录需为空。");
-    hint.setWrapText(true);
-    hint.setStyle("-fx-font-size: 15px;");
     Button save =
         button(
             "保存设置",
@@ -96,7 +88,6 @@ public final class SettingsPage extends RetroPage {
             form(
                 new String[] {"游戏根目录:", "数据文件目录:", "默认隔离:", "下载源:"},
                 new Node[] {root, dataControl, mode, source}),
-            hint,
             new HBox(10, save, data, logs));
     content.setPadding(new Insets(30));
     return content;

@@ -154,8 +154,6 @@ public final class DownloadsPage extends RetroPage {
     VBox list = new VBox(10, filters, search, games);
     list.setPrefWidth(360);
     VBox.setVgrow(games, Priority.ALWAYS);
-    Label note = new Label("下载失败时尝试备用源。\n安装完成后实例会出现在“游戏实例”页。\n游戏 Java 会在需要时自动检测或下载。");
-    note.setWrapText(true);
     Label sourceLabel = new Label();
     sourceLabel
         .textProperty()
@@ -184,8 +182,7 @@ public final class DownloadsPage extends RetroPage {
     GridPane options =
         form(new String[] {"实例名称:", "加载器:", "加载器版本:"}, new Node[] {name, loader, loaderVersion});
     VBox config =
-        new VBox(
-            22, label("安装选项", "section-title"), options, refreshLoader, sourceInfo, note, install);
+        new VBox(22, label("安装选项", "section-title"), options, refreshLoader, sourceInfo, install);
     config.setMinWidth(0);
     HBox.setHgrow(config, Priority.ALWAYS);
     config.getStyleClass().add("details-box");

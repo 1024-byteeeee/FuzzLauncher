@@ -33,9 +33,6 @@ public final class AccountsPage extends RetroPage {
                             + "\nUUID: "
                             + vm.accountProperty().get().uuid(),
                 vm.accountProperty()));
-    Label instructions =
-        new Label("使用拥有 Minecraft Java 版权益的微软账号登录。\n将在系统浏览器打开微软授权页面，启动器不接收密码。\n微软账号启动前会验证游戏权益。");
-    instructions.setWrapText(true);
     Button login = button("微软登录", vm::login);
     login.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
     Button logout = button("退出登录", vm::logout);
@@ -60,7 +57,6 @@ public final class AccountsPage extends RetroPage {
             label("微软账号", "section-title"),
             icon("player", 64),
             account,
-            instructions,
             new HBox(15, login, logout),
             label("离线账号", "section-title"),
             username,
