@@ -30,6 +30,8 @@ final class DeviceLoginDialog extends Dialog<ButtonType> {
     Label remaining = new Label();
     remaining.setId("device-login-expiration");
     remaining.setWrapText(true);
+    remaining.visibleProperty().bind(remaining.textProperty().isNotEmpty());
+    remaining.managedProperty().bind(remaining.visibleProperty());
     Label status = new Label();
     status.textProperty().bind(vm.statusProperty());
     status.setWrapText(true);
@@ -59,13 +61,7 @@ final class DeviceLoginDialog extends Dialog<ButtonType> {
           refresh.setDisable(authorized);
           if (authorized) remaining.setText("微软授权已完成，正在验证游戏账号…");
           else if (challenge == null) remaining.setText("正在联系微软…");
-          else {
-            long seconds = challenge.remainingSeconds();
-            remaining.setText(
-                valid
-                    ? String.format("预计剩余：%d:%02d（一次性代码，以微软网页状态为准）", seconds / 60, seconds % 60)
-                    : "代码已过期，请点击刷新代码");
-          }
+          else remaining.setText(valid ? "" : "代码已过期，请点击刷新代码");
         };
     copy.setOnAction(
         event -> {

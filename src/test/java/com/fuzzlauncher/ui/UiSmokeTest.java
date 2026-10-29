@@ -299,6 +299,8 @@ class UiSmokeTest {
       assertEquals("ABCD-EFGH", ((TextField) pane.lookup("#device-login-code")).getText());
       assertFalse(((Button) pane.lookup("#copy-device-code")).isDisabled());
       assertFalse(((Button) pane.lookup("#open-device-login")).isDisabled());
+      assertFalse(pane.lookup("#device-login-expiration").isVisible());
+      assertFalse(pane.lookup("#device-login-expiration").isManaged());
       var clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
       var previous = new java.util.HashMap<javafx.scene.input.DataFormat, Object>();
       for (var type : clipboard.getContentTypes()) previous.put(type, clipboard.getContent(type));
