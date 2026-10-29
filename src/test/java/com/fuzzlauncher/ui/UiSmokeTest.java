@@ -3,6 +3,7 @@ package com.fuzzlauncher.ui;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.fuzzlauncher.FuzzApplication;
+import com.fuzzlauncher.application.*;
 import com.fuzzlauncher.domain.*;
 import com.fuzzlauncher.infrastructure.*;
 import java.nio.file.*;
@@ -80,6 +81,7 @@ class UiSmokeTest {
                   Path.of("build/ui-check/page-" + page + ".png").toFile());
             }
             verifyDropdownHighlight(view);
+            verifyAccountExclusion(stage);
             result.complete(null);
           } catch (Throwable ex) {
             result.completeExceptionally(ex);
@@ -93,6 +95,119 @@ class UiSmokeTest {
       result.get(30, TimeUnit.SECONDS);
     } finally {
       System.clearProperty("fuzz.dataDir");
+    }
+  }
+
+  private void verifyAccountExclusion(Stage stage) throws Exception {
+    var original = stage.getScene().getRoot();
+    for (int state = 0; state < 3; state++) {
+      Account initial =
+          state == 0
+              ? null
+              : state == 1
+                  ? new Account("microsoft-fixture", "uuid-fixture", "MicrosoftFixture")
+                  : Account.offline("OfflineFixture");
+      var saved = new java.util.concurrent.atomic.AtomicReference<>(initial);
+      var logins = new java.util.concurrent.atomic.AtomicInteger();
+      AccountAuthenticator auth =
+          new AccountAuthenticator() {
+            public java.util.Optional<Account> savedAccount() {
+              return java.util.Optional.ofNullable(saved.get());
+            }
+
+            public GameSession login(TaskContext task) {
+              logins.incrementAndGet();
+              saved.set(new Account("microsoft-fixture", "uuid-fixture", "MicrosoftFixture"));
+              return new GameSession(saved.get(), "fixture", java.time.Instant.MAX);
+            }
+
+            public GameSession loginOffline(String name, TaskContext task) {
+              logins.incrementAndGet();
+              saved.set(Account.offline(name));
+              return GameSession.offline(saved.get());
+            }
+
+            public GameSession refresh(Account account, TaskContext task) {
+              throw new AssertionError("No refresh expected");
+            }
+
+            public void logout(TaskContext task) {
+              saved.set(null);
+            }
+          };
+      Path data = temp.resolve("account-state-" + state);
+      try (var vm =
+          new LauncherViewModel(
+              new SettingsStore(data), new JsonInstanceRepository(data), null, auth, null, null)) {
+        AccountsPage page = new AccountsPage(stage, vm, ignored -> {});
+        stage.getScene().setRoot(page);
+        page.applyCss();
+        page.layout();
+        Button microsoft = (Button) page.lookup("#microsoft-login");
+        Button offline = (Button) page.lookup("#offline-login");
+        TextField name = (TextField) page.lookup("#offline-username");
+        Button microsoftLogout = (Button) page.lookup("#microsoft-logout");
+        Button offlineLogout = (Button) page.lookup("#offline-logout");
+        name.setText("NewOffline");
+        assertEquals(state == 2, microsoft.isDisabled());
+        assertEquals(state == 1, offline.isDisabled());
+        assertEquals(state == 1, name.isDisabled());
+        assertTrue(microsoftLogout.isVisible() && offlineLogout.isVisible());
+        assertEquals(state != 1, microsoftLogout.isDisabled());
+        assertEquals(state != 2, offlineLogout.isDisabled());
+        if (initial != null) {
+          if (initial.isOffline()) {
+            microsoft.fire();
+            vm.login();
+          } else {
+            offline.fire();
+            vm.loginOffline("NewOffline");
+          }
+          assertEquals(
+              0,
+              logins.get(),
+              "Opposite login must not reach authentication or overwrite credentials");
+          assertEquals(initial, saved.get());
+          assertEquals(initial, vm.accountProperty().get());
+          assertFalse(vm.errorProperty().get().isBlank());
+          awaitAccountOperation(vm, vm::logout);
+          assertNull(vm.accountProperty().get());
+          assertFalse(name.isDisabled());
+          assertFalse(microsoft.isDisabled());
+          assertFalse(offline.isDisabled());
+          assertTrue(microsoftLogout.isDisabled() && offlineLogout.isDisabled());
+          awaitAccountOperation(
+              vm, initial.isOffline() ? vm::login : () -> vm.loginOffline("NewOffline"));
+          assertEquals(!initial.isOffline(), vm.accountProperty().get().isOffline());
+          assertEquals(1, logins.get());
+          assertEquals(!initial.isOffline(), microsoft.isDisabled());
+          assertEquals(initial.isOffline(), offline.isDisabled());
+        }
+      } finally {
+        stage.getScene().setRoot(original);
+      }
+    }
+  }
+
+  private static void awaitAccountOperation(LauncherViewModel vm, Runnable action) {
+    Object loop = new Object();
+    javafx.animation.PauseTransition timeout =
+        new javafx.animation.PauseTransition(javafx.util.Duration.seconds(5));
+    timeout.setOnFinished(event -> Platform.exitNestedEventLoop(loop, false));
+    javafx.beans.value.ChangeListener<Boolean> listener =
+        (observable, old, busy) -> {
+          if (!busy) Platform.runLater(() -> Platform.exitNestedEventLoop(loop, true));
+        };
+    vm.busyProperty().addListener(listener);
+    try {
+      action.run();
+      assertTrue(vm.busyProperty().get());
+      timeout.play();
+      assertEquals(true, Platform.enterNestedEventLoop(loop));
+      assertTrue(vm.errorProperty().get().isBlank(), vm.errorProperty().get());
+    } finally {
+      timeout.stop();
+      vm.busyProperty().removeListener(listener);
     }
   }
 

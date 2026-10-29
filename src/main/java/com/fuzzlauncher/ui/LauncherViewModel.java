@@ -193,6 +193,7 @@ public final class LauncherViewModel implements AutoCloseable {
   }
 
   public void login() {
+    if (!canLogin(false)) return;
     submit(
         "微软登录",
         authentication::login,
@@ -216,6 +217,7 @@ public final class LauncherViewModel implements AutoCloseable {
   }
 
   public void loginOffline(String name) {
+    if (!canLogin(true)) return;
     submit(
         "离线登录",
         context -> authentication.loginOffline(name, context),
@@ -223,6 +225,16 @@ public final class LauncherViewModel implements AutoCloseable {
           account.set(session.account());
           status.set("已使用离线账号: " + session.account().name());
         });
+  }
+
+  private boolean canLogin(boolean offline) {
+    if (busy.get() || gameRunning.get()) return false;
+    Account current = account.get();
+    if (current != null && current.isOffline() != offline) {
+      error.set(current.isOffline() ? "请先退出离线账号，再登录微软账号" : "请先退出微软账号，再登录离线账号");
+      return false;
+    }
+    return true;
   }
 
   public void launch() {
