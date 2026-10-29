@@ -364,6 +364,24 @@ class UiSmokeTest {
     view.applyCss();
     view.layout();
     Node form = view.lookup("#instance-settings-form");
+    var preview = (javafx.scene.image.ImageView) view.lookup("#instance-preview-image");
+    assertTrue(preview.isPreserveRatio());
+    var frame = (javafx.scene.layout.Region) preview.getParent();
+    double originalWidth = frame.getWidth();
+    double originalHeight = frame.getHeight();
+    for (double[] size : new double[][] {{580, 90}, {580, 210}, {300, 250}}) {
+      frame.resize(size[0], size[1]);
+      var crop = preview.getViewport();
+      assertEquals(
+          preview.getFitWidth() / preview.getFitHeight(),
+          crop.getWidth() / crop.getHeight(),
+          0.000001,
+          "Preview must crop instead of stretching at every aspect ratio");
+      assertTrue(crop.getMinX() >= 0 && crop.getMinY() >= 0);
+      assertTrue(crop.getMaxX() <= preview.getImage().getWidth() + 0.000001);
+      assertTrue(crop.getMaxY() <= preview.getImage().getHeight() + 0.000001);
+    }
+    frame.resize(originalWidth, originalHeight);
     assertFalse(form.isDisabled());
     var before = repository.findAll();
     try {

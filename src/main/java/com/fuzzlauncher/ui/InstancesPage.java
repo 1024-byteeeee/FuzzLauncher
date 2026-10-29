@@ -116,8 +116,9 @@ public final class InstancesPage extends RetroPage {
       return empty;
     }
     ImageView landscape = new ImageView(image("landscape"));
+    landscape.setId("instance-preview-image");
     landscape.setSmooth(false);
-    landscape.setPreserveRatio(false);
+    landscape.setPreserveRatio(true);
     landscape.setManaged(false);
     landscape.setLayoutX(3);
     landscape.setLayoutY(3);
@@ -128,6 +129,26 @@ public final class InstancesPage extends RetroPage {
     VBox.setVgrow(preview, Priority.ALWAYS);
     landscape.fitWidthProperty().bind(preview.widthProperty().subtract(6));
     landscape.fitHeightProperty().bind(preview.heightProperty().subtract(6));
+    landscape
+        .viewportProperty()
+        .bind(
+            Bindings.createObjectBinding(
+                () -> {
+                  double width = Math.max(1, landscape.getFitWidth());
+                  double height = Math.max(1, landscape.getFitHeight());
+                  double sourceWidth = landscape.getImage().getWidth();
+                  double sourceHeight = landscape.getImage().getHeight();
+                  double scale = Math.max(width / sourceWidth, height / sourceHeight);
+                  double cropWidth = width / scale;
+                  double cropHeight = height / scale;
+                  return new Rectangle2D(
+                      (sourceWidth - cropWidth) / 2,
+                      (sourceHeight - cropHeight) / 2,
+                      cropWidth,
+                      cropHeight);
+                },
+                landscape.fitWidthProperty(),
+                landscape.fitHeightProperty()));
     TextField name = new TextField(instance.name());
     TextField version = new TextField(instance.gameVersion());
     version.setEditable(false);
