@@ -17,8 +17,8 @@ JavaFX 测试覆盖弹窗样式、复制、关闭取消、成功自动关闭、�
 本地夹具测试不代表已完成真实微软账号授权；真实登录仍需用户在微软网页完成。
 
 2026-10-29 使用内置 Client ID 对真实微软设备代码端点进行了仅获取代码的检查，服务返回 `AADSTS70002`，提示应用必须标记为 mobile。
-当前需要应用所有者在 Microsoft Entra 应用注册的“身份验证 → 设置”中启用“允许公共客户端流”，并确认“移动和桌面应用”平台配置。
-该检查没有完成账号授权，也没有保存或输出任何用户代码、设备代码或令牌。设置修改后仍需重新验证代码获取，再由用户完成真实登录。
+应用所有者随后启用了公共客户端流程；同日重新请求真实微软端点，成功返回有效登录代码与验证网址，原 `AADSTS70002` 阻塞已解除。
+检查在收到代码后主动取消，没有完成账号授权，也没有保存或输出任何用户代码、设备代码或令牌。完整账号登录仍需用户在微软网页完成。
 
 参考：[HMCL 登录界面](https://github.com/HMCL-dev/HMCL/blob/main/HMCL/src/main/java/org/jackhuang/hmcl/ui/account/MicrosoftAccountLoginPane.java)、
 [微软设备代码协议](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-device-code)。
