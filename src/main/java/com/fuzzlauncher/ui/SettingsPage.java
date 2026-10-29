@@ -1,6 +1,7 @@
 package com.fuzzlauncher.ui;
 
 import com.fuzzlauncher.domain.*;
+import com.fuzzlauncher.infrastructure.GameRootMigration;
 import java.nio.file.*;
 import java.util.*;
 import java.util.function.Consumer;
@@ -89,25 +90,42 @@ public final class SettingsPage extends RetroPage {
               try {
                 if (root.getText().isBlank()) throw new IllegalArgumentException("游戏根目录不能为空");
                 Path normalized = Path.of(root.getText()).toAbsolutePath().normalize();
-                if (!normalized.equals(
-                        Path.of(vm.settingsProperty().get().gameRoot())
-                            .toAbsolutePath()
-                            .normalize())
-                    && !confirm("切换游戏根目录", "切换后将重新读取目标目录中的实例。\n原目录中的游戏、存档和模组会保留。是否继续？")) return;
+                boolean rootChanged =
+                    !GameRootMigration.sameDirectory(
+                        normalized, Path.of(vm.settingsProperty().get().gameRoot()));
                 Path requested =
                     dataPath.getText().isBlank()
                         ? vm.dataDirectory()
                         : Path.of(dataPath.getText()).toAbsolutePath().normalize();
                 if (mode.getValue() != config.isolation()
                     && !confirm("更改全局隔离模式", "跟随全局设置的实例将切换游戏目录。\n旧存档和模组保留在原目录，不会自动迁移。是否继续？")) return;
+                boolean migrate = false;
+                if (rootChanged) {
+                  ButtonType move = new ButtonType("迁移并重启", ButtonBar.ButtonData.YES);
+                  ButtonType keep = new ButtonType("不迁移，仅重启", ButtonBar.ButtonData.NO);
+                  Alert question =
+                      RetroDialogs.alert(
+                          stage,
+                          Alert.AlertType.CONFIRMATION,
+                          "切换游戏根目录",
+                          "是否将原目录中的实例、存档、模组及共享资源迁移到新目录？\n" + "迁移目标必须为空；选择不迁移会保留原文件。保存成功后将自动重启。");
+                  question.getDialogPane().setId("game-root-migration-question");
+                  question
+                      .getButtonTypes()
+                      .setAll(move, keep, new ButtonType("取消", ButtonBar.ButtonData.CANCEL_CLOSE));
+                  var answer = question.showAndWait();
+                  if (answer.isEmpty() || (answer.get() != move && answer.get() != keep)) return;
+                  migrate = answer.get() == move;
+                }
                 vm.saveSettings(
                     new LauncherSettings(
                         normalized.toString(),
                         mode.getValue(),
                         source.getValue(),
                         requested.toString(),
-                        visibility.getValue()));
-              } catch (IllegalArgumentException ex) {
+                        visibility.getValue()),
+                    migrate);
+              } catch (IllegalArgumentException | java.io.IOException ex) {
                 message(Alert.AlertType.ERROR, "设置无效", ex.getMessage());
               }
             });

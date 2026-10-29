@@ -18,7 +18,8 @@ public final class SettingsStore {
   public LauncherSettings load() throws IOException {
     Path file = directory.resolve("settings.json");
     if (!Files.exists(file))
-      return new LauncherSettings(directory.resolve(".minecraft").toString(), IsolationMode.ALL);
+      return new LauncherSettings(
+          LauncherPaths.directory().resolve("game").toString(), IsolationMode.ALL);
     LauncherSettings settings =
         JsonFiles.GSON.fromJson(JsonFiles.read(file), LauncherSettings.class);
     if (settings.gameRoot() == null || settings.isolation() == null)

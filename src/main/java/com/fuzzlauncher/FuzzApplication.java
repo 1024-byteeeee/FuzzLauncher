@@ -34,6 +34,7 @@ public final class FuzzApplication extends Application {
       if (instanceLock == null) throw new java.io.IOException("此数据目录已有 Fuzz Launcher 运行，请先关闭已有窗口");
       LauncherLog.configure(data);
       SettingsStore settings = new SettingsStore(data);
+      java.nio.file.Files.createDirectories(Path.of(settings.load().gameRoot()));
       InstanceRepository instances = new JsonInstanceRepository(data);
       HttpTransport http = new HttpTransport();
       http.setDownloadSource(settings.load().downloadSource());
@@ -96,6 +97,10 @@ public final class FuzzApplication extends Application {
           .add(new javafx.scene.image.Image(getClass().getResourceAsStream("launcher.png")));
       stage.setMinWidth(1100);
       stage.setMinHeight(780);
+      stage.setOnCloseRequest(
+          event -> {
+            if (viewModel.savingSettingsProperty().get()) event.consume();
+          });
       LauncherVisibilityController visibility =
           new LauncherVisibilityController(stage, Platform::exit);
       viewModel.onGameLifecycle(visibility::started, visibility::exited);

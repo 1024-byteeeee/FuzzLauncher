@@ -5,6 +5,7 @@ import com.fuzzlauncher.domain.*;
 import com.fuzzlauncher.infrastructure.*;
 import com.fuzzlauncher.infrastructure.game.VersionCatalog;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
@@ -55,6 +56,12 @@ public final class LauncherViewModel implements AutoCloseable {
   private final StringProperty status = new SimpleStringProperty("就绪");
   private final StringProperty error = new SimpleStringProperty("");
   private final BooleanProperty gameRunning = new SimpleBooleanProperty();
+  private final BooleanProperty savingSettings = new SimpleBooleanProperty();
+
+  public ReadOnlyBooleanProperty savingSettingsProperty() {
+    return savingSettings;
+  }
+
   private Runnable restart = () -> {};
   private Consumer<LauncherVisibility> gameStarted = ignored -> {};
   private java.util.function.IntConsumer gameExited = ignored -> {};
@@ -412,6 +419,10 @@ public final class LauncherViewModel implements AutoCloseable {
   }
 
   public void saveSettings(LauncherSettings config) {
+    saveSettings(config, false);
+  }
+
+  public void saveSettings(LauncherSettings config, boolean migrate) {
     if (busy.get()) return;
     if (gameRunning.get()) {
       error.set("游戏运行中，请先退出游戏再修改启动器设置");
@@ -420,36 +431,70 @@ public final class LauncherViewModel implements AutoCloseable {
     LauncherSettings previous = settings.get();
     Path previousRoot = Path.of(previous.gameRoot()).toAbsolutePath().normalize();
     Path targetRoot = Path.of(config.gameRoot()).toAbsolutePath().normalize();
-    boolean rootChanged = !targetRoot.equals(previousRoot);
+    boolean rootChanged;
+    try {
+      rootChanged = !GameRootMigration.sameDirectory(targetRoot, previousRoot);
+    } catch (IOException ex) {
+      error.set("无法读取游戏根目录：" + ex.getMessage());
+      return;
+    }
+    record SavedSettings(List<GameInstance> instances, String warning) {}
+    savingSettings.set(true);
     submit(
         "保存启动器设置",
         context -> {
           if (java.nio.file.Files.exists(targetRoot)
               && !java.nio.file.Files.isDirectory(targetRoot)) throw new IOException("游戏根目录不是文件夹");
           List<GameInstance> oldInstances = repository.findAll();
-          List<GameInstance> available = oldInstances;
           if (rootChanged) {
             for (GameInstance item : oldInstances) InstanceCatalog.remember(previousRoot, item);
-            available = InstanceCatalog.scan(targetRoot, List.of());
           }
           Path requested =
               config.dataDirectory().isBlank() ? dataDirectory() : Path.of(config.dataDirectory());
-          try {
-            if (rootChanged) repository.replaceAll(available);
-            settingsStore.save(config);
-            DataLocations.configure(DataLocations.bootstrapDirectory(), dataDirectory(), requested);
-          } catch (IOException | RuntimeException ex) {
+          try (GameRootMigration migration =
+              rootChanged && migrate
+                  ? GameRootMigration.prepare(
+                      previousRoot,
+                      targetRoot,
+                      List.of(dataDirectory(), LauncherPaths.directory()),
+                      context)
+                  : null) {
+            Files.createDirectories(targetRoot);
+            List<GameInstance> available =
+                rootChanged
+                    ? InstanceCatalog.scan(targetRoot, migrate ? oldInstances : List.of())
+                    : oldInstances;
+            context.checkCancelled();
             try {
-              if (rootChanged) repository.replaceAll(oldInstances);
-              settingsStore.save(previous);
-            } catch (IOException rollback) {
-              ex.addSuppressed(rollback);
+              if (rootChanged) repository.replaceAll(available);
+              settingsStore.save(config);
+              DataLocations.configure(
+                  DataLocations.bootstrapDirectory(), dataDirectory(), requested);
+            } catch (IOException | RuntimeException ex) {
+              try {
+                if (rootChanged) repository.replaceAll(oldInstances);
+                settingsStore.save(previous);
+              } catch (IOException rollback) {
+                ex.addSuppressed(rollback);
+              }
+              throw ex;
             }
-            throw ex;
+            String warning = "";
+            if (migration != null) {
+              migration.commit();
+              context.report("正在清理旧游戏目录", -1);
+              try {
+                migration.cleanSource();
+              } catch (IOException ex) {
+                warning = "游戏文件已完整迁移到新目录，但部分旧文件未能清理，请检查后手动清理：" + ex.getMessage();
+                LauncherLog.LOGGER.warning(warning);
+              }
+            }
+            return new SavedSettings(available, warning);
           }
-          return available;
         },
-        available -> {
+        result -> {
+          List<GameInstance> available = result.instances();
           LauncherSettings saved = config;
           boolean sourceChanged = settings.get().downloadSource() != saved.downloadSource();
           settings.set(saved);
@@ -467,12 +512,14 @@ public final class LauncherViewModel implements AutoCloseable {
                       .toAbsolutePath()
                       .normalize()
                       .equals(dataDirectory());
-          status.set(changed ? "设置已保存，正在重启启动器…" : "设置已保存");
-          if (changed) restart.run();
+          status.set(changed || rootChanged ? "设置已保存，正在重启启动器…" : "设置已保存");
+          if (!result.warning().isBlank()) error.set(result.warning());
+          if (changed || rootChanged) restart.run();
         });
   }
 
   public void cancel() {
+    if (savingSettings.get()) return;
     if (active != null) active.cancel(true);
   }
 
@@ -558,6 +605,7 @@ public final class LauncherViewModel implements AutoCloseable {
     status.set(task.getMessage().isBlank() ? "就绪" : task.getMessage());
     progress.set(0);
     installing.set(false);
+    savingSettings.set(false);
     busy.set(false);
     return true;
   }

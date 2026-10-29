@@ -42,6 +42,8 @@ class UiSmokeTest {
             IsolationOverride.ISOLATED,
             4096));
     System.setProperty("fuzz.dataDir", temp.toString());
+    new SettingsStore(temp)
+        .save(new LauncherSettings(temp.resolve("game").toString(), IsolationMode.ALL));
     CountDownLatch started = new CountDownLatch(1);
     Platform.startup(started::countDown);
     assertTrue(started.await(10, TimeUnit.SECONDS));
@@ -141,6 +143,8 @@ class UiSmokeTest {
         release = new CountDownLatch(1),
         returned = new CountDownLatch(1);
     Path data = temp.resolve("avatar-state");
+    new SettingsStore(data)
+        .save(new LauncherSettings(data.resolve("game").toString(), IsolationMode.ALL));
     try (var vm =
         new LauncherViewModel(
             new SettingsStore(data),
@@ -361,6 +365,8 @@ class UiSmokeTest {
 
   private static void verifyGameRootSwitch(Stage stage, LauncherViewModel vm, Path data)
       throws Exception {
+    var restarts = new java.util.concurrent.atomic.AtomicInteger();
+    vm.onRestartRequired(restarts::incrementAndGet);
     var original = vm.settingsProperty().get();
     Path oldRoot = Path.of(original.gameRoot()), newRoot = data.resolve("other-game-root");
     GameInstance old = rootFixture(oldRoot, "old-root", "Old world"),
@@ -376,6 +382,7 @@ class UiSmokeTest {
             original.downloadSource(),
             original.dataDirectory());
     awaitAccountOperation(vm, () -> vm.saveSettings(changed));
+    assertEquals(1, restarts.get());
     assertEquals(java.util.List.of(target), vm.instances());
     assertEquals(target, vm.selectedProperty().get());
     assertEquals(changed, new SettingsStore(data).load());
@@ -384,6 +391,7 @@ class UiSmokeTest {
         Files.readString(
             InstanceDirectories.directory(oldRoot, old).resolve("saves/world/level.dat")));
     awaitAccountOperation(vm, () -> vm.saveSettings(original));
+    assertEquals(2, restarts.get());
     assertEquals(java.util.List.of(old), vm.instances());
     assertEquals(
         "world new-root",
@@ -398,6 +406,7 @@ class UiSmokeTest {
             original.downloadSource(),
             occupied.toString());
     awaitAccountOperation(vm, () -> vm.saveSettings(failed), false);
+    assertEquals(2, restarts.get());
     assertEquals(original, vm.settingsProperty().get());
     assertEquals(original, new SettingsStore(data).load());
     assertEquals(java.util.List.of(old), new JsonInstanceRepository(data).findAll());
@@ -412,6 +421,101 @@ class UiSmokeTest {
     assertNull(vm.selectedProperty().get());
     awaitAccountOperation(vm, () -> vm.saveSettings(original));
     assertEquals(java.util.List.of(old), vm.instances());
+    Path movedRoot = data.resolve("moved-game-root");
+    var migrated =
+        new LauncherSettings(
+            movedRoot.toString(),
+            original.isolation(),
+            original.downloadSource(),
+            original.dataDirectory(),
+            original.launcherVisibility());
+    awaitAccountOperation(vm, () -> vm.saveSettings(migrated, true));
+    assertEquals(5, restarts.get());
+    assertEquals(java.util.List.of(old), vm.instances());
+    assertFalse(Files.exists(oldRoot));
+    assertEquals(
+        "world old-root",
+        Files.readString(
+            InstanceDirectories.directory(movedRoot, old).resolve("saves/world/level.dat")));
+    // A post-copy configuration failure must roll back the destination, not remove source files.
+    Path rolledBack = data.resolve("rolled-back-root");
+    var badMigration =
+        new LauncherSettings(
+            rolledBack.toString(),
+            original.isolation(),
+            original.downloadSource(),
+            occupied.toString(),
+            original.launcherVisibility());
+    awaitAccountOperation(vm, () -> vm.saveSettings(badMigration, true), false);
+    assertEquals(5, restarts.get());
+    assertFalse(Files.exists(rolledBack));
+    assertEquals(migrated, new SettingsStore(data).load());
+    assertTrue(Files.isRegularFile(InstanceDirectories.profile(movedRoot, old)));
+    awaitAccountOperation(vm, () -> vm.saveSettings(original, true));
+    assertEquals(6, restarts.get());
+    assertFalse(Files.exists(movedRoot));
+    verifyMigrationQuestion(stage, vm, data, restarts);
+  }
+
+  private static void verifyMigrationQuestion(
+      Stage stage,
+      LauncherViewModel vm,
+      Path data,
+      java.util.concurrent.atomic.AtomicInteger restarts)
+      throws Exception {
+    Node original = stage.getScene().getRoot();
+    Path target = data.resolve("ui-root");
+    try {
+      SettingsPage page = new SettingsPage(stage, vm, ignored -> {});
+      stage.getScene().setRoot(page);
+      ((TextField) page.lookup("#game-root-path")).setText(target.toString());
+      Button save =
+          page.lookupAll(".button").stream()
+              .filter(Button.class::isInstance)
+              .map(Button.class::cast)
+              .filter(button -> "保存设置".equals(button.getText()))
+              .findFirst()
+              .orElseThrow();
+      int before = restarts.get();
+      for (boolean cancel : new boolean[] {true, false}) {
+        Platform.runLater(
+            () -> {
+              var pane =
+                  (DialogPane)
+                      Window.getWindows().stream()
+                          .filter(
+                              window ->
+                                  window.getScene() != null
+                                      && window.getScene().lookup("#game-root-migration-question")
+                                          != null)
+                          .findFirst()
+                          .orElseThrow()
+                          .getScene()
+                          .getRoot();
+              assertEquals(
+                  java.util.List.of("迁移并重启", "不迁移，仅重启", "取消"),
+                  pane.getButtonTypes().stream().map(ButtonType::getText).toList());
+              var selected =
+                  pane.getButtonTypes().stream()
+                      .filter(type -> type.getText().equals(cancel ? "取消" : "不迁移，仅重启"))
+                      .findFirst()
+                      .orElseThrow();
+              ((Button) pane.lookupButton(selected)).fire();
+            });
+        if (cancel) {
+          save.fire();
+          assertFalse(vm.busyProperty().get());
+          assertEquals(before, restarts.get());
+          assertFalse(Files.exists(target));
+        } else {
+          awaitAccountOperation(vm, save::fire);
+          assertEquals(before + 1, restarts.get());
+          assertTrue(Files.isDirectory(target));
+        }
+      }
+    } finally {
+      stage.getScene().setRoot((javafx.scene.Parent) original);
+    }
   }
 
   private static void verifyInstanceEditingLock(
@@ -507,6 +611,8 @@ class UiSmokeTest {
             }
           };
       Path data = temp.resolve("account-state-" + state);
+      new SettingsStore(data)
+          .save(new LauncherSettings(data.resolve("game").toString(), IsolationMode.ALL));
       try (var vm =
           new LauncherViewModel(
               new SettingsStore(data), new JsonInstanceRepository(data), null, auth, null, null)) {
