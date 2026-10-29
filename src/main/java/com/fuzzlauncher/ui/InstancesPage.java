@@ -174,6 +174,8 @@ public final class InstancesPage extends RetroPage {
         form(
             new String[] {"名称:", "游戏版本:", "加载器:", "版本隔离:", "最小内存 MB:", "最大内存 MB:", "Java 路径:"},
             new Node[] {name, version, loader, isolation, minimumMemory, memory, javaControl});
+    form.setId("instance-settings-form");
+    form.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
     Label directory = new Label();
     directory.setWrapText(true);
     directory.setMinHeight(40);
