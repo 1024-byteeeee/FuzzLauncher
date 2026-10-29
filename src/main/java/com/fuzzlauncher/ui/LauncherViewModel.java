@@ -59,6 +59,8 @@ public final class LauncherViewModel implements AutoCloseable {
   private final ObjectProperty<GameInstance> selected = new SimpleObjectProperty<>();
   private final ObservableList<GameVersion> versions = FXCollections.observableArrayList();
   private final ObservableList<String> loaderVersions = FXCollections.observableArrayList();
+  private final ObservableList<String> readOnlyLoaderVersions =
+      FXCollections.unmodifiableObservableList(loaderVersions);
   private final ObjectProperty<Account> account = new SimpleObjectProperty<>();
   private final BooleanProperty busy = new SimpleBooleanProperty();
   private final DoubleProperty progress = new SimpleDoubleProperty(0);
@@ -216,7 +218,7 @@ public final class LauncherViewModel implements AutoCloseable {
   }
 
   public ObservableList<String> loaderVersions() {
-    return FXCollections.unmodifiableObservableList(loaderVersions);
+    return readOnlyLoaderVersions;
   }
 
   public ReadOnlyObjectProperty<Account> accountProperty() {
@@ -307,7 +309,7 @@ public final class LauncherViewModel implements AutoCloseable {
   }
 
   public void login() {
-    if (!canLogin(false)) return;
+    if (!canLogin()) return;
     deviceLogin.set(null);
     deviceAuthorized.set(false);
     loggingIn.set(true);
@@ -363,7 +365,7 @@ public final class LauncherViewModel implements AutoCloseable {
   }
 
   public void loginOffline(String name) {
-    if (!canLogin(true)) return;
+    if (!canLogin()) return;
     submit(
         "离线登录",
         context -> authentication.loginOffline(name, context),
@@ -373,11 +375,11 @@ public final class LauncherViewModel implements AutoCloseable {
         });
   }
 
-  private boolean canLogin(boolean offline) {
+  private boolean canLogin() {
     if (busy.get() || gameRunning.get()) return false;
     Account current = account.get();
-    if (current != null && current.isOffline() != offline) {
-      error.set(current.isOffline() ? "请先退出离线账号，再登录微软账号" : "请先退出微软账号，再登录离线账号");
+    if (current != null) {
+      error.set(current.isOffline() ? "请先退出当前离线账号，再登录" : "请先退出当前微软账号，再登录");
       return false;
     }
     return true;

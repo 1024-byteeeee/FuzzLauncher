@@ -406,7 +406,7 @@ class UiSmokeTest {
     backing.save(fabric);
     var commitReached = new CountDownLatch(1);
     var releaseCommit = new CountDownLatch(1);
-    var releaseQuery = new CountDownLatch(1);
+    var releaseQuery = new java.util.concurrent.atomic.AtomicReference<>(new CountDownLatch(1));
     var holdQuery = new java.util.concurrent.atomic.AtomicBoolean();
     InstanceRepository repository =
         new InstanceRepository() {
@@ -438,7 +438,7 @@ class UiSmokeTest {
         exchange -> {
           if (holdQuery.get()) {
             try {
-              releaseQuery.await(5, TimeUnit.SECONDS);
+              releaseQuery.get().await(5, TimeUnit.SECONDS);
             } catch (InterruptedException ex) {
               Thread.currentThread().interrupt();
             }
@@ -516,12 +516,20 @@ class UiSmokeTest {
       view.applyCss();
       view.layout();
       assertFalse(view.lookup("#change-instance-loader").isDisabled());
+      // The query result listener must survive GC while a network response is pending.
+      assertSame(vm.loaderVersions(), vm.loaderVersions());
+      holdQuery.set(true);
       ((Button) view.lookup("#change-instance-loader")).fire();
+      waitForFx(() -> vm.busyProperty().get());
+      System.gc();
+      releaseQuery.get().countDown();
+      holdQuery.set(false);
       waitForFx(() -> !vm.busyProperty().get() && vm.loaderVersions().size() == 2);
       DialogPane chooser = loaderPane();
       @SuppressWarnings("unchecked")
       var versions = (ComboBox<String>) chooser.lookup("#replacement-loader-version");
       assertEquals("1", versions.getValue());
+      assertEquals("请选择加载器版本", versions.getPromptText());
       versions.setValue("2");
       javax.imageio.ImageIO.write(
           javafx.embed.swing.SwingFXUtils.fromFXImage(chooser.getScene().snapshot(null), null),
@@ -559,16 +567,17 @@ class UiSmokeTest {
               InstanceDirectories.directory(game, fabric).resolve("saves/world/level.dat")));
       assertEquals("Fabric 2", ((TextField) view.lookup("#instance-loader")).getText());
       assertFalse(vm.installingProperty().get());
+      releaseQuery.set(new CountDownLatch(1));
       holdQuery.set(true);
       ((Button) view.lookup("#change-instance-loader")).fire();
       waitForFx(() -> vm.busyProperty().get());
       ((Button) loaderPane().lookup(".window-control")).fire();
       waitForFx(() -> !vm.busyProperty().get());
-      releaseQuery.countDown();
+      releaseQuery.get().countDown();
       assertEquals("2", vm.selectedProperty().get().loaderVersion());
     } finally {
       releaseCommit.countDown();
-      releaseQuery.countDown();
+      releaseQuery.get().countDown();
       server.stop(0);
       stage.getScene().setRoot(originalRoot);
     }
@@ -1039,13 +1048,17 @@ class UiSmokeTest {
         Button microsoftLogout = (Button) page.lookup("#microsoft-logout");
         Button offlineLogout = (Button) page.lookup("#offline-logout");
         name.setText("NewOffline");
-        assertEquals(state == 2, microsoft.isDisabled());
-        assertEquals(state == 1, offline.isDisabled());
+        assertEquals(state != 0, microsoft.isDisabled());
+        assertEquals(state != 0, offline.isDisabled());
         assertEquals(state == 1, name.isDisabled());
         assertTrue(microsoftLogout.isVisible() && offlineLogout.isVisible());
         assertEquals(state != 1, microsoftLogout.isDisabled());
         assertEquals(state != 2, offlineLogout.isDisabled());
         if (initial != null) {
+          microsoft.fire();
+          offline.fire();
+          vm.login();
+          vm.loginOffline("NewOffline");
           if (initial.isOffline()) {
             microsoft.fire();
             vm.login();
@@ -1056,7 +1069,7 @@ class UiSmokeTest {
           assertEquals(
               0,
               logins.get(),
-              "Opposite login must not reach authentication or overwrite credentials");
+              "Logged-in accounts must not reach authentication or overwrite credentials");
           assertEquals(initial, saved.get());
           assertEquals(initial, vm.accountProperty().get());
           assertFalse(vm.errorProperty().get().isBlank());
@@ -1070,8 +1083,8 @@ class UiSmokeTest {
               vm, initial.isOffline() ? vm::login : () -> vm.loginOffline("NewOffline"));
           assertEquals(!initial.isOffline(), vm.accountProperty().get().isOffline());
           assertEquals(1, logins.get());
-          assertEquals(!initial.isOffline(), microsoft.isDisabled());
-          assertEquals(initial.isOffline(), offline.isDisabled());
+          assertTrue(microsoft.isDisabled());
+          assertTrue(offline.isDisabled());
         }
       } finally {
         stage.getScene().setRoot(original);

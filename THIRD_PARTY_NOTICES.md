@@ -13,4 +13,11 @@ Fabric, Forge, NeoForge and their processor artifacts are downloaded from offici
 - BMCLAPI public download mirror: https://bmclapi2.bangbang93.com/ — API documentation: https://bmclapidoc.bangbang93.com/
 - Tencent Cloud public Maven mirror: https://mirrors.cloud.tencent.com/nexus/repository/maven-public/
 - NeoForge fallback CDN: https://neoforged.forgecdn.net/
-UI images are extracted from the user-approved AI-generated reference image.
+Loader logos identify their respective projects and remain the property of their respective owners:
+The `*-retro.png` variants are AI-assisted Windows 95 style adaptations of these logos.
+
+- Fabric: https://github.com/FabricMC/fabricmc.net/blob/HEAD/assets/logo.png
+- Forge: https://github.com/MinecraftForge/Documentation/blob/HEAD/forge_theme/images/android-chrome-192x192.png
+- NeoForge: https://github.com/neoforged/Documentation/blob/HEAD/static/img/neoforged.png
+
+Other UI images are extracted from the user-approved AI-generated reference image.

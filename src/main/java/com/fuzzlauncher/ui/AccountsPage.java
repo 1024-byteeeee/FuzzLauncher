@@ -36,7 +36,9 @@ public final class AccountsPage extends RetroPage {
                 vm.accountAvatarProperty()));
     Button login = button("微软登录", vm::login);
     login.setId("microsoft-login");
-    login.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
+    login
+        .disableProperty()
+        .bind(vm.busyProperty().or(vm.gameRunningProperty()).or(vm.accountProperty().isNotNull()));
     Button microsoftLogout = logoutButton(false);
     Button offlineLogout = logoutButton(true);
     TextField username = new TextField();
@@ -50,7 +52,11 @@ public final class AccountsPage extends RetroPage {
     offline.setId("offline-login");
     offline
         .disableProperty()
-        .bind(vm.busyProperty().or(vm.gameRunningProperty()).or(username.textProperty().isEmpty()));
+        .bind(
+            vm.busyProperty()
+                .or(vm.gameRunningProperty())
+                .or(vm.accountProperty().isNotNull())
+                .or(username.textProperty().isEmpty()));
     Label offlineHint = new Label("使用本地用户名游玩单人游戏或允许离线账号的服务器。");
     offlineHint.setWrapText(true);
     VBox microsoftSection =

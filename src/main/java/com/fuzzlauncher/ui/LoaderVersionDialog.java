@@ -22,7 +22,7 @@ final class LoaderVersionDialog extends Dialog<ButtonType> {
     versions.setPromptText("正在查询兼容版本…");
     versions
         .promptTextProperty()
-        .bind(Bindings.when(vm.busyProperty()).then("正在查询兼容版本…").otherwise("没有可用的兼容版本"));
+        .bind(Bindings.when(vm.busyProperty()).then("正在查询兼容版本…").otherwise("请选择加载器版本"));
     Label status = new Label();
     status.setWrapText(true);
     status.textProperty().bind(vm.statusProperty());
@@ -36,7 +36,7 @@ final class LoaderVersionDialog extends Dialog<ButtonType> {
     content.setPadding(new Insets(12));
     content.setPrefWidth(520);
     getDialogPane().setContent(content);
-    ButtonType install = new ButtonType("完整重装", ButtonBar.ButtonData.OK_DONE);
+    ButtonType install = new ButtonType("更改", ButtonBar.ButtonData.OK_DONE);
     ButtonType cancel = new ButtonType("取消", ButtonBar.ButtonData.CANCEL_CLOSE);
     getDialogPane().getButtonTypes().setAll(install, cancel);
     versions.disableProperty().bind(vm.busyProperty());
@@ -80,6 +80,7 @@ final class LoaderVersionDialog extends Dialog<ButtonType> {
           vm.cancelCatalogRequests(this);
           vm.loaderVersions().removeListener(listener);
           status.textProperty().unbind();
+          versions.promptTextProperty().unbind();
         });
     // Do not override the shared chrome's onShown icon handler.
     addEventHandler(

@@ -28,7 +28,9 @@
 JavaFX 测试覆盖原版禁用、查询并选择版本、确认与进度、提交期间防取消、界面更新、关闭查询窗口。
 真实安装适配器的联网测试按 `fuzz.reinstallIntegration=true` 启用，并通过 `fuzz.reinstallLoaders` 选择加载器；不进行账号授权或游戏启动。
 
-本次已完成 Fabric 0.20.1、0.20.0 的真实重装与降级，以及 Forge 1.21.1-52.1.20 的真实安装。
-按用户要求停止了后续联网验证，Forge 52.1.19 降级和 NeoForge 验证未完成，不能标记为通过。
+真实联网验证已完成：Fabric 0.20.1 → 0.20.0、Forge 1.21.1-52.1.20 → 1.21.1-52.1.19、NeoForge 21.1.265 → 21.1.264。
+其中 Forge 和 NeoForge 于 2026-10-29 继续执行此前中断的验证并通过：完整运行官方安装适配器、检查依赖文件存在、版本登记更新、测试存档保留及临时安装目录清理。
+这些验证不包含账号授权、游戏实际启动或模组兼容性检查。
+同日执行 `./gradlew.bat test -Dfuzz.uiTests=true --console=plain`，96 项通过、0 项失败；2 项需要显式启用的联网测试在该轮跳过，加载器联网验证已单独运行并通过。
 
 参考 [Prism 组件版本管理](https://github.com/PrismLauncher/PrismLauncher/blob/develop/launcher/minecraft/Component.cpp)。

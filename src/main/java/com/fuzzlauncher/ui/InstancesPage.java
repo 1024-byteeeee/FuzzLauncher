@@ -33,7 +33,26 @@ public final class InstancesPage extends RetroPage {
               protected void updateItem(GameInstance item, boolean empty) {
                 super.updateItem(item, empty);
                 setText(empty || item == null ? null : item.name());
-                setGraphic(empty || item == null ? null : icon("grass", 32));
+                if (empty || item == null) {
+                  setGraphic(null);
+                  return;
+                }
+                ImageView image =
+                    icon(
+                        switch (item.loader()) {
+                          case VANILLA -> "grass";
+                          case FABRIC -> "fabric-retro";
+                          case FORGE -> "forge-retro";
+                          case NEOFORGE -> "neoforge-retro";
+                        },
+                        32);
+                StackPane iconSlot = new StackPane(image);
+                iconSlot.setMinSize(32, 32);
+                iconSlot.setPrefSize(32, 32);
+                iconSlot.setMaxSize(32, 32);
+                iconSlot.setAlignment(Pos.CENTER);
+                setAlignment(Pos.CENTER_LEFT);
+                setGraphic(iconSlot);
               }
             });
     if (vm.selectedProperty().get() != null)
@@ -204,7 +223,9 @@ public final class InstancesPage extends RetroPage {
     GridPane form =
         form(
             new String[] {"名称:", "游戏版本:", "加载器:", "版本隔离:", "最小内存 MB:", "最大内存 MB:", "Java 路径:"},
-            new Node[] {name, version, loaderControl, isolation, minimumMemory, memory, javaControl});
+            new Node[] {
+              name, version, loaderControl, isolation, minimumMemory, memory, javaControl
+            });
     form.setId("instance-settings-form");
     form.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
     Label directory = new Label();
@@ -260,8 +281,7 @@ public final class InstancesPage extends RetroPage {
             "启动参数",
             () -> {
               GameInstance item = vm.selectedProperty().get();
-              if (item != null)
-                new LaunchArgumentsDialog(stage, vm, item).showAndWait();
+              if (item != null) new LaunchArgumentsDialog(stage, vm, item).showAndWait();
             });
     arguments.setId("launch-arguments");
     arguments.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
