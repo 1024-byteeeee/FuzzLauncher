@@ -87,6 +87,13 @@ public final class LaunchGame {
     Files.createDirectories(logs);
     Path log = logs.resolve(instance.id() + "-" + System.currentTimeMillis() + ".log");
     task.report("正在启动 " + instance.name(), -1);
+    if (settings.launcherVisibility() == LauncherVisibility.EXIT) {
+      Process detached =
+          DetachedGame.start(
+              command, gameDir, log, account.isOffline() ? "" : session.accessToken());
+      task.report("游戏已启动", 1);
+      return new RunningGame(detached, log);
+    }
     Process process =
         new ProcessBuilder(command).directory(gameDir.toFile()).redirectErrorStream(true).start();
     String token = session.accessToken();

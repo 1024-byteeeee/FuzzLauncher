@@ -83,6 +83,7 @@ class UiSmokeTest {
             }
             verifyDropdownHighlight(view);
             verifyDisabledMenuHighlight(stage);
+            verifyLauncherVisibility(stage, view, app);
             verifyInstanceEditingLock(view, app, repository);
             verifyAccountExclusion(stage);
             verifyAvatarLifecycle(stage);
@@ -248,6 +249,67 @@ class UiSmokeTest {
               .getFill());
     } finally {
       menu.hide();
+    }
+  }
+
+  private static void verifyLauncherVisibility(Stage stage, LauncherView view, FuzzApplication app)
+      throws Exception {
+    view.showPage(3);
+    view.applyCss();
+    @SuppressWarnings("unchecked")
+    var choice = (ComboBox<LauncherVisibility>) view.lookup("#launcher-visibility");
+    assertEquals(java.util.List.of(LauncherVisibility.values()), choice.getItems());
+    assertEquals(LauncherVisibility.KEEP, choice.getValue());
+    var vmField = FuzzApplication.class.getDeclaredField("viewModel");
+    vmField.setAccessible(true);
+    var vm = (LauncherViewModel) vmField.get(app);
+    LauncherSettings original = vm.settingsProperty().get();
+    choice.setValue(LauncherVisibility.HIDE_AND_REOPEN);
+    Button save =
+        view.lookupAll(".button").stream()
+            .filter(Button.class::isInstance)
+            .map(Button.class::cast)
+            .filter(button -> "保存设置".equals(button.getText()))
+            .findFirst()
+            .orElseThrow();
+    awaitAccountOperation(vm, save::fire);
+    assertEquals(
+        LauncherVisibility.HIDE_AND_REOPEN,
+        new SettingsStore(vm.dataDirectory()).load().launcherVisibility());
+    view.showPage(0);
+    view.showPage(3);
+    assertEquals(
+        LauncherVisibility.HIDE_AND_REOPEN,
+        ((ComboBox<?>) view.lookup("#launcher-visibility")).getValue());
+    awaitAccountOperation(vm, () -> vm.saveSettings(original));
+    var quits = new java.util.concurrent.atomic.AtomicInteger();
+    var controller = new LauncherVisibilityController(stage, quits::incrementAndGet);
+    try {
+      controller.started(LauncherVisibility.KEEP);
+      assertTrue(stage.isShowing());
+      controller.exited(0);
+      assertEquals(0, quits.get());
+      controller.started(LauncherVisibility.HIDE_AND_REOPEN);
+      assertFalse(stage.isShowing());
+      assertFalse(Platform.isImplicitExit());
+      controller.exited(0);
+      assertTrue(stage.isShowing());
+      assertFalse(stage.isIconified());
+      assertTrue(Platform.isImplicitExit());
+      controller.started(LauncherVisibility.HIDE);
+      assertFalse(stage.isShowing());
+      controller.exited(1);
+      assertTrue(stage.isShowing(), "Crash must restore the window before displaying its error");
+      controller.started(LauncherVisibility.HIDE);
+      controller.exited(0);
+      assertEquals(1, quits.get());
+      stage.show();
+      controller.started(LauncherVisibility.EXIT);
+      assertEquals(2, quits.get());
+    } finally {
+      stage.setIconified(false);
+      stage.show();
+      Platform.setImplicitExit(true);
     }
   }
 

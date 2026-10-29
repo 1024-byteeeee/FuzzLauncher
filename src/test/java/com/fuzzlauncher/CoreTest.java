@@ -210,6 +210,7 @@ class CoreTest {
     LauncherSettings settings = store.load();
     assertEquals(root, settings.gameRoot());
     assertEquals(IsolationMode.ALL, settings.isolation());
+    assertEquals(LauncherVisibility.KEEP, settings.launcherVisibility());
     store.save(settings);
     assertFalse(JsonFiles.read(temp.resolve("settings.json")).has("microsoftClientId"));
     assertEquals(settings, store.load());

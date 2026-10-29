@@ -56,6 +56,14 @@ public final class LauncherViewModel implements AutoCloseable {
   private final StringProperty error = new SimpleStringProperty("");
   private final BooleanProperty gameRunning = new SimpleBooleanProperty();
   private Runnable restart = () -> {};
+  private Consumer<LauncherVisibility> gameStarted = ignored -> {};
+  private java.util.function.IntConsumer gameExited = ignored -> {};
+
+  public void onGameLifecycle(
+      Consumer<LauncherVisibility> started, java.util.function.IntConsumer exited) {
+    gameStarted = Objects.requireNonNull(started);
+    gameExited = Objects.requireNonNull(exited);
+  }
 
   public void onRestartRequired(Runnable action) {
     restart = Objects.requireNonNull(action);
@@ -325,12 +333,15 @@ public final class LauncherViewModel implements AutoCloseable {
                   process ->
                       Platform.runLater(
                           () -> {
+                            if (closed) return;
                             gameRunning.set(false);
+                            gameExited.accept(process.exitValue());
                             status.set("游戏已退出，退出码 " + process.exitValue());
                             if (process.exitValue() != 0)
                               error.set(
                                   "游戏异常退出（" + process.exitValue() + "），请查看日志: " + running.log());
                           }));
+          gameStarted.accept(config.launcherVisibility());
         });
   }
 

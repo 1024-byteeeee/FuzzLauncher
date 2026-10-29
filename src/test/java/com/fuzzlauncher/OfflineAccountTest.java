@@ -56,9 +56,10 @@ class OfflineAccountTest {
     assertThrows(IllegalArgumentException.class, () -> GameSession.offline(account));
   }
 
-  @Test
-  void offlineLaunchRunsLocalFixtureAndKeepsZeroesInLogsWithoutRefreshingMicrosoft()
-      throws Exception {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(LauncherVisibility.class)
+  void offlineLaunchRunsLocalFixtureAndKeepsZeroesInLogsWithoutRefreshingMicrosoft(
+      LauncherVisibility visibility) throws Exception {
     Path root = temp.resolve("game");
     Path versionDir = root.resolve("versions/local-test");
     Files.createDirectories(versionDir);
@@ -134,7 +135,11 @@ public class OfflineLaunchFixture {
     Account account = Account.offline("Steve");
     var running =
         launch.execute(
-            new LauncherSettings(root.toString(), IsolationMode.ALL), instance, account, task);
+            new LauncherSettings(
+                root.toString(), IsolationMode.ALL, DownloadSource.AUTO, "", visibility),
+            instance,
+            account,
+            task);
     try {
       assertTrue(running.process().waitFor(15, TimeUnit.SECONDS));
       assertEquals(0, running.process().exitValue());

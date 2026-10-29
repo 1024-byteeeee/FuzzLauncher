@@ -96,6 +96,9 @@ public final class FuzzApplication extends Application {
           .add(new javafx.scene.image.Image(getClass().getResourceAsStream("launcher.png")));
       stage.setMinWidth(1100);
       stage.setMinHeight(780);
+      LauncherVisibilityController visibility =
+          new LauncherVisibilityController(stage, Platform::exit);
+      viewModel.onGameLifecycle(visibility::started, visibility::exited);
       stage.show();
       if (Boolean.getBoolean("fuzz.snapshot"))
         Platform.runLater(

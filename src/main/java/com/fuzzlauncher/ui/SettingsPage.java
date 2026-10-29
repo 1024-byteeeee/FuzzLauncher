@@ -76,6 +76,12 @@ public final class SettingsPage extends RetroPage {
     source.getItems().setAll(DownloadSource.values());
     source.setValue(config.downloadSource());
     source.setMaxWidth(Double.MAX_VALUE);
+    ComboBox<LauncherVisibility> visibility = new RetroComboBox<>();
+    visibility.setId("launcher-visibility");
+    visibility.getItems().setAll(LauncherVisibility.values());
+    visibility.setValue(config.launcherVisibility());
+    visibility.setMaxWidth(Double.MAX_VALUE);
+    visibility.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
     Button save =
         button(
             "保存设置",
@@ -99,7 +105,8 @@ public final class SettingsPage extends RetroPage {
                         normalized.toString(),
                         mode.getValue(),
                         source.getValue(),
-                        requested.toString()));
+                        requested.toString(),
+                        visibility.getValue()));
               } catch (IllegalArgumentException ex) {
                 message(Alert.AlertType.ERROR, "设置无效", ex.getMessage());
               }
@@ -112,8 +119,8 @@ public final class SettingsPage extends RetroPage {
             25,
             label("启动器设置", "section-title"),
             form(
-                new String[] {"游戏根目录:", "数据文件目录:", "默认隔离:", "下载源:"},
-                new Node[] {rootControl, dataControl, mode, source}),
+                new String[] {"游戏根目录:", "数据文件目录:", "默认隔离:", "下载源:", "启动器可见性:"},
+                new Node[] {rootControl, dataControl, mode, source, visibility}),
             new HBox(10, save, data, logs));
     content.setPadding(new Insets(30));
     return content;
