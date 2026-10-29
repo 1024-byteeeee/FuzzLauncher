@@ -81,6 +81,7 @@ class UiSmokeTest {
                   Path.of("build/ui-check/page-" + page + ".png").toFile());
             }
             verifyDropdownHighlight(view);
+            verifyInstanceEditingLock(view, app, repository);
             verifyAccountExclusion(stage);
             result.complete(null);
           } catch (Throwable ex) {
@@ -96,6 +97,43 @@ class UiSmokeTest {
     } finally {
       System.clearProperty("fuzz.dataDir");
     }
+  }
+
+  private static void verifyInstanceEditingLock(
+      LauncherView view, FuzzApplication app, JsonInstanceRepository repository) throws Exception {
+    var vmField = FuzzApplication.class.getDeclaredField("viewModel");
+    vmField.setAccessible(true);
+    LauncherViewModel vm = (LauncherViewModel) vmField.get(app);
+    var runningField = LauncherViewModel.class.getDeclaredField("gameRunning");
+    runningField.setAccessible(true);
+    var running = (javafx.beans.property.BooleanProperty) runningField.get(vm);
+    view.showPage(0);
+    view.applyCss();
+    view.layout();
+    Node form = view.lookup("#instance-settings-form");
+    assertFalse(form.isDisabled());
+    var before = repository.findAll();
+    try {
+      running.set(true);
+      assertTrue(form.isDisabled());
+      for (Node input : form.lookupAll(".text-field, .combo-box, .spinner, .button"))
+        assertTrue(input.isDisabled(), "Running instance input remained editable: " + input);
+      assertTrue(view.lookup("#save-instance-settings").isDisabled());
+      // Navigate away and back: newly built controls must also inherit the lock.
+      view.showPage(3);
+      view.showPage(0);
+      view.applyCss();
+      view.layout();
+      assertTrue(view.lookup("#instance-settings-form").isDisabled());
+      assertEquals(before, repository.findAll());
+    } finally {
+      running.set(false);
+    }
+    assertFalse(view.lookup("#instance-settings-form").isDisabled());
+    assertFalse(view.lookup("#instance-min-memory").isDisabled());
+    assertFalse(view.lookup("#instance-memory").isDisabled());
+    assertFalse(view.lookup("#instance-java-path").isDisabled());
+    assertFalse(view.lookup("#save-instance-settings").isDisabled());
   }
 
   private void verifyAccountExclusion(Stage stage) throws Exception {
@@ -139,6 +177,28 @@ class UiSmokeTest {
       try (var vm =
           new LauncherViewModel(
               new SettingsStore(data), new JsonInstanceRepository(data), null, auth, null, null)) {
+        if (state == 0) {
+          var field = LauncherViewModel.class.getDeclaredField("gameRunning");
+          field.setAccessible(true);
+          var running = (javafx.beans.property.BooleanProperty) field.get(vm);
+          running.set(true);
+          try {
+            vm.updateInstance(
+                new GameInstance(
+                    "guard",
+                    "Guard",
+                    "1.20.4",
+                    LoaderType.VANILLA,
+                    null,
+                    IsolationOverride.INHERIT,
+                    4096));
+            assertFalse(vm.busyProperty().get(), "Running instance update must not start a task");
+            assertEquals("游戏运行中，请先退出游戏再修改实例设置", vm.errorProperty().get());
+            assertTrue(new JsonInstanceRepository(data).findAll().isEmpty());
+          } finally {
+            running.set(false);
+          }
+        }
         AccountsPage page = new AccountsPage(stage, vm, ignored -> {});
         stage.getScene().setRoot(page);
         page.applyCss();

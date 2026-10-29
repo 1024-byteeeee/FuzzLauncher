@@ -268,6 +268,11 @@ public final class LauncherViewModel implements AutoCloseable {
   }
 
   public void updateInstance(GameInstance instance) {
+    if (busy.get()) return;
+    if (gameRunning.get()) {
+      error.set("游戏运行中，请先退出游戏再修改实例设置");
+      return;
+    }
     submit(
         "保存实例设置",
         context -> {
