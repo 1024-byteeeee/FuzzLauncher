@@ -27,8 +27,15 @@ public final class InstanceCatalog {
 
   public static List<GameInstance> refresh(Path root, InstanceRepository repository)
       throws IOException {
+    List<GameInstance> result = scan(root, repository.findAll());
+    repository.replaceAll(result);
+    return result;
+  }
+
+  public static List<GameInstance> scan(Path root, List<GameInstance> registered)
+      throws IOException {
     Map<String, GameInstance> known = new HashMap<>();
-    for (GameInstance item : repository.findAll()) known.put(item.id(), item);
+    for (GameInstance item : registered) known.put(item.id(), item);
     List<GameInstance> result = new ArrayList<>();
     Path versions = root.toAbsolutePath().normalize().resolve("versions");
     if (Files.isDirectory(versions))
@@ -69,7 +76,6 @@ public final class InstanceCatalog {
           }
         }
       }
-    repository.replaceAll(result);
     return result;
   }
 

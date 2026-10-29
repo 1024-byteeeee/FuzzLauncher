@@ -252,6 +252,7 @@ class UiSmokeTest {
 
   private static void verifyRootBrowser(Stage stage, LauncherViewModel vm, Path data)
       throws Exception {
+    var original = stage.getScene().getRoot();
     Path chosen = Files.createDirectories(data.resolve("picked-root")).toRealPath();
     SettingsPage settings = new SettingsPage(stage, vm, ignored -> {});
     stage.getScene().setRoot(settings);
@@ -272,6 +273,82 @@ class UiSmokeTest {
         });
     browse.fire();
     assertEquals(chosen.toString(), ((TextField) settings.lookup("#game-root-path")).getText());
+    stage.getScene().setRoot(original);
+  }
+
+  private static GameInstance rootFixture(Path root, String id, String name) throws Exception {
+    GameInstance item =
+        new GameInstance(
+            id, name, "base", LoaderType.VANILLA, null, IsolationOverride.INHERIT, 4096);
+    JsonFiles.write(
+        root.resolve("versions/base/base.json"),
+        com.google.gson.JsonParser.parseString(
+            "{\"id\":\"base\",\"mainClass\":\"Main\",\"libraries\":[]}"));
+    Files.writeString(root.resolve("versions/base/base.jar"), "fixture client");
+    var marker = new com.google.gson.JsonObject();
+    marker.addProperty("id", id);
+    marker.addProperty("inheritsFrom", "base");
+    marker.add("fuzzInstance", JsonFiles.GSON.toJsonTree(item));
+    JsonFiles.write(InstanceDirectories.profile(root, item), marker);
+    Path world = InstanceDirectories.directory(root, item).resolve("saves/world/level.dat");
+    Files.createDirectories(world.getParent());
+    Files.writeString(world, "world " + id);
+    return item;
+  }
+
+  private static void verifyGameRootSwitch(Stage stage, LauncherViewModel vm, Path data)
+      throws Exception {
+    var original = vm.settingsProperty().get();
+    Path oldRoot = Path.of(original.gameRoot()), newRoot = data.resolve("other-game-root");
+    GameInstance old = rootFixture(oldRoot, "old-root", "Old world"),
+        target = rootFixture(newRoot, "new-root", "New world");
+    awaitAccountOperation(vm, vm::refreshInstances);
+    assertEquals(java.util.List.of(old), vm.instances());
+    verifyRootBrowser(
+        stage, vm, data); // The browse button must also work when instances already exist.
+    var changed =
+        new LauncherSettings(
+            newRoot.toString(),
+            original.isolation(),
+            original.downloadSource(),
+            original.dataDirectory());
+    awaitAccountOperation(vm, () -> vm.saveSettings(changed));
+    assertEquals(java.util.List.of(target), vm.instances());
+    assertEquals(target, vm.selectedProperty().get());
+    assertEquals(changed, new SettingsStore(data).load());
+    assertEquals(
+        "world old-root",
+        Files.readString(
+            InstanceDirectories.directory(oldRoot, old).resolve("saves/world/level.dat")));
+    awaitAccountOperation(vm, () -> vm.saveSettings(original));
+    assertEquals(java.util.List.of(old), vm.instances());
+    assertEquals(
+        "world new-root",
+        Files.readString(
+            InstanceDirectories.directory(newRoot, target).resolve("saves/world/level.dat")));
+    Path occupied = Files.createDirectories(data.resolve("occupied-data"));
+    Files.writeString(occupied.resolve("keep.txt"), "keep");
+    var failed =
+        new LauncherSettings(
+            newRoot.toString(),
+            original.isolation(),
+            original.downloadSource(),
+            occupied.toString());
+    awaitAccountOperation(vm, () -> vm.saveSettings(failed), false);
+    assertEquals(original, vm.settingsProperty().get());
+    assertEquals(original, new SettingsStore(data).load());
+    assertEquals(java.util.List.of(old), new JsonInstanceRepository(data).findAll());
+    Path emptyRoot = data.resolve("empty-game-root");
+    awaitAccountOperation(
+        vm,
+        () ->
+            vm.saveSettings(
+                new LauncherSettings(
+                    emptyRoot.toString(), original.isolation(), original.downloadSource())));
+    assertTrue(vm.instances().isEmpty());
+    assertNull(vm.selectedProperty().get());
+    awaitAccountOperation(vm, () -> vm.saveSettings(original));
+    assertEquals(java.util.List.of(old), vm.instances());
   }
 
   private static void verifyInstanceEditingLock(
@@ -374,6 +451,7 @@ class UiSmokeTest {
           } finally {
             running.set(false);
           }
+          verifyGameRootSwitch(stage, vm, data);
         }
         AccountsPage page = new AccountsPage(stage, vm, ignored -> {});
         stage.getScene().setRoot(page);
@@ -426,6 +504,11 @@ class UiSmokeTest {
   }
 
   private static void awaitAccountOperation(LauncherViewModel vm, Runnable action) {
+    awaitAccountOperation(vm, action, true);
+  }
+
+  private static void awaitAccountOperation(
+      LauncherViewModel vm, Runnable action, boolean success) {
     Object loop = new Object();
     javafx.animation.PauseTransition timeout =
         new javafx.animation.PauseTransition(javafx.util.Duration.seconds(5));
@@ -440,7 +523,7 @@ class UiSmokeTest {
       assertTrue(vm.busyProperty().get());
       timeout.play();
       assertEquals(true, Platform.enterNestedEventLoop(loop));
-      assertTrue(vm.errorProperty().get().isBlank(), vm.errorProperty().get());
+      assertEquals(success, vm.errorProperty().get().isBlank(), vm.errorProperty().get());
     } finally {
       timeout.stop();
       vm.busyProperty().removeListener(listener);

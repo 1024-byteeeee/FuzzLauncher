@@ -21,7 +21,6 @@ public final class SettingsPage extends RetroPage {
   private Node build() {
     LauncherSettings config = vm.settingsProperty().get();
     TextField root = new TextField(config.gameRoot());
-    root.editableProperty().bind(javafx.beans.binding.Bindings.isEmpty(vm.instances()));
     root.setId("game-root-path");
     root.setMinWidth(0);
     HBox.setHgrow(root, Priority.ALWAYS);
@@ -40,12 +39,7 @@ public final class SettingsPage extends RetroPage {
             });
     browseRoot.setId("browse-game-root");
     browseRoot.setMinWidth(Region.USE_PREF_SIZE);
-    browseRoot
-        .disableProperty()
-        .bind(
-            vm.busyProperty()
-                .or(vm.gameRunningProperty())
-                .or(javafx.beans.binding.Bindings.isNotEmpty(vm.instances())));
+    browseRoot.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
     root.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
     HBox rootControl = new HBox(6, root, browseRoot);
     rootControl.setMinWidth(0);
@@ -89,6 +83,11 @@ public final class SettingsPage extends RetroPage {
               try {
                 if (root.getText().isBlank()) throw new IllegalArgumentException("游戏根目录不能为空");
                 Path normalized = Path.of(root.getText()).toAbsolutePath().normalize();
+                if (!normalized.equals(
+                        Path.of(vm.settingsProperty().get().gameRoot())
+                            .toAbsolutePath()
+                            .normalize())
+                    && !confirm("切换游戏根目录", "切换后将重新读取目标目录中的实例。\n原目录中的游戏、存档和模组会保留。是否继续？")) return;
                 Path requested =
                     dataPath.getText().isBlank()
                         ? vm.dataDirectory()

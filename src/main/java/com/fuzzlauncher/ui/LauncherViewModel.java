@@ -401,28 +401,51 @@ public final class LauncherViewModel implements AutoCloseable {
   }
 
   public void saveSettings(LauncherSettings config) {
-    boolean hasInstances = !instances.isEmpty();
-    Path previousRoot = Path.of(settings.get().gameRoot()).toAbsolutePath().normalize();
+    if (busy.get()) return;
+    if (gameRunning.get()) {
+      error.set("游戏运行中，请先退出游戏再修改启动器设置");
+      return;
+    }
+    LauncherSettings previous = settings.get();
+    Path previousRoot = Path.of(previous.gameRoot()).toAbsolutePath().normalize();
+    Path targetRoot = Path.of(config.gameRoot()).toAbsolutePath().normalize();
+    boolean rootChanged = !targetRoot.equals(previousRoot);
     submit(
         "保存启动器设置",
         context -> {
-          if (hasInstances
-              && !Path.of(config.gameRoot()).toAbsolutePath().normalize().equals(previousRoot))
-            throw new IOException("已有实例时不可直接切换游戏根目录，请先备份并迁移实例");
-          settingsStore.save(config);
+          if (java.nio.file.Files.exists(targetRoot)
+              && !java.nio.file.Files.isDirectory(targetRoot)) throw new IOException("游戏根目录不是文件夹");
+          List<GameInstance> oldInstances = repository.findAll();
+          List<GameInstance> available = oldInstances;
+          if (rootChanged) {
+            for (GameInstance item : oldInstances) InstanceCatalog.remember(previousRoot, item);
+            available = InstanceCatalog.scan(targetRoot, List.of());
+          }
           Path requested =
               config.dataDirectory().isBlank() ? dataDirectory() : Path.of(config.dataDirectory());
           try {
+            if (rootChanged) repository.replaceAll(available);
+            settingsStore.save(config);
             DataLocations.configure(DataLocations.bootstrapDirectory(), dataDirectory(), requested);
-          } catch (IOException ex) {
-            settingsStore.save(settings.get());
+          } catch (IOException | RuntimeException ex) {
+            try {
+              if (rootChanged) repository.replaceAll(oldInstances);
+              settingsStore.save(previous);
+            } catch (IOException rollback) {
+              ex.addSuppressed(rollback);
+            }
             throw ex;
           }
-          return config;
+          return available;
         },
-        saved -> {
+        available -> {
+          LauncherSettings saved = config;
           boolean sourceChanged = settings.get().downloadSource() != saved.downloadSource();
           settings.set(saved);
+          if (rootChanged) {
+            instances.setAll(available);
+            selected.set(available.isEmpty() ? null : available.getFirst());
+          }
           if (sourceChanged) {
             versions.clear();
             loaderVersions.clear();
