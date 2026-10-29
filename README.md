@@ -20,7 +20,7 @@ Windows x64 / JavaFX，Windows 95 风格 Minecraft Java 启动器。
 
 最新便携应用位于 `dist/<构建时间>/FuzzLauncher/FuzzLauncher.exe`。
 整个目录内置 Java 21 + JavaFX；移动时必须保留 `app`、`runtime` 等全部文件。
-仓库只包含源码；便携应用需要在本地构建。
+仓库只包含源码；发布版本的安装程序和便携应用可在 GitHub Releases 下载，也可以在本地构建。
 
 默认数据：`%LOCALAPPDATA%\FuzzLauncher`。游戏根目录可在首次安装前从设置中修改。
 首次打开没有演示账号或演示实例。“下载”页自动读取游戏版本列表；选择游戏版本和加载器类型后，自动查询兼容的加载器版本，再选择加载器版本并填写实例名称后安装。已加载的游戏列表在页面切换时复用，刷新按钮可手动重试或更新。
@@ -44,6 +44,7 @@ Minecraft Services 准入申请已提交，当前登录曾返回 HTTP 403，尚�
 .\build.ps1                  # 同样执行 Gradle build
 .\build.ps1 -Preview         # 编译并导出实际 JavaFX 截图
 .\build.ps1 -Package         # jlink + jpackage，生成新时间目录，不覆盖旧包
+.\build.ps1 -Installer       # 额外生成 Windows 安装程序；需要 WiX 3 的 candle/light 在 PATH 中
 .\build.ps1 -Integration     # 额外联网安装测试；需要较多下载流量
 
 # 单独执行完整安装和 UI 冒烟测试
@@ -57,6 +58,25 @@ $env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21'
 便携包使用 `jlink` 和 `jpackage`，打包时请使用 JDK 21：`.\build.ps1 -Package -JdkPath '你的JDK21目录'`。
 
 `build/`、`dist/`、旧 Maven 的 `target/`、本地 `tools/`、IDE 配置、截图和账号凭据不提交到仓库。
+
+## 自动发布 Windows 安装包
+
+将 `.github/workflows/release-windows.yml` 推送到仓库后，在 GitHub 的 Releases 页面新建版本，选择包含该工作流的提交，使用 `v0.2.0`、`0.2.0` 或 `v0.2.0-beta.1` 这类标签，点击 **Publish release**。
+正式版和预发布版都会触发 **Windows release**；仅保存草稿或推送标签不会触发。
+
+工作流检出该标签的源码，在 Windows x64 上使用 Zulu JDK 21 和经 SHA-256 校验的 WiX 3.14.1，执行构建及核心测试，然后上传到同一个 Release：
+
+- `FuzzLauncher-<版本>-windows-x64-setup.exe`：安装程序，内置 Java/JavaFX，支持选择安装目录、开始菜单和桌面快捷方式，默认按当前用户安装。
+- `FuzzLauncher-<版本>-windows-x64-portable.zip`：解压后运行的便携版，需保留完整目录。
+- `SHA256SUMS.txt`：以上文件的 SHA-256 校验值。
+
+发布标签会覆盖此次构建的 Gradle 项目版本，无需提前修改 `gradle.properties`。Windows 原生安装版本使用标签的三段数字；预发布后缀保留在下载文件名中。Windows 安装版本要求前两段不大于 255、第三段不大于 65535；同一数字版本的预发布与正式版具有相同的 Windows 安装版本。
+默认运行本地核心测试，不自动进行账号授权、联网安装或桌面交互测试。安装包尚未配置代码签名。
+
+无需添加个人令牌或 Secret，上传使用该仓库的 `GITHUB_TOKEN` 和 `contents: write` 权限。失败后可在 Actions 里重跑，或手动运行 **Windows release** 并输入已有的已发布标签；同名附件会替换。
+标签必须指向已包含工作流与新版打包脚本的提交。若仓库启用了不可变 Release，发布后不允许添加附件，需要先关闭该设置，或改用先上传草稿附件再发布的流程。
+
+参考：[GitHub Release 事件](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#release)、[jpackage](https://docs.oracle.com/en/java/javase/21/docs/specs/man/jpackage.html)、[Release 附件上传](https://cli.github.com/manual/gh_release_upload)。
 
 ## 设计与验收
 
