@@ -224,16 +224,17 @@ class UiSmokeTest {
       Node root = menu.getScene().getRoot();
       root.applyCss();
       Node blocked = disabled.getStyleableNode();
+      var idleBackground = ((javafx.scene.layout.Region) blocked).getBackground();
+      var idleText = ((Label) blocked.lookup(".label")).getTextFill();
       blocked.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("focused"), true);
       blocked.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("hover"), true);
       root.applyCss();
       var background = ((javafx.scene.layout.Region) blocked).getBackground();
-      assertTrue(
-          background == null
-              || background.getFills().isEmpty()
-              || background.getFills().stream()
-                  .allMatch(fill -> Color.TRANSPARENT.equals(fill.getFill())));
-      assertEquals(Color.BLACK, ((Label) blocked.lookup(".label")).getTextFill());
+      assertEquals(idleBackground, background, "Disabled menu background must not change on hover");
+      assertEquals(Color.web("#c0c0c0"), background.getFills().getFirst().getFill());
+      assertEquals(1.0, blocked.getOpacity());
+      assertEquals(idleText, ((Label) blocked.lookup(".label")).getTextFill());
+      assertEquals(Color.GRAY, idleText);
       enabled
           .getStyleableNode()
           .pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("focused"), true);

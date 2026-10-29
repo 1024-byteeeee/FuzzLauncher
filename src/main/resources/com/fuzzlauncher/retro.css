@@ -52,8 +52,8 @@
 .context-menu { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-border-color: white #202020 #202020 white; -fx-border-width: 2; }
 .menu-item:focused { -fx-background-color: #000080; }
 .menu-item:focused .label { -fx-text-fill: white; }
-.menu-item:disabled:focused, .menu-item:disabled:hover { -fx-background-color: transparent; }
-.menu-item:disabled:focused .label, .menu-item:disabled:hover .label { -fx-text-fill: black; }
+.menu-item:disabled, .menu-item:disabled:focused, .menu-item:disabled:hover { -fx-background: #c0c0c0; -fx-background-color: #c0c0c0; -fx-opacity: 1; }
+.menu-item:disabled .label, .menu-item:disabled:focused .label, .menu-item:disabled:hover .label { -fx-text-fill: #808080; }
 /* Square Win95 scrollbars: dithered track, raised thumb and black arrow buttons. */
 .scroll-bar { -fx-background-color: #c0c0c0; -fx-background-radius: 0; -fx-padding: 0; -fx-background-insets: 0; }
 .scroll-bar:vertical { -fx-min-width: 20; -fx-pref-width: 20; }
