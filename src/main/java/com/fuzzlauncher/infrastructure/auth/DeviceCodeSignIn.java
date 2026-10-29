@@ -16,19 +16,24 @@ public final class DeviceCodeSignIn {
   public static IAuthenticationResult acquire(
       PublicClientApplication app, Set<String> scopes, TaskContext task) throws Exception {
     task.checkCancelled();
-    AtomicReference<Instant> deadline = new AtomicReference<>();
+    Instant requestedAt = Instant.now();
+    long requestedAtNanos = System.nanoTime();
+    AtomicReference<DeviceLogin> pending = new AtomicReference<>();
     var parameters =
         DeviceCodeFlowParameters.builder(
                 scopes,
                 code -> {
                   task.checkCancelled();
-                  if (code.expiresIn() <= 0) throw new IllegalArgumentException("微软返回的登录代码有效期无效");
+                  if (code.expiresIn() <= 0 || code.expiresIn() > Long.MAX_VALUE / 1_000_000_000L)
+                    throw new IllegalArgumentException("微软返回的登录代码有效期无效");
                   var challenge =
                       new DeviceLogin(
                           code.userCode(),
                           URI.create(code.verificationUri()),
-                          Instant.now().plusSeconds(code.expiresIn()));
-                  deadline.set(challenge.expiresAt());
+                          requestedAt.plusSeconds(code.expiresIn()),
+                          requestedAtNanos + Math.multiplyExact(code.expiresIn(), 1_000_000_000L));
+                  pending.set(challenge);
+                  if (challenge.expired()) throw new IllegalArgumentException("登录代码在请求过程中已经过期");
                   task.report("请在微软网页输入代码并完成登录", -1);
                   task.deviceLogin(challenge);
                 })
@@ -37,11 +42,12 @@ public final class DeviceCodeSignIn {
     try {
       while (true) {
         task.checkCancelled();
-        if (deadline.get() != null && !Instant.now().isBefore(deadline.get()))
+        if (pending.get() != null && pending.get().expired() && !future.isDone())
           throw new IOException("登录代码已过期，请重新点击微软登录获取新代码");
         try {
           IAuthenticationResult result = future.get(250, TimeUnit.MILLISECONDS);
           task.checkCancelled();
+          task.deviceLoginCompleted();
           return result;
         } catch (TimeoutException waiting) {
           // The SDK controls request intervals; this wait only checks cancellation/expiration.

@@ -224,6 +224,7 @@ class UiSmokeTest {
     var original = stage.getScene().getRoot();
     var calls = new java.util.concurrent.atomic.AtomicInteger();
     var release = new CountDownLatch(1);
+    var releaseAuthorized = new CountDownLatch(1);
     Account microsoft =
         new Account("device-fixture", "0123456789abcdef0123456789abcdef", "DeviceFixture");
     AccountAuthenticator auth =
@@ -236,7 +237,7 @@ class UiSmokeTest {
             int attempt = calls.incrementAndGet();
             task.deviceLogin(
                 new DeviceLogin(
-                    "ABCD-EFGH",
+                    attempt >= 4 ? "NEW-CODE" : "ABCD-EFGH",
                     java.net.URI.create("https://microsoft.com/devicelogin"),
                     java.time.Instant.now().plusSeconds(attempt == 3 ? -1 : 120)));
             if (attempt == 1) {
@@ -258,7 +259,10 @@ class UiSmokeTest {
               } catch (CancellationException expected) {
                 /* The stale callback is rejected at its source. */
               }
-            } else if (attempt == 3) {
+            } else if (attempt == 2) {
+              task.deviceLoginCompleted();
+              releaseAuthorized.await();
+            } else if (attempt >= 3) {
               while (true) {
                 task.checkCancelled();
                 Thread.sleep(20);
@@ -319,7 +323,18 @@ class UiSmokeTest {
       assertTrue(vm.accountProperty().get().isOffline());
       assertNull(vm.deviceLoginProperty().get());
       awaitAccountOperation(vm, vm::logout);
-      awaitAccountOperation(vm, vm::login);
+      vm.login();
+      waitForFx(() -> vm.deviceAuthorizedProperty().get());
+      DialogPane authorized = devicePane();
+      assertNull(vm.deviceLoginProperty().get());
+      assertFalse(authorized.lookup("#device-login-code").isVisible());
+      assertTrue(((Button) authorized.lookup("#copy-device-code")).isDisabled());
+      assertTrue(((Button) authorized.lookup("#open-device-login")).isDisabled());
+      assertTrue(((Button) authorized.lookup("#refresh-device-code")).isDisabled());
+      assertTrue(
+          ((Label) authorized.lookup("#device-login-expiration")).getText().contains("授权已完成"));
+      releaseAuthorized.countDown();
+      waitForFx(() -> !vm.busyProperty().get());
       assertEquals(microsoft, vm.accountProperty().get());
       assertFalse(vm.loggingInProperty().get());
       awaitAccountOperation(vm, vm::logout);
@@ -329,11 +344,19 @@ class UiSmokeTest {
       assertTrue(((Button) expired.lookup("#copy-device-code")).isDisabled());
       assertTrue(((Button) expired.lookup("#open-device-login")).isDisabled());
       assertTrue(((Label) expired.lookup("#device-login-expiration")).getText().contains("过期"));
-      ((Button) expired.lookup(".window-control")).fire();
+      Window expiredWindow = expired.getScene().getWindow();
+      ((Button) expired.lookup("#refresh-device-code")).fire();
+      waitForFx(() -> calls.get() == 4 && vm.deviceLoginProperty().get() != null);
+      assertFalse(expiredWindow.isShowing());
+      DialogPane refreshed = devicePane();
+      assertEquals("NEW-CODE", ((TextField) refreshed.lookup("#device-login-code")).getText());
+      assertFalse(((Button) refreshed.lookup("#open-device-login")).isDisabled());
+      ((Button) refreshed.lookup(".window-control")).fire();
       waitForFx(() -> !vm.loggingInProperty().get());
       assertNull(vm.accountProperty().get());
     } finally {
       release.countDown();
+      releaseAuthorized.countDown();
       stage.getScene().setRoot(original);
     }
   }

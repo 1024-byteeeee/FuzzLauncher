@@ -2,7 +2,6 @@ package com.fuzzlauncher.ui;
 
 import com.fuzzlauncher.application.DeviceLogin;
 import java.awt.Desktop;
-import java.time.*;
 import javafx.animation.*;
 import javafx.beans.value.ChangeListener;
 import javafx.geometry.Insets;
@@ -30,6 +29,7 @@ final class DeviceLoginDialog extends Dialog<ButtonType> {
     url.setWrapText(true);
     Label remaining = new Label();
     remaining.setId("device-login-expiration");
+    remaining.setWrapText(true);
     Label status = new Label();
     status.textProperty().bind(vm.statusProperty());
     status.setWrapText(true);
@@ -37,28 +37,40 @@ final class DeviceLoginDialog extends Dialog<ButtonType> {
     copy.setId("copy-device-code");
     Button open = new Button("打开登录网页");
     open.setId("open-device-login");
+    Button refresh = new Button("刷新代码");
+    refresh.setId("refresh-device-code");
+    refresh.setOnAction(event -> vm.refreshDeviceLogin());
+    Label instruction = new Label("打开微软登录网页，输入下方代码并完成授权。");
+    instruction.setWrapText(true);
     Runnable update =
         () -> {
           DeviceLogin challenge = vm.deviceLoginProperty().get();
-          boolean valid = challenge != null && Instant.now().isBefore(challenge.expiresAt());
+          boolean authorized = vm.deviceAuthorizedProperty().get();
+          boolean valid = !authorized && challenge != null && !challenge.expired();
+          instruction.setText(authorized ? "微软授权已完成，请等待游戏账号验证。" : "打开微软登录网页，输入下方代码并完成授权。");
+          code.setVisible(!authorized);
+          code.setManaged(!authorized);
+          url.setVisible(!authorized);
+          url.setManaged(!authorized);
           code.setText(challenge == null ? "" : challenge.userCode());
           url.setText(challenge == null ? "" : challenge.verificationUri().toString());
           copy.setDisable(!valid);
           open.setDisable(!valid);
-          if (challenge == null) remaining.setText("正在联系微软…");
+          refresh.setDisable(authorized);
+          if (authorized) remaining.setText("微软授权已完成，正在验证游戏账号…");
+          else if (challenge == null) remaining.setText("正在联系微软…");
           else {
-            long seconds =
-                Math.max(0, Duration.between(Instant.now(), challenge.expiresAt()).toSeconds());
+            long seconds = challenge.remainingSeconds();
             remaining.setText(
                 valid
-                    ? String.format("代码有效期：%d:%02d", seconds / 60, seconds % 60)
-                    : "代码已过期，请重新登录获取新代码");
+                    ? String.format("预计剩余：%d:%02d（一次性代码，以微软网页状态为准）", seconds / 60, seconds % 60)
+                    : "代码已过期，请点击刷新代码");
           }
         };
     copy.setOnAction(
         event -> {
           DeviceLogin challenge = vm.deviceLoginProperty().get();
-          if (challenge != null && Instant.now().isBefore(challenge.expiresAt())) {
+          if (!vm.deviceAuthorizedProperty().get() && challenge != null && !challenge.expired()) {
             ClipboardContent clipboard = new ClipboardContent();
             clipboard.putString(challenge.userCode());
             Clipboard.getSystemClipboard().setContent(clipboard);
@@ -67,18 +79,17 @@ final class DeviceLoginDialog extends Dialog<ButtonType> {
     open.setOnAction(
         event -> {
           DeviceLogin challenge = vm.deviceLoginProperty().get();
-          if (challenge == null || !Instant.now().isBefore(challenge.expiresAt())) return;
+          if (vm.deviceAuthorizedProperty().get() || challenge == null || challenge.expired())
+            return;
           try {
-            Desktop.getDesktop().browse(challenge.verificationUri());
+            Desktop.getDesktop().browse(challenge.browserUri());
           } catch (Exception ex) {
             RetroDialogs.alert(owner, Alert.AlertType.ERROR, "无法打开浏览器", "请手动打开弹窗中的微软登录网址并输入代码。")
                 .showAndWait();
           }
         });
-    Label instruction = new Label("打开微软登录网页，输入下方代码并完成授权。");
-    instruction.setWrapText(true);
     VBox content =
-        new VBox(14, instruction, code, url, remaining, new HBox(10, copy, open), status);
+        new VBox(14, instruction, code, url, remaining, new HBox(10, copy, open, refresh), status);
     content.setPadding(new Insets(12));
     content.setPrefWidth(560);
     getDialogPane().setContent(content);
@@ -91,6 +102,8 @@ final class DeviceLoginDialog extends Dialog<ButtonType> {
         });
     ChangeListener<DeviceLogin> listener = (observable, old, value) -> update.run();
     vm.deviceLoginProperty().addListener(listener);
+    ChangeListener<Boolean> authorizationListener = (observable, old, value) -> update.run();
+    vm.deviceAuthorizedProperty().addListener(authorizationListener);
     Timeline timer =
         new Timeline(new KeyFrame(javafx.util.Duration.seconds(1), event -> update.run()));
     timer.setCycleCount(Animation.INDEFINITE);
@@ -98,6 +111,7 @@ final class DeviceLoginDialog extends Dialog<ButtonType> {
         event -> {
           timer.stop();
           vm.deviceLoginProperty().removeListener(listener);
+          vm.deviceAuthorizedProperty().removeListener(authorizationListener);
           status.textProperty().unbind();
         });
     update.run();

@@ -18,6 +18,7 @@ class DeviceCodeSignInTest {
   private static final String CLIENT = "00000000-0000-0000-0000-000000000001";
   private final AtomicBoolean cancelled = new AtomicBoolean();
   private final AtomicReference<DeviceLogin> challenge = new AtomicReference<>();
+  private final AtomicBoolean authorized = new AtomicBoolean();
   private final TaskContext task =
       new TaskContext() {
         public boolean cancelled() {
@@ -31,6 +32,10 @@ class DeviceCodeSignInTest {
 
         public void deviceLogin(DeviceLogin value) {
           challenge.set(value);
+        }
+
+        public void deviceLoginCompleted() {
+          authorized.set(true);
         }
       };
 
@@ -120,6 +125,7 @@ class DeviceCodeSignInTest {
         URI.create("https://microsoft.com/devicelogin"), challenge.get().verificationUri());
     assertTrue(challenge.get().expiresAt().isAfter(Instant.now()));
     assertEquals(2, polls.get());
+    assertTrue(authorized.get());
   }
 
   @Test
@@ -139,6 +145,7 @@ class DeviceCodeSignInTest {
     int stopped = polls.get();
     Thread.sleep(1400);
     assertEquals(stopped, polls.get());
+    assertFalse(authorized.get());
   }
 
   @Test
@@ -187,5 +194,50 @@ class DeviceCodeSignInTest {
     return Base64.getUrlEncoder()
         .withoutPadding()
         .encodeToString(value.getBytes(StandardCharsets.UTF_8));
+  }
+
+  @Test
+  void remainingLifetimeIsMonotonicAndBrowserUsesCurrentCode() {
+    var futureWallClock =
+        new DeviceLogin(
+            "CODE",
+            URI.create("https://www.microsoft.com/link"),
+            Instant.now().plusSeconds(3600),
+            System.nanoTime() - 1);
+    assertTrue(futureWallClock.expired(), "Wall-clock changes must not extend the code lifetime");
+    var pastWallClock =
+        new DeviceLogin(
+            "A B&C",
+            URI.create("https://www.microsoft.com/link?otc=OLD"),
+            Instant.now().minusSeconds(3600),
+            System.nanoTime() + TimeUnit.SECONDS.toNanos(60));
+    assertFalse(pastWallClock.expired());
+    assertTrue(pastWallClock.remainingSeconds() <= 60);
+    assertEquals(
+        "https://www.microsoft.com/link?otc=A+B%26C", pastWallClock.browserUri().toString());
+    var standard =
+        new DeviceLogin(
+            "CODE", URI.create("https://microsoft.com/devicelogin"), Instant.now().plusSeconds(60));
+    assertEquals(standard.verificationUri(), standard.browserUri());
+  }
+
+  @Test
+  void timeSpentRequestingACodeIsNotAddedToItsLifetime() throws Exception {
+    var app =
+        application(
+            request -> {
+              if (request.url().getPath().endsWith("devicecode")) {
+                Thread.sleep(1200);
+                return code(10);
+              }
+              cancelled.set(true);
+              return error("authorization_pending");
+            });
+    assertThrows(
+        CancellationException.class,
+        () -> DeviceCodeSignIn.acquire(app, Set.of("XboxLive.signin"), task));
+    assertTrue(
+        challenge.get().remainingSeconds() <= 9,
+        "Network delay must be deducted rather than granting a fresh full lifetime on receipt");
   }
 }

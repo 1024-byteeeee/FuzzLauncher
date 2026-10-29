@@ -58,6 +58,18 @@ public final class LauncherViewModel implements AutoCloseable {
   private final BooleanProperty gameRunning = new SimpleBooleanProperty();
   private final BooleanProperty loggingIn = new SimpleBooleanProperty();
   private final ObjectProperty<DeviceLogin> deviceLogin = new SimpleObjectProperty<>();
+  private final BooleanProperty deviceAuthorized = new SimpleBooleanProperty();
+  private boolean refreshLoginRequested;
+
+  public ReadOnlyBooleanProperty deviceAuthorizedProperty() {
+    return deviceAuthorized;
+  }
+
+  public void refreshDeviceLogin() {
+    if (!loggingIn.get() || deviceAuthorized.get() || active == null) return;
+    refreshLoginRequested = true;
+    if (!active.cancel(true)) refreshLoginRequested = false;
+  }
 
   public ReadOnlyBooleanProperty loggingInProperty() {
     return loggingIn;
@@ -288,6 +300,7 @@ public final class LauncherViewModel implements AutoCloseable {
   public void login() {
     if (!canLogin(false)) return;
     deviceLogin.set(null);
+    deviceAuthorized.set(false);
     loggingIn.set(true);
     submit(
         "微软登录",
@@ -585,6 +598,21 @@ public final class LauncherViewModel implements AutoCloseable {
                               && loggingIn.get()) deviceLogin.set(challenge);
                         });
                   }
+
+                  @Override
+                  public void deviceLoginCompleted() {
+                    checkCancelled();
+                    Platform.runLater(
+                        () -> {
+                          if (!closed
+                              && active == operation
+                              && !operation.isCancelled()
+                              && loggingIn.get()) {
+                            deviceAuthorized.set(true);
+                            deviceLogin.set(null);
+                          }
+                        });
+                  }
                 });
           }
         };
@@ -617,6 +645,13 @@ public final class LauncherViewModel implements AutoCloseable {
           if (!finish(task)) return;
           status.set(catalog ? "已停止获取版本列表" : "任务已取消");
           LauncherLog.LOGGER.info(title + "已取消");
+          if (refreshLoginRequested) {
+            refreshLoginRequested = false;
+            Platform.runLater(
+                () -> {
+                  if (!closed && !busy.get()) login();
+                });
+          }
         });
     executor.execute(task);
   }
@@ -633,6 +668,7 @@ public final class LauncherViewModel implements AutoCloseable {
     installing.set(false);
     savingSettings.set(false);
     deviceLogin.set(null);
+    deviceAuthorized.set(false);
     loggingIn.set(false);
     busy.set(false);
     return true;
