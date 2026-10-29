@@ -29,7 +29,19 @@ public final class DataLocations {
   }
 
   public static Path resolve() throws IOException {
-    return resolve(bootstrapDirectory());
+    Path bootstrap = bootstrapDirectory();
+    if (System.getProperty("fuzz.dataDir") != null) return resolve(bootstrap);
+    return resolve(bootstrap, LauncherPaths.directory());
+  }
+
+  /** Defaults to local data, while preserving explicit selections and existing legacy settings. */
+  public static Path resolve(Path bootstrap, Path launcherDirectory) throws IOException {
+    if (Files.exists(bootstrap.resolve(LOCATION))) return resolve(bootstrap);
+    Path local = launcherDirectory.toAbsolutePath().normalize().resolve("data");
+    if (Files.exists(local.resolve("settings.json"))) return local;
+    if (Files.exists(bootstrap.resolve("settings.json")))
+      return bootstrap.toAbsolutePath().normalize();
+    return local;
   }
 
   public static void configure(Path bootstrap, Path current, Path target) throws IOException {

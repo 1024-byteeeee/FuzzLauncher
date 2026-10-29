@@ -1,6 +1,7 @@
 /build/
 /dist/
 /game/
+/data/
 /target/
 /tools/
 /.gradle/

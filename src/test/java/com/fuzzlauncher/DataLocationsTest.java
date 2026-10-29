@@ -14,6 +14,49 @@ class DataLocationsTest {
   @TempDir Path temp;
 
   @Test
+  void unconfiguredDataDefaultsBesideExecutableAndExplicitOverrideIsPreserved() throws Exception {
+    Path launcher = Files.createDirectories(temp.resolve("launcher"));
+    Path bootstrap = temp.resolve("bootstrap");
+    assertEquals(launcher.resolve("data"), DataLocations.resolve(bootstrap, launcher));
+    assertFalse(Files.exists(bootstrap));
+    String previousExecutable = System.getProperty("jpackage.app-path");
+    String previousOverride = System.getProperty("fuzz.dataDir");
+    try {
+      System.setProperty("jpackage.app-path", launcher.resolve("FuzzLauncher.exe").toString());
+      Path override = temp.resolve("override");
+      System.setProperty("fuzz.dataDir", override.toString());
+      assertEquals(override, DataLocations.resolve());
+    } finally {
+      if (previousExecutable == null) System.clearProperty("jpackage.app-path");
+      else System.setProperty("jpackage.app-path", previousExecutable);
+      if (previousOverride == null) System.clearProperty("fuzz.dataDir");
+      else System.setProperty("fuzz.dataDir", previousOverride);
+    }
+  }
+
+  @Test
+  void localSettingsAndExistingDirectorySelectionsRemainReadable() throws Exception {
+    Path launcher = Files.createDirectories(temp.resolve("launcher"));
+    Path bootstrap = Files.createDirectories(temp.resolve("bootstrap"));
+    var legacySettings =
+        new LauncherSettings(temp.resolve("legacy-game").toString(), IsolationMode.ALL);
+    new SettingsStore(bootstrap).save(legacySettings);
+    assertEquals(bootstrap, DataLocations.resolve(bootstrap, launcher));
+    Path local = Files.createDirectories(launcher.resolve("data"));
+    var localSettings =
+        new LauncherSettings(launcher.resolve("game").toString(), IsolationMode.ALL);
+    new SettingsStore(local).save(localSettings);
+    assertEquals(local, DataLocations.resolve(bootstrap, launcher));
+    assertEquals(localSettings, new SettingsStore(local).load());
+    Path selected = temp.resolve("selected-data");
+    DataLocations.configure(bootstrap, local, selected);
+    assertEquals(selected, DataLocations.resolve(bootstrap, launcher));
+    assertEquals(localSettings, new SettingsStore(selected).load());
+    assertEquals(selected, DataLocations.resolve(bootstrap, launcher));
+    assertEquals(legacySettings, new SettingsStore(bootstrap).load());
+  }
+
+  @Test
   void restartMigrationCopiesStateAndLogsWithoutMovingGamesOrRemovingOriginalData()
       throws Exception {
     Path source = Files.createDirectories(temp.resolve("old")),
