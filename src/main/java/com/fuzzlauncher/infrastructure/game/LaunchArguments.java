@@ -81,6 +81,7 @@ public final class LaunchArguments {
           List.of(
               "-Djava.library.path=" + natives.toAbsolutePath(), "-cp", values.get("classpath")));
     else for (String argument : jvm) result.add(substitute(argument, values));
+    result.addAll(instance.jvmArguments());
     if (version.has("logging") && version.getAsJsonObject("logging").has("client")) {
       JsonObject logging = version.getAsJsonObject("logging").getAsJsonObject("client");
       Path path =
@@ -102,7 +103,62 @@ public final class LaunchArguments {
             : splitLegacy(JsonFiles.string(version, "minecraftArguments", ""));
     if (gameArguments.isEmpty()) throw new IOException("版本缺少游戏启动参数");
     for (String argument : gameArguments) result.add(substitute(argument, values));
+    result.addAll(instance.gameArguments());
     return result;
+  }
+
+  public record MemoryArguments(Integer minimum, Integer maximum, List<String> jvmArguments) {}
+
+  public static MemoryArguments parseMemory(String text) throws IOException {
+    List<String> tokens = splitLegacy(text);
+    List<String> rest = new ArrayList<>();
+    Integer minimum = null, maximum = null;
+    for (int i = 0; i < tokens.size(); i++) {
+      String token = tokens.get(i);
+      if (token.startsWith("-Xms") || token.startsWith("-Xmx")) {
+        boolean initialHeap = token.startsWith("-Xms");
+        String prefix = initialHeap ? "-Xms" : "-Xmx";
+        boolean separated = token.equals(prefix);
+        Integer value = memoryValue(token, prefix, i, tokens);
+        if (separated) i++;
+        if (initialHeap) minimum = value;
+        else maximum = value;
+        continue;
+      }
+      if (token.equals("-Dfile.encoding=UTF-8")) continue;
+      rest.add(token);
+    }
+    return new MemoryArguments(minimum, maximum, rest);
+  }
+
+  public static String display(List<String> tokens) {
+    return tokens.stream()
+        .map(token -> token.indexOf(' ') >= 0 ? "\"" + token + "\"" : token)
+        .collect(java.util.stream.Collectors.joining(" "));
+  }
+
+  private static Integer memoryValue(String token, String prefix, int index, List<String> tokens)
+      throws IOException {
+    Matcher joined = Pattern.compile(prefix + "([0-9]+)([mMgG])?").matcher(token);
+    if (joined.matches()) return parseMegabytes(joined.group(1), joined.group(2), token);
+    if (!token.equals(prefix)) throw new IOException("无效的内存参数: " + token);
+    if (index + 1 >= tokens.size()) throw new IOException(prefix + " 缺少内存数值");
+    String value = tokens.get(index + 1);
+    Matcher separate = Pattern.compile("([0-9]+)([mMgG])?").matcher(value);
+    if (!separate.matches()) throw new IOException("无效的内存参数: " + value);
+    return parseMegabytes(separate.group(1), separate.group(2), value);
+  }
+
+  private static int parseMegabytes(String digits, String unit, String token) throws IOException {
+    long value;
+    try {
+      value = Long.parseLong(digits);
+    } catch (NumberFormatException ex) {
+      throw new IOException("无效的内存参数: " + token);
+    }
+    if (unit != null && (unit.equals("g") || unit.equals("G"))) value *= 1024;
+    if (value > 65536) throw new IOException("内存参数超出 65536 MB 上限: " + token);
+    return (int) value;
   }
 
   public static String substitute(String input, Map<String, String> values) throws IOException {

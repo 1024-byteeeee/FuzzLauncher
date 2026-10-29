@@ -255,7 +255,17 @@ public final class InstancesPage extends RetroPage {
                 message(Alert.AlertType.ERROR, "无法打开实例目录", ex.getMessage());
               }
             });
-    HBox actions = new HBox(8, save, folder);
+    Button arguments =
+        button(
+            "启动参数",
+            () -> {
+              GameInstance item = vm.selectedProperty().get();
+              if (item != null)
+                new LaunchArgumentsDialog(stage, vm, item).showAndWait();
+            });
+    arguments.setId("launch-arguments");
+    arguments.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
+    HBox actions = new HBox(8, save, arguments, folder);
     VBox panel = new VBox(12, label("实例详情", "section-title"), preview, form, directory, actions);
     panel.setMinWidth(0);
     panel.getStyleClass().add("details-box");

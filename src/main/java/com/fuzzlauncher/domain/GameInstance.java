@@ -1,5 +1,6 @@
 package com.fuzzlauncher.domain;
 
+import java.util.List;
 import java.util.Objects;
 
 public record GameInstance(
@@ -11,7 +12,9 @@ public record GameInstance(
     IsolationOverride isolation,
     int memoryMb,
     String javaPath,
-    int minMemoryMb) {
+    int minMemoryMb,
+    List<String> jvmArguments,
+    List<String> gameArguments) {
   public GameInstance {
     name = name == null ? null : name.strip();
     javaPath = javaPath == null ? "" : javaPath.strip();
@@ -39,6 +42,8 @@ public record GameInstance(
     if (minMemoryMb < 128 || minMemoryMb > 65536)
       throw new IllegalArgumentException("最小内存应在 128–65536 MB 之间");
     if (minMemoryMb > memoryMb) throw new IllegalArgumentException("最小内存不能大于最大内存");
+    jvmArguments = jvmArguments == null ? List.of() : List.copyOf(jvmArguments);
+    gameArguments = gameArguments == null ? List.of() : List.copyOf(gameArguments);
   }
 
   public GameInstance(
@@ -50,7 +55,7 @@ public record GameInstance(
       IsolationOverride isolation,
       int memoryMb,
       String javaPath) {
-    this(id, name, gameVersion, loader, loaderVersion, isolation, memoryMb, javaPath, 256);
+    this(id, name, gameVersion, loader, loaderVersion, isolation, memoryMb, javaPath, 256, List.of(), List.of());
   }
 
   public GameInstance(
@@ -84,7 +89,9 @@ public record GameInstance(
         mode,
         memory,
         javaPath,
-        minMemoryMb);
+        minMemoryMb,
+        jvmArguments,
+        gameArguments);
   }
 
   public GameInstance withSettings(
@@ -103,6 +110,24 @@ public record GameInstance(
         mode,
         maximumMemory,
         javaPath,
-        minimumMemory);
+        minimumMemory,
+        jvmArguments,
+        gameArguments);
+  }
+
+  public GameInstance withLaunchArguments(
+      int minimumMemory, int maximumMemory, List<String> jvm, List<String> game) {
+    return new GameInstance(
+        id,
+        name,
+        gameVersion,
+        loader,
+        loaderVersion,
+        isolation,
+        maximumMemory,
+        javaPath,
+        minimumMemory,
+        jvm,
+        game);
   }
 }

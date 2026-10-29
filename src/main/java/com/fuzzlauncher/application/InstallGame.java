@@ -38,7 +38,17 @@ public final class InstallGame {
     String id = "fuzz-" + UUID.randomUUID();
     GameInstance instance =
         new GameInstance(
-            id, name.strip(), game.id(), loader, loaderVersion, IsolationOverride.INHERIT, 4096);
+            id,
+            name.strip(),
+            game.id(),
+            loader,
+            loaderVersion,
+            IsolationOverride.INHERIT,
+            4096,
+            "",
+            4096,
+            List.of(),
+            List.of());
     InstanceDirectories.checkAvailable(root, instance, instances.findAll());
     root = root.toAbsolutePath().normalize();
     Files.createDirectories(root);
