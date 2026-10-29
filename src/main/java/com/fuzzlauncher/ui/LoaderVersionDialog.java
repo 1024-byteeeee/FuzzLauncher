@@ -47,20 +47,6 @@ final class LoaderVersionDialog extends Dialog<ButtonType> {
     button.addEventFilter(
         javafx.event.ActionEvent.ACTION,
         event -> {
-          Alert confirm =
-              RetroDialogs.alert(
-                  owner,
-                  Alert.AlertType.CONFIRMATION,
-                  "完整重装加载器",
-                  "将完整重装 "
-                      + instance.loader()
-                      + " "
-                      + versions.getValue()
-                      + "。\n存档、模组和实例设置会保留；模组版本不会自动调整。是否继续？");
-          if (confirm.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
-            event.consume();
-            return;
-          }
           String selected = versions.getValue();
           close();
           vm.reinstallLoader(instance, selected);

@@ -27,13 +27,23 @@ public final class InstanceCatalog {
 
   public static List<GameInstance> refresh(Path root, InstanceRepository repository)
       throws IOException {
-    List<GameInstance> result = scan(root, repository.findAll());
+    return refresh(root, repository, new BaseVersions());
+  }
+
+  public static List<GameInstance> refresh(
+      Path root, InstanceRepository repository, BaseVersions baseVersions) throws IOException {
+    List<GameInstance> result = scan(root, repository.findAll(), baseVersions);
     repository.replaceAll(result);
     return result;
   }
 
   public static List<GameInstance> scan(Path root, List<GameInstance> registered)
       throws IOException {
+    return scan(root, registered, new BaseVersions());
+  }
+
+  public static List<GameInstance> scan(
+      Path root, List<GameInstance> registered, BaseVersions baseVersions) throws IOException {
     Map<String, GameInstance> known = new HashMap<>();
     for (GameInstance item : registered) known.put(item.id(), item);
     List<GameInstance> result = new ArrayList<>();
@@ -60,16 +70,11 @@ public final class InstanceCatalog {
                     item.isolation(),
                     item.memoryMb(),
                     item.javaPath());
-            JsonObject resolved = new VersionResolver().resolveInstance(root, item);
+            JsonObject resolved = new VersionResolver(baseVersions).resolveInstance(root, item);
             Path client =
                 resolved.has("_clientJarPath")
                     ? JsonFiles.safeResolve(root, resolved.get("_clientJarPath").getAsString())
-                    : JsonFiles.safeResolve(
-                        versions,
-                        resolved.get("_clientVersion").getAsString()
-                            + "/"
-                            + resolved.get("_clientVersion").getAsString()
-                            + ".jar");
+                    : baseVersions.client(root, resolved.get("_clientVersion").getAsString());
             if (Files.isRegularFile(client)) result.add(item);
           } catch (IOException | RuntimeException ignored) {
             // A missing/broken version is unavailable. Refresh never deletes its remaining files.

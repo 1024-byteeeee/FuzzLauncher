@@ -54,8 +54,6 @@ public final class Modpacks {
     Info info = ModpackArchive.inspect(archive);
     // Validate the name and collision before downloading or touching an existing instance.
     GameInstance candidate = instance(info, "pack-" + UUID.randomUUID(), name, null);
-    if (candidate.name().equalsIgnoreCase(candidate.gameVersion()))
-      throw new IOException("整合包实例名称不能与共享的游戏版本目录同名，请换一个名称");
     InstanceDirectories.checkAvailable(root, candidate, repository.findAll());
     if (Files.exists(InstanceDirectories.directory(root, candidate)))
       throw new IOException("目标实例目录已存在，请换一个名称");

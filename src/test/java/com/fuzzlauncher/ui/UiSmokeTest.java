@@ -640,23 +640,12 @@ class UiSmokeTest {
           javafx.embed.swing.SwingFXUtils.fromFXImage(chooser.getScene().snapshot(null), null),
           "png",
           Path.of("build/ui-check/loader-version.png").toFile());
-      Platform.runLater(
-          () -> {
-            DialogPane confirm =
-                (DialogPane)
-                    Window.getWindows().stream()
-                        .filter(
-                            window ->
-                                window.getScene() != null
-                                    && window.getScene().getRoot() instanceof DialogPane pane
-                                    && pane.getButtonTypes().contains(ButtonType.OK))
-                        .findFirst()
-                        .orElseThrow()
-                        .getScene()
-                        .getRoot();
-            ((Button) confirm.lookupButton(ButtonType.OK)).fire();
-          });
+      Window chooserWindow = chooser.getScene().getWindow();
       ((Button) chooser.lookupButton(chooser.getButtonTypes().getFirst())).fire();
+      assertFalse(Window.getWindows().stream().anyMatch(window ->
+          window instanceof Stage dialog && "完整重装加载器".equals(dialog.getTitle())));
+      assertFalse(chooserWindow.isShowing());
+      assertTrue(vm.installingProperty().get());
       waitForFx(() -> commitReached.getCount() == 0);
       assertTrue(vm.isCommitting());
       vm.cancel(); // Commit cannot be cancelled after publication has begun, and must not block FX.

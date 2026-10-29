@@ -39,8 +39,10 @@ public final class FuzzApplication extends Application {
       HttpTransport http = new HttpTransport();
       http.setDownloadSource(settings.load().downloadSource());
       VersionCatalog catalog = new VersionCatalog(http);
-      VersionResolver resolver = new VersionResolver();
-      GameFiles files = new GameFiles(http);
+      BaseVersions baseVersions =
+          new BaseVersions(LauncherPaths.directory().resolve("baseVerisons"));
+      VersionResolver resolver = new VersionResolver(baseVersions);
+      GameFiles files = new GameFiles(http, baseVersions);
       JavaRuntimeManager runtimes = new JavaRuntimeManager(http, data.resolve("runtimes"));
       MicrosoftAuthentication authentication =
           new MicrosoftAuthentication(new HttpTransport(), data);
@@ -60,7 +62,7 @@ public final class FuzzApplication extends Application {
               resolver,
               files,
               runtimes,
-              new LaunchArguments(),
+              new LaunchArguments(baseVersions),
               data.resolve("logs"));
       viewModel =
           new LauncherViewModel(

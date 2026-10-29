@@ -1,6 +1,7 @@
 package com.fuzzlauncher.infrastructure.game;
 
 import com.fuzzlauncher.domain.*;
+import com.fuzzlauncher.infrastructure.BaseVersions;
 import com.fuzzlauncher.infrastructure.JsonFiles;
 import com.google.gson.*;
 import java.io.IOException;
@@ -9,6 +10,16 @@ import java.util.*;
 import java.util.regex.*;
 
 public final class LaunchArguments {
+  private final BaseVersions baseVersions;
+
+  public LaunchArguments() {
+    this(new BaseVersions());
+  }
+
+  public LaunchArguments(BaseVersions baseVersions) {
+    this.baseVersions = baseVersions;
+  }
+
   private static final Pattern PLACEHOLDER = Pattern.compile("\\$\\{([^}]+)}");
 
   public List<String> build(
@@ -25,7 +36,7 @@ public final class LaunchArguments {
     classpath.add(
         version.has("_clientJarPath")
             ? JsonFiles.safeResolve(root, version.get("_clientJarPath").getAsString())
-            : root.resolve("versions").resolve(client).resolve(client + ".jar"));
+            : baseVersions.client(root, client));
     Map<String, String> values = new HashMap<>();
     values.put("natives_directory", natives.toAbsolutePath().toString());
     values.put("launcher_name", "FuzzLauncher");

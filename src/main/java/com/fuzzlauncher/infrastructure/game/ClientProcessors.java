@@ -16,10 +16,16 @@ import java.util.zip.*;
 /** Executes official install-profile client processors with launcher-managed networking. */
 public final class ClientProcessors {
   private final HttpTransport http;
+  private final BaseVersions baseVersions;
   private static final Pattern VARIABLE = Pattern.compile("\\{([A-Z_]+)}");
 
   public ClientProcessors(HttpTransport http) {
+    this(http, new BaseVersions());
+  }
+
+  public ClientProcessors(HttpTransport http, BaseVersions baseVersions) {
     this.http = http;
+    this.baseVersions = baseVersions;
   }
 
   public JsonObject execute(
@@ -59,9 +65,7 @@ public final class ClientProcessors {
       variables.put("LIBRARY_DIR", staging.resolve("libraries").toString());
       String game = vanilla.get("id").getAsString();
       variables.put("MINECRAFT_VERSION", game);
-      variables.put(
-          "MINECRAFT_JAR",
-          root.resolve("versions").resolve(game).resolve(game + ".jar").toString());
+      variables.put("MINECRAFT_JAR", baseVersions.client(root, game).toString());
       JsonObject data = profile.has("data") ? profile.getAsJsonObject("data") : new JsonObject();
       for (var item : data.entrySet())
         if (item.getValue().getAsJsonObject().has("client"))

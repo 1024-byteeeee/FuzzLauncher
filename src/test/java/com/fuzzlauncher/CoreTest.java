@@ -118,7 +118,7 @@ class CoreTest {
                 "{\"id\":\"child\",\"inheritsFrom\":\"base\",\"mainClass\":\"Fabric\",\"libraries\":[{\"name\":\"a:b:2\"},{\"name\":\"x:y:1\"}],\"arguments\":{\"game\":[\"--fabric\"]}}")
             .getAsJsonObject();
     JsonFiles.write(temp.resolve("versions/base/base.json"), parent);
-    JsonFiles.write(temp.resolve("versions/child/child.json"), child);
+    JsonFiles.write(temp.resolve("baseVerisons/child/child.json"), child);
     JsonObject resolved = new VersionResolver().resolve(temp, "child");
     assertEquals("Fabric", resolved.get("mainClass").getAsString());
     assertEquals("base", resolved.get("_clientVersion").getAsString());
@@ -128,7 +128,7 @@ class CoreTest {
         resolved.getAsJsonArray("libraries").get(0).getAsJsonObject().get("name").getAsString());
     assertEquals(3, resolved.getAsJsonObject("arguments").getAsJsonArray("game").size());
     child.addProperty("inheritsFrom", "child");
-    JsonFiles.write(temp.resolve("versions/child/child.json"), child);
+    JsonFiles.write(temp.resolve("baseVerisons/child/child.json"), child);
     assertThrows(IOException.class, () -> new VersionResolver().resolve(temp, "child"));
   }
 

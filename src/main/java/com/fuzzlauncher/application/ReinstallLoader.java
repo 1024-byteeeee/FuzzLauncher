@@ -55,14 +55,12 @@ public final class ReinstallLoader {
       JsonFiles.write(
           workspace.resolve("original-instances.json"), Map.of("instances", repository.findAll()));
       JsonObject vanilla = resolver.resolve(root, original.gameVersion());
-      Path base = staged.resolve("versions").resolve(original.gameVersion());
+      BaseVersions stagingBases = new BaseVersions();
+      Path base = stagingBases.version(staged, original.gameVersion());
       Files.createDirectories(base);
       JsonFiles.write(base.resolve(original.gameVersion() + ".json"), vanilla);
-      Path client =
-          JsonFiles.safeResolve(
-              root.resolve("versions"),
-              original.gameVersion() + "/" + original.gameVersion() + ".jar");
-      checkPath(root, client);
+      Path client = resolver.baseVersions().client(root, original.gameVersion());
+      checkPath(resolver.baseVersions().directory(root), client);
       Files.copy(client, base.resolve(original.gameVersion() + ".jar"));
       Set<Path> vanillaPaths = libraryPaths(root, vanilla);
       // Only vanilla inputs are reusable. No old loader descriptor, JAR or generated output is
@@ -83,12 +81,13 @@ public final class ReinstallLoader {
                   workspace.resolve("processors"),
                   new GameVersion(original.gameVersion(), "release", "", ""),
                   version,
+                  stagingBases,
                   task);
       fresh.addProperty("id", original.id());
       if (!fresh.has("inheritsFrom")) fresh.addProperty("inheritsFrom", original.gameVersion());
       fresh.add("fuzzInstance", JsonFiles.GSON.toJsonTree(replacement));
       JsonFiles.write(InstanceDirectories.profile(staged, replacement), fresh);
-      JsonObject resolved = resolver.resolveInstance(staged, replacement);
+      JsonObject resolved = new VersionResolver(stagingBases).resolveInstance(staged, replacement);
       // The game, assets and logging configuration do not change during loader reinstallation.
       resolved.remove("assetIndex");
       resolved.remove("logging");

@@ -53,7 +53,7 @@ class LoaderReinstallIntegrationTest {
             .filter(item -> item.id().equals("1.21.1"))
             .findFirst()
             .orElseThrow();
-    Path base = root.resolve("versions/1.21.1");
+    Path base = root.resolve("baseVerisons/1.21.1");
     http.download(game.url(), base.resolve("1.21.1.json"), game.sha1(), task);
     JsonObject vanilla = JsonFiles.read(base.resolve("1.21.1.json"));
     JsonObject client = vanilla.getAsJsonObject("downloads").getAsJsonObject("client");

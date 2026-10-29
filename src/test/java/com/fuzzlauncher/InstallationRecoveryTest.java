@@ -246,7 +246,7 @@ class InstallationRecoveryTest {
         () -> broken.execute(root, game, LoaderType.VANILLA, null, "失败实例", task));
     assertFalse(Files.exists(root.resolve("versions/失败实例")));
     assertFalse(Files.exists(root.resolve(".fuzz-staging")));
-    assertTrue(Files.isRegularFile(root.resolve("versions/base/base.jar")));
+    assertTrue(Files.isRegularFile(root.resolve("baseVerisons/base/base.jar")));
     assertEquals("existing world", Files.readString(saved));
     assertEquals(List.of(existing), repo.findAll());
   }
@@ -291,8 +291,10 @@ class InstallationRecoveryTest {
     var game = new GameVersion("base", "release", metadata, "");
     GameInstance first = installer.execute(root, game, LoaderType.VANILLA, null, "base", task);
     GameInstance second = installer.execute(root, game, LoaderType.VANILLA, null, "另一个实例", task);
-    assertTrue(Files.isRegularFile(root.resolve("versions/base/base.json")));
-    assertTrue(Files.isRegularFile(root.resolve("versions/base/base.jar")));
+    assertTrue(Files.isRegularFile(root.resolve("baseVerisons/base/base.json")));
+    assertTrue(Files.isRegularFile(root.resolve("baseVerisons/base/base.jar")));
+    assertFalse(Files.exists(root.resolve("versions/base/base.json")));
+    assertFalse(Files.exists(root.resolve("versions/base/base.jar")));
     for (GameInstance item : List.of(first, second)) {
       assertTrue(Files.isRegularFile(InstanceDirectories.profile(root, item)));
       assertFalse(Files.exists(root.resolve("versions").resolve(item.id())));

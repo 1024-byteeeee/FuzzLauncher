@@ -237,7 +237,7 @@ class ReinstallLoaderTest {
       assertEquals(
           "user data " + file,
           Files.readString(InstanceDirectories.directory(root, original).resolve(file)));
-    assertEquals("vanilla client", Files.readString(root.resolve("versions/base/base.jar")));
+    assertEquals("vanilla client", Files.readString(root.resolve("baseVerisons/base/base.jar")));
   }
 
   @Test

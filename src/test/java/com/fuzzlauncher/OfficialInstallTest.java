@@ -69,7 +69,7 @@ class OfficialInstallTest {
       var profile = resolver.resolveInstance(directory.resolve(".minecraft"), instance);
       assertNotNull(profile.get("mainClass"));
       assertEquals("1.20.4", profile.get("_clientVersion").getAsString());
-      assertTrue(Files.isRegularFile(directory.resolve(".minecraft/versions/1.20.4/1.20.4.jar")));
+      assertTrue(Files.isRegularFile(directory.resolve(".minecraft/baseVerisons/1.20.4/1.20.4.jar")));
       for (GameFiles.Artifact artifact : files.libraries(directory.resolve(".minecraft"), profile))
         assertTrue(Files.isRegularFile(artifact.path()), artifact.path().toString());
     }

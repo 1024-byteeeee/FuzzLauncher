@@ -25,6 +25,10 @@ public final class InstallGame {
     this.installers = Map.copyOf(installers);
   }
 
+  public BaseVersions baseVersions() {
+    return files.baseVersions();
+  }
+
   public GameInstance execute(
       Path root,
       GameVersion game,
@@ -36,8 +40,16 @@ public final class InstallGame {
     return execute(root, game, loader, loaderVersion, name, IsolationOverride.INHERIT, null, task);
   }
 
-  public GameInstance execute(Path root, GameVersion game, LoaderType loader, String loaderVersion,
-      String name, IsolationOverride isolation, Path content, TaskContext task) throws Exception {
+  public GameInstance execute(
+      Path root,
+      GameVersion game,
+      LoaderType loader,
+      String loaderVersion,
+      String name,
+      IsolationOverride isolation,
+      Path content,
+      TaskContext task)
+      throws Exception {
     if (loader != LoaderType.VANILLA && (loaderVersion == null || loaderVersion.isBlank()))
       throw new IllegalArgumentException("请选择兼容的加载器版本");
     String id = "fuzz-" + UUID.randomUUID();
@@ -58,7 +70,9 @@ public final class InstallGame {
     root = root.toAbsolutePath().normalize();
     Files.createDirectories(root);
     Path versions = root.resolve("versions");
-    Path base = JsonFiles.safeResolve(versions, game.id());
+    Files.createDirectories(versions);
+    files.baseVersions().migrate(root, game.id());
+    Path base = files.baseVersions().version(root, game.id());
     boolean baseExisted = Files.exists(base, LinkOption.NOFOLLOW_LINKS);
     boolean baseInUse =
         instances.findAll().stream().anyMatch(item -> item.gameVersion().equals(game.id()));
@@ -121,7 +135,14 @@ public final class InstallGame {
       if (!committed) {
         if (published)
           discard.add(createdDirectory ? pending : pending.resolve(InstanceDirectories.PROFILE));
-        if (!baseExisted && !baseInUse) discard.add(base);
+        if (!baseExisted && !baseInUse) {
+          try {
+            deleteInstallationPath(files.baseVersions().directory(root), base);
+          } catch (IOException ex) {
+            LauncherLog.LOGGER.warning("清理基础版本残留失败：" + ex.getMessage());
+            if (failure != null) failure.addSuppressed(ex);
+          }
+        }
       }
       discard.add(staging);
       for (Path path : discard) {
@@ -142,27 +163,32 @@ public final class InstallGame {
     }
   }
 
-  public GameInstance reinstallLoader(Path root, GameInstance instance, String version, TaskContext task)
-      throws Exception {
-    return new ReinstallLoader(instances, files, resolver, installers).execute(root, instance, version, task);
+  public GameInstance reinstallLoader(
+      Path root, GameInstance instance, String version, TaskContext task) throws Exception {
+    return new ReinstallLoader(instances, files, resolver, installers)
+        .execute(root, instance, version, task);
   }
 
-  public JsonObject prepareModpackProfile(Path root, GameInstance instance, GameVersion game,
-      TaskContext task) throws Exception {
+  public JsonObject prepareModpackProfile(
+      Path root, GameInstance instance, GameVersion game, TaskContext task) throws Exception {
     Path stagingRoot = root.toAbsolutePath().normalize().resolve(".fuzz-staging");
     Files.createDirectories(stagingRoot);
     Path staging = Files.createTempDirectory(stagingRoot, "pack-components-");
     try {
       files.installVanilla(root, game, task);
-      JsonObject profile = instance.loader() == LoaderType.VANILLA ? new JsonObject()
-          : Objects.requireNonNull(installers.get(instance.loader()), "缺少加载器适配器")
-              .install(root, staging, game, instance.loaderVersion(), task);
+      JsonObject profile =
+          instance.loader() == LoaderType.VANILLA
+              ? new JsonObject()
+              : Objects.requireNonNull(installers.get(instance.loader()), "缺少加载器适配器")
+                  .install(root, staging, game, instance.loaderVersion(), task);
       profile.addProperty("id", instance.id());
       profile.addProperty("inheritsFrom", game.id());
       profile.add("fuzzInstance", JsonFiles.GSON.toJsonTree(instance));
       files.prepare(root, resolver.resolveProfile(root, profile), task);
       return profile;
-    } finally { ModpackArchive.deleteWorkspace(staging, stagingRoot); }
+    } finally {
+      ModpackArchive.deleteWorkspace(staging, stagingRoot);
+    }
   }
 
   private static void deleteInstallationPath(Path root, Path target) throws IOException {

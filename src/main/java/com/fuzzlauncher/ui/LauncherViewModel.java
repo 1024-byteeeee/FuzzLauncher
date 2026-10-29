@@ -29,6 +29,7 @@ public final class LauncherViewModel implements AutoCloseable {
   private final VersionCatalog catalog;
   private final AccountAuthenticator authentication;
   private final InstallGame install;
+  private final BaseVersions baseVersions;
   private final LaunchGame launch;
   private Modpacks modpacks;
   private final AccountAvatars avatarLoader;
@@ -168,6 +169,7 @@ public final class LauncherViewModel implements AutoCloseable {
     this.catalog = catalog;
     this.authentication = authentication;
     this.install = install;
+    this.baseVersions = install == null ? new BaseVersions() : install.baseVersions();
     this.launch = launch;
     this.avatarLoader = avatarLoader;
     settings.set(settingsStore.load());
@@ -175,6 +177,7 @@ public final class LauncherViewModel implements AutoCloseable {
     for (GameInstance instance : instances) {
       try {
         InstanceDirectories.migrate(Path.of(settings.get().gameRoot()), instance);
+        baseVersions.migrate(Path.of(settings.get().gameRoot()), instance.gameVersion());
         InstanceCatalog.remember(Path.of(settings.get().gameRoot()), instance);
       } catch (IOException ex) {
         status.set("实例目录迁移未完成：" + ex.getMessage());
@@ -512,7 +515,7 @@ public final class LauncherViewModel implements AutoCloseable {
     String selectedId = selected.get() == null ? null : selected.get().id();
     submit(
         "刷新实例",
-        context -> InstanceCatalog.refresh(Path.of(settings.get().gameRoot()), repository),
+        context -> InstanceCatalog.refresh(Path.of(settings.get().gameRoot()), repository, baseVersions),
         values -> {
           instances.setAll(values);
           selected.set(
@@ -568,7 +571,7 @@ public final class LauncherViewModel implements AutoCloseable {
             Files.createDirectories(targetRoot);
             List<GameInstance> available =
                 rootChanged
-                    ? InstanceCatalog.scan(targetRoot, migrate ? oldInstances : List.of())
+                    ? InstanceCatalog.scan(targetRoot, migrate ? oldInstances : List.of(), baseVersions)
                     : oldInstances;
             context.checkCancelled();
             try {

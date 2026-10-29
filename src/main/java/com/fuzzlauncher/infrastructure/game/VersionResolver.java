@@ -1,6 +1,7 @@
 package com.fuzzlauncher.infrastructure.game;
 
 import com.fuzzlauncher.domain.GameInstance;
+import com.fuzzlauncher.infrastructure.BaseVersions;
 import com.fuzzlauncher.infrastructure.InstanceDirectories;
 import com.fuzzlauncher.infrastructure.JsonFiles;
 import com.google.gson.*;
@@ -9,6 +10,20 @@ import java.nio.file.*;
 import java.util.*;
 
 public final class VersionResolver {
+  private final BaseVersions baseVersions;
+
+  public VersionResolver() {
+    this(new BaseVersions());
+  }
+
+  public VersionResolver(BaseVersions baseVersions) {
+    this.baseVersions = baseVersions;
+  }
+
+  public BaseVersions baseVersions() {
+    return baseVersions;
+  }
+
   public JsonObject resolve(Path root, String id) throws IOException {
     return resolve(root, id, new HashSet<>());
   }
@@ -37,7 +52,8 @@ public final class VersionResolver {
 
   private JsonObject resolve(Path root, String id, Set<String> visited) throws IOException {
     if (!visited.add(id)) throw new IOException("版本继承出现循环: " + id);
-    Path path = JsonFiles.safeResolve(root.resolve("versions"), id + "/" + id + ".json");
+    baseVersions.migrate(root, id);
+    Path path = baseVersions.metadata(root, id);
     JsonObject child = JsonFiles.read(path);
     return resolveChild(root, child, id, visited);
   }

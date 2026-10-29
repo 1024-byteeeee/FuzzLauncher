@@ -29,6 +29,18 @@ public final class OfficialLoaderInstaller implements LoaderInstaller {
   public JsonObject install(
       Path root, Path staging, GameVersion game, String loaderVersion, TaskContext task)
       throws Exception {
+    return install(root, staging, game, loaderVersion, resolver.baseVersions(), task);
+  }
+
+  @Override
+  public JsonObject install(
+      Path root,
+      Path staging,
+      GameVersion game,
+      String loaderVersion,
+      BaseVersions baseVersions,
+      TaskContext task)
+      throws Exception {
     String artifact = type == LoaderType.FORGE || game.id().equals("1.20.1") ? "forge" : "neoforge";
     String base =
         type == LoaderType.FORGE
@@ -54,10 +66,11 @@ public final class OfficialLoaderInstaller implements LoaderInstaller {
       if (profile.has("minecraft") && !profile.get("minecraft").getAsString().equals(game.id()))
         throw new IOException("加载器与所选 Minecraft 版本不兼容");
     }
-    JsonObject vanilla = resolver.resolve(root, game.id());
+    JsonObject vanilla = new VersionResolver(baseVersions).resolve(root, game.id());
     Path java = runtimes.resolve(Math.max(17, runtimes.requiredMajor(vanilla)), task);
     JsonObject version =
-        new ClientProcessors(http).execute(root, staging, installer, profile, vanilla, java, task);
+        new ClientProcessors(http, baseVersions)
+            .execute(root, staging, installer, profile, vanilla, java, task);
     Path libraryDirectory = staging.resolve("libraries");
     if (Files.isDirectory(libraryDirectory))
       try (var files = Files.walk(libraryDirectory)) {

@@ -17,16 +17,25 @@ public final class GameFiles {
   public record Artifact(String url, Path path, String sha1, boolean nativeJar) {}
 
   private final HttpTransport http;
+  private final BaseVersions baseVersions;
 
   public GameFiles(HttpTransport http) {
+    this(http, new BaseVersions());
+  }
+
+  public GameFiles(HttpTransport http, BaseVersions baseVersions) {
     this.http = http;
+    this.baseVersions = baseVersions;
+  }
+
+  public BaseVersions baseVersions() {
+    return baseVersions;
   }
 
   public void installVanilla(Path root, GameVersion version, TaskContext task) throws Exception {
     task.report("下载版本描述 " + version.id(), -1);
-    Path json =
-        JsonFiles.safeResolve(
-            root.resolve("versions"), version.id() + "/" + version.id() + ".json");
+    baseVersions.migrate(root, version.id());
+    Path json = baseVersions.metadata(root, version.id());
     http.download(version.url(), json, version.sha1(), task);
     JsonObject metadata = JsonFiles.read(json);
     JsonObject client = metadata.getAsJsonObject("downloads").getAsJsonObject("client");
@@ -119,8 +128,7 @@ public final class GameFiles {
           client.get("url").getAsString(),
           version.has("_clientJarPath")
               ? JsonFiles.safeResolve(root, version.get("_clientJarPath").getAsString())
-              : JsonFiles.safeResolve(
-                  root.resolve("versions"), clientVersion + "/" + clientVersion + ".jar"),
+              : baseVersions.client(root, clientVersion),
           JsonFiles.string(client, "sha1", ""),
           task);
     }
