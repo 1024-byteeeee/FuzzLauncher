@@ -115,6 +115,11 @@ public final class InstallGame {
     }
   }
 
+  public GameInstance reinstallLoader(Path root, GameInstance instance, String version, TaskContext task)
+      throws Exception {
+    return new ReinstallLoader(instances, files, resolver, installers).execute(root, instance, version, task);
+  }
+
   private static void deleteInstallationPath(Path root, Path target) throws IOException {
     target = target.toAbsolutePath().normalize();
     if (target.equals(root) || !target.startsWith(root)) throw new IOException("拒绝清理游戏目录之外的路径");

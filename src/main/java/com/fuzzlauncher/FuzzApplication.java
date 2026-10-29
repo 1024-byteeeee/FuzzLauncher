@@ -99,7 +99,8 @@ public final class FuzzApplication extends Application {
       stage.setMinHeight(780);
       stage.setOnCloseRequest(
           event -> {
-            if (viewModel.savingSettingsProperty().get()) event.consume();
+            if (viewModel.savingSettingsProperty().get() || viewModel.isCommitting())
+              event.consume();
           });
       LauncherVisibilityController visibility =
           new LauncherVisibilityController(stage, Platform::exit);

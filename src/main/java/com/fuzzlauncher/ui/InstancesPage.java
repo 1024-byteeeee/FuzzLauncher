@@ -159,6 +159,16 @@ public final class InstancesPage extends RetroPage {
                     ? ""
                     : " " + instance.loaderVersion()));
     loader.setEditable(false);
+    loader.setId("instance-loader");
+    loader.setMinWidth(0);
+    HBox.setHgrow(loader, Priority.ALWAYS);
+    Button changeLoader = button("修改", () -> new LoaderVersionDialog(stage, vm, instance).show());
+    changeLoader.setId("change-instance-loader");
+    changeLoader.setDisable(instance.loader() == LoaderType.VANILLA);
+    changeLoader.setMinWidth(Region.USE_PREF_SIZE);
+    HBox loaderControl = new HBox(6, loader, changeLoader);
+    loaderControl.setAlignment(Pos.CENTER_LEFT);
+    loaderControl.setMinWidth(0);
     ComboBox<IsolationOverride> isolation = new RetroComboBox<>();
     isolation.getItems().setAll(IsolationOverride.values());
     isolation.setValue(instance.isolation());
@@ -194,7 +204,7 @@ public final class InstancesPage extends RetroPage {
     GridPane form =
         form(
             new String[] {"名称:", "游戏版本:", "加载器:", "版本隔离:", "最小内存 MB:", "最大内存 MB:", "Java 路径:"},
-            new Node[] {name, version, loader, isolation, minimumMemory, memory, javaControl});
+            new Node[] {name, version, loaderControl, isolation, minimumMemory, memory, javaControl});
     form.setId("instance-settings-form");
     form.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
     Label directory = new Label();

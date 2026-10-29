@@ -42,6 +42,15 @@ public final class LauncherViewModel implements AutoCloseable {
       Executors.newSingleThreadExecutor(
           Thread.ofPlatform().name("fuzz-operations").daemon(true).factory());
   private Task<?> active;
+  private final Object commitGate = new Object();
+  private boolean committing;
+
+  public boolean isCommitting() {
+    synchronized (commitGate) {
+      return committing;
+    }
+  }
+
   private Object catalogOwner;
   private boolean catalogTask;
   private final BooleanProperty installing = new SimpleBooleanProperty();
@@ -311,6 +320,35 @@ public final class LauncherViewModel implements AutoCloseable {
         });
   }
 
+  public void reinstallLoader(GameInstance instance, String version) {
+    if (busy.get() || gameRunning.get()) return;
+    if (instance == null || instance.loader() == LoaderType.VANILLA) {
+      error.set("原版实例不能修改加载器版本");
+      return;
+    }
+    installing.set(true);
+    Path root = Path.of(settings.get().gameRoot());
+    submit(
+        "重装加载器",
+        context -> {
+          if (version == null
+              || !catalog.loaders(instance.loader(), instance.gameVersion()).contains(version))
+            throw new IOException("所选加载器版本与当前游戏不兼容，请刷新版本列表");
+          context.checkCancelled();
+          return install.reinstallLoader(root, instance, version, context);
+        },
+        updated -> {
+          for (int i = 0; i < instances.size(); i++) {
+            if (instances.get(i).id().equals(updated.id())) {
+              instances.set(i, updated);
+              break;
+            }
+          }
+          selected.set(updated);
+          status.set("加载器已完整重装：" + updated.loader() + " " + updated.loaderVersion());
+        });
+  }
+
   public void logout() {
     submit(
         "退出登录",
@@ -546,7 +584,9 @@ public final class LauncherViewModel implements AutoCloseable {
 
   public void cancel() {
     if (savingSettings.get()) return;
-    if (active != null) active.cancel(true);
+    synchronized (commitGate) {
+      if (!committing && active != null) active.cancel(true);
+    }
   }
 
   public void cancelCatalogRequests(Object owner) {
@@ -585,6 +625,15 @@ public final class LauncherViewModel implements AutoCloseable {
                   @Override
                   public boolean cancelled() {
                     return isCancelled();
+                  }
+
+                  @Override
+                  public void commit(TaskContext.Commit action) throws Exception {
+                    synchronized (commitGate) {
+                      checkCancelled();
+                      committing = true;
+                    }
+                    action.run();
                   }
 
                   @Override
@@ -659,6 +708,9 @@ public final class LauncherViewModel implements AutoCloseable {
   private boolean finish(Task<?> task) {
     if (active != task) return false;
     active = null;
+    synchronized (commitGate) {
+      committing = false;
+    }
     catalogTask = false;
     catalogOwner = null;
     status.unbind();

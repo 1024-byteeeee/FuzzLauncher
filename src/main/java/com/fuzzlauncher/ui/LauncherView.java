@@ -73,8 +73,8 @@ public final class LauncherView extends RetroPage {
             windowControl(
                 "M0 0 H3 L6 3 L9 0 H12 L8 5 L12 10 H9 L6 7 L3 10 H0 L4 5 Z",
                 () -> {
-                  if (vm.savingSettingsProperty().get()) {
-                    message(Alert.AlertType.INFORMATION, "请稍候", "正在保存设置或迁移游戏文件，请等待完成后再退出。");
+                  if (vm.savingSettingsProperty().get() || vm.isCommitting()) {
+                    message(Alert.AlertType.INFORMATION, "请稍候", "正在提交文件或保存设置，请等待完成后再退出。");
                     return;
                   }
                   if (!vm.busyProperty().get() || confirm("退出启动器", "当前任务将被取消。是否退出？")) {

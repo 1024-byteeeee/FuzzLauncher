@@ -90,6 +90,7 @@ class UiSmokeTest {
             verifyAccountExclusion(stage);
             verifyAvatarLifecycle(stage);
             verifyDeviceLoginDialog(stage);
+            verifyLoaderReinstallation(stage);
             result.complete(null);
           } catch (Throwable ex) {
             result.completeExceptionally(ex);
@@ -381,6 +382,205 @@ class UiSmokeTest {
                 window ->
                     window.getScene() != null
                         && window.getScene().lookup("#device-login-dialog") != null)
+            .findFirst()
+            .orElseThrow()
+            .getScene()
+            .getRoot();
+  }
+
+  private void verifyLoaderReinstallation(Stage stage) throws Exception {
+    var originalRoot = stage.getScene().getRoot();
+    Path data = temp.resolve("loader-ui"), game = data.resolve("game");
+    new SettingsStore(data).save(new LauncherSettings(game.toString(), IsolationMode.ALL));
+    GameInstance vanilla = rootFixture(game, "plain", "Plain");
+    var instanceJson =
+        JsonFiles.GSON.toJsonTree(rootFixture(game, "fabric", "Fabric")).getAsJsonObject();
+    instanceJson.addProperty("loader", "FABRIC");
+    instanceJson.addProperty("loaderVersion", "1");
+    GameInstance fabric = JsonFiles.GSON.fromJson(instanceJson, GameInstance.class);
+    var profile = JsonFiles.read(InstanceDirectories.profile(game, fabric));
+    profile.add("fuzzInstance", instanceJson);
+    JsonFiles.write(InstanceDirectories.profile(game, fabric), profile);
+    JsonInstanceRepository backing = new JsonInstanceRepository(data);
+    backing.save(vanilla);
+    backing.save(fabric);
+    var commitReached = new CountDownLatch(1);
+    var releaseCommit = new CountDownLatch(1);
+    var releaseQuery = new CountDownLatch(1);
+    var holdQuery = new java.util.concurrent.atomic.AtomicBoolean();
+    InstanceRepository repository =
+        new InstanceRepository() {
+          public java.util.List<GameInstance> findAll() throws java.io.IOException {
+            return backing.findAll();
+          }
+
+          public void remove(String id) throws java.io.IOException {
+            backing.remove(id);
+          }
+
+          public void save(GameInstance value) throws java.io.IOException {
+            if ("2".equals(value.loaderVersion())) {
+              commitReached.countDown();
+              try {
+                if (!releaseCommit.await(5, TimeUnit.SECONDS))
+                  throw new java.io.IOException("Commit test timeout");
+              } catch (InterruptedException ex) {
+                throw new java.io.IOException("Commit was interrupted", ex);
+              }
+            }
+            backing.save(value);
+          }
+        };
+    var server =
+        com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+    server.createContext(
+        "/",
+        exchange -> {
+          if (holdQuery.get()) {
+            try {
+              releaseQuery.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException ex) {
+              Thread.currentThread().interrupt();
+            }
+          }
+          byte[] bytes =
+              "[{\"loader\":{\"version\":\"2\"}},{\"loader\":{\"version\":\"1\"}}]"
+                  .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+          try {
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+          } finally {
+            exchange.close();
+          }
+        });
+    server.start();
+    var constructor =
+        HttpTransport.class.getDeclaredConstructor(java.util.function.UnaryOperator.class);
+    constructor.setAccessible(true);
+    HttpTransport http =
+        constructor.newInstance(
+            (java.util.function.UnaryOperator<String>)
+                url -> "http://127.0.0.1:" + server.getAddress().getPort() + "/loaders");
+    LoaderInstaller installer =
+        (root, workspace, version, selected, task) -> {
+          Path artifact = root.resolve("libraries/fixture/" + selected + ".jar");
+          Files.createDirectories(artifact.getParent());
+          Files.writeString(artifact, "fresh " + selected);
+          return com.google.gson.JsonParser.parseString(
+                  "{\"mainClass\":\"Fixture\",\"libraries\":[{\"name\":\"fixture:loader:"
+                      + selected
+                      + "\",\"downloads\":{\"artifact\":{\"path\":\"fixture/"
+                      + selected
+                      + ".jar\",\"url\":\"\"}}}]}")
+              .getAsJsonObject();
+        };
+    var files = new com.fuzzlauncher.infrastructure.game.GameFiles(http);
+    var resolver = new com.fuzzlauncher.infrastructure.game.VersionResolver();
+    var install =
+        new InstallGame(
+            repository, files, resolver, java.util.Map.of(LoaderType.FABRIC, installer));
+    AccountAuthenticator auth =
+        new AccountAuthenticator() {
+          public java.util.Optional<Account> savedAccount() {
+            return java.util.Optional.empty();
+          }
+
+          public GameSession login(TaskContext task) {
+            throw new AssertionError();
+          }
+
+          public GameSession loginOffline(String name, TaskContext task) {
+            throw new AssertionError();
+          }
+
+          public GameSession refresh(Account account, TaskContext task) {
+            throw new AssertionError();
+          }
+
+          public void logout(TaskContext task) {}
+        };
+    try (var vm =
+        new LauncherViewModel(
+            new SettingsStore(data),
+            repository,
+            new com.fuzzlauncher.infrastructure.game.VersionCatalog(http),
+            auth,
+            install,
+            null)) {
+      var view = new LauncherView(stage, vm);
+      stage.getScene().setRoot(view);
+      view.applyCss();
+      view.layout();
+      assertTrue(view.lookup("#change-instance-loader").isDisabled());
+      vm.selectInstance(fabric);
+      view.applyCss();
+      view.layout();
+      assertFalse(view.lookup("#change-instance-loader").isDisabled());
+      ((Button) view.lookup("#change-instance-loader")).fire();
+      waitForFx(() -> !vm.busyProperty().get() && vm.loaderVersions().size() == 2);
+      DialogPane chooser = loaderPane();
+      @SuppressWarnings("unchecked")
+      var versions = (ComboBox<String>) chooser.lookup("#replacement-loader-version");
+      assertEquals("1", versions.getValue());
+      versions.setValue("2");
+      javax.imageio.ImageIO.write(
+          javafx.embed.swing.SwingFXUtils.fromFXImage(chooser.getScene().snapshot(null), null),
+          "png",
+          Path.of("build/ui-check/loader-version.png").toFile());
+      Platform.runLater(
+          () -> {
+            DialogPane confirm =
+                (DialogPane)
+                    Window.getWindows().stream()
+                        .filter(
+                            window ->
+                                window.getScene() != null
+                                    && window.getScene().getRoot() instanceof DialogPane pane
+                                    && pane.getButtonTypes().contains(ButtonType.OK))
+                        .findFirst()
+                        .orElseThrow()
+                        .getScene()
+                        .getRoot();
+            ((Button) confirm.lookupButton(ButtonType.OK)).fire();
+          });
+      ((Button) chooser.lookupButton(chooser.getButtonTypes().getFirst())).fire();
+      waitForFx(() -> commitReached.getCount() == 0);
+      assertTrue(vm.isCommitting());
+      vm.cancel(); // Commit cannot be cancelled after publication has begun, and must not block FX.
+      assertTrue(vm.busyProperty().get());
+      releaseCommit.countDown();
+      waitForFx(() -> !vm.busyProperty().get());
+      assertEquals("2", vm.selectedProperty().get().loaderVersion());
+      assertFalse(vm.isCommitting());
+      assertEquals("fresh 2", Files.readString(game.resolve("libraries/fixture/2.jar")));
+      assertEquals(
+          "world fabric",
+          Files.readString(
+              InstanceDirectories.directory(game, fabric).resolve("saves/world/level.dat")));
+      assertEquals("Fabric 2", ((TextField) view.lookup("#instance-loader")).getText());
+      assertFalse(vm.installingProperty().get());
+      holdQuery.set(true);
+      ((Button) view.lookup("#change-instance-loader")).fire();
+      waitForFx(() -> vm.busyProperty().get());
+      ((Button) loaderPane().lookup(".window-control")).fire();
+      waitForFx(() -> !vm.busyProperty().get());
+      releaseQuery.countDown();
+      assertEquals("2", vm.selectedProperty().get().loaderVersion());
+    } finally {
+      releaseCommit.countDown();
+      releaseQuery.countDown();
+      server.stop(0);
+      stage.getScene().setRoot(originalRoot);
+    }
+  }
+
+  private static DialogPane loaderPane() {
+    return (DialogPane)
+        Window.getWindows().stream()
+            .filter(
+                window ->
+                    window.getScene() != null
+                        && window.getScene().lookup("#loader-version-dialog") != null)
             .findFirst()
             .orElseThrow()
             .getScene()

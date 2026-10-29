@@ -11,6 +11,16 @@ public interface TaskContext {
 
   default void deviceLoginCompleted() {}
 
+  @FunctionalInterface
+  interface Commit {
+    void run() throws Exception;
+  }
+
+  default void commit(Commit action) throws Exception {
+    checkCancelled();
+    action.run();
+  }
+
   default void checkCancelled() {
     if (cancelled() || Thread.currentThread().isInterrupted())
       throw new CancellationException("任务已取消");
