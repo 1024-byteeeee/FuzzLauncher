@@ -55,12 +55,12 @@ final class DeviceLoginDialog extends Dialog<ButtonType> {
           url.setVisible(!authorized);
           url.setManaged(!authorized);
           code.setText(challenge == null ? "" : challenge.userCode());
-          url.setText(challenge == null ? "" : challenge.verificationUri().toString());
+          url.setText(challenge == null ? "正在联系微软…" : challenge.verificationUri().toString());
           copy.setDisable(!valid);
           open.setDisable(!valid);
           refresh.setDisable(authorized);
           if (authorized) remaining.setText("微软授权已完成，正在验证游戏账号…");
-          else if (challenge == null) remaining.setText("正在联系微软…");
+          else if (challenge == null) remaining.setText("");
           else remaining.setText(valid ? "" : "代码已过期，请点击刷新代码");
         };
     copy.setOnAction(

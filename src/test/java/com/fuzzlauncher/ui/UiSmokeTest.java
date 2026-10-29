@@ -292,10 +292,21 @@ class UiSmokeTest {
       vm.login();
       assertTrue(vm.loggingInProperty().get());
       DialogPane pane = devicePane();
+      pane.applyCss();
+      pane.layout();
+      Label linkRow = (Label) pane.lookup("#device-login-url");
+      assertEquals("正在联系微软…", linkRow.getText());
+      double pendingLinkY = linkRow.localToScene(linkRow.getBoundsInLocal()).getMinY();
+      Node copyButton = pane.lookup("#copy-device-code");
+      double pendingButtonsY = copyButton.localToScene(copyButton.getBoundsInLocal()).getMinY();
       assertTrue(((Button) pane.lookup("#copy-device-code")).isDisabled());
       waitForFx(() -> vm.deviceLoginProperty().get() != null);
       pane.applyCss();
       pane.layout();
+      assertEquals("https://microsoft.com/devicelogin", linkRow.getText());
+      assertEquals(pendingLinkY, linkRow.localToScene(linkRow.getBoundsInLocal()).getMinY(), 0.01);
+      assertEquals(
+          pendingButtonsY, copyButton.localToScene(copyButton.getBoundsInLocal()).getMinY(), 0.01);
       assertEquals("ABCD-EFGH", ((TextField) pane.lookup("#device-login-code")).getText());
       assertFalse(((Button) pane.lookup("#copy-device-code")).isDisabled());
       assertFalse(((Button) pane.lookup("#open-device-login")).isDisabled());
