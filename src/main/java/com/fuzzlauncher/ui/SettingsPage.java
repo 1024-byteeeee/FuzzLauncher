@@ -21,7 +21,34 @@ public final class SettingsPage extends RetroPage {
   private Node build() {
     LauncherSettings config = vm.settingsProperty().get();
     TextField root = new TextField(config.gameRoot());
-    root.setEditable(vm.instances().isEmpty());
+    root.editableProperty().bind(javafx.beans.binding.Bindings.isEmpty(vm.instances()));
+    root.setId("game-root-path");
+    root.setMinWidth(0);
+    HBox.setHgrow(root, Priority.ALWAYS);
+    Button browseRoot =
+        button(
+            "浏览",
+            () -> {
+              Path initial;
+              try {
+                initial = Path.of(root.getText());
+              } catch (InvalidPathException ex) {
+                initial = Path.of(config.gameRoot());
+              }
+              RetroPathDialog.directory(stage, "选择游戏根目录", initial)
+                  .ifPresent(chosen -> root.setText(chosen.toString()));
+            });
+    browseRoot.setId("browse-game-root");
+    browseRoot.setMinWidth(Region.USE_PREF_SIZE);
+    browseRoot
+        .disableProperty()
+        .bind(
+            vm.busyProperty()
+                .or(vm.gameRunningProperty())
+                .or(javafx.beans.binding.Bindings.isNotEmpty(vm.instances())));
+    root.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
+    HBox rootControl = new HBox(6, root, browseRoot);
+    rootControl.setMinWidth(0);
     TextField dataPath =
         new TextField(
             config.dataDirectory().isBlank()
@@ -87,7 +114,7 @@ public final class SettingsPage extends RetroPage {
             label("启动器设置", "section-title"),
             form(
                 new String[] {"游戏根目录:", "数据文件目录:", "默认隔离:", "下载源:"},
-                new Node[] {root, dataControl, mode, source}),
+                new Node[] {rootControl, dataControl, mode, source}),
             new HBox(10, save, data, logs));
     content.setPadding(new Insets(30));
     return content;

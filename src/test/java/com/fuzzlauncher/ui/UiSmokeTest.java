@@ -17,6 +17,7 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
@@ -81,8 +82,10 @@ class UiSmokeTest {
                   Path.of("build/ui-check/page-" + page + ".png").toFile());
             }
             verifyDropdownHighlight(view);
+            verifyDisabledMenuHighlight(stage);
             verifyInstanceEditingLock(view, app, repository);
             verifyAccountExclusion(stage);
+            verifyAvatarLifecycle(stage);
             result.complete(null);
           } catch (Throwable ex) {
             result.completeExceptionally(ex);
@@ -97,6 +100,178 @@ class UiSmokeTest {
     } finally {
       System.clearProperty("fuzz.dataDir");
     }
+  }
+
+  private void verifyAvatarLifecycle(Stage stage) throws Exception {
+    var original = stage.getScene().getRoot();
+    Account microsoft =
+        new Account("skin-fixture", "0123456789abcdef0123456789abcdef", "SkinFixture");
+    var identity = new java.util.concurrent.atomic.AtomicReference<>(microsoft);
+    AccountAuthenticator auth =
+        new AccountAuthenticator() {
+          public java.util.Optional<Account> savedAccount() {
+            return java.util.Optional.ofNullable(identity.get());
+          }
+
+          public GameSession login(TaskContext task) {
+            identity.set(microsoft);
+            return new GameSession(microsoft, "fixture", java.time.Instant.MAX);
+          }
+
+          public GameSession loginOffline(String name, TaskContext task) {
+            identity.set(Account.offline(name));
+            return GameSession.offline(identity.get());
+          }
+
+          public GameSession refresh(Account account, TaskContext task) {
+            throw new AssertionError("No refresh expected");
+          }
+
+          public void logout(TaskContext task) {
+            identity.set(null);
+          }
+        };
+    var image = new java.awt.image.BufferedImage(8, 8, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+    image.setRGB(0, 0, java.awt.Color.BLUE.getRGB());
+    var bytes = new java.io.ByteArrayOutputStream();
+    javax.imageio.ImageIO.write(image, "png", bytes);
+    var calls = new java.util.concurrent.atomic.AtomicInteger();
+    CountDownLatch loading = new CountDownLatch(1),
+        release = new CountDownLatch(1),
+        returned = new CountDownLatch(1);
+    Path data = temp.resolve("avatar-state");
+    try (var vm =
+        new LauncherViewModel(
+            new SettingsStore(data),
+            new JsonInstanceRepository(data),
+            null,
+            auth,
+            null,
+            null,
+            (account, task) -> {
+              if (calls.incrementAndGet() == 2) {
+                loading.countDown();
+                // Simulate a transport completing a stale response despite cancellation.
+                boolean waiting = true;
+                while (waiting)
+                  try {
+                    release.await();
+                    waiting = false;
+                  } catch (InterruptedException ex) {
+                    Thread.interrupted();
+                  }
+                returned.countDown();
+              }
+              return bytes.toByteArray();
+            })) {
+      AccountsPage page = new AccountsPage(stage, vm, ignored -> {});
+      stage.getScene().setRoot(page);
+      page.applyCss();
+      page.layout();
+      var avatar = (javafx.scene.image.ImageView) page.lookup("#microsoft-avatar");
+      var fallback = avatar.getImage();
+      Object loop = new Object();
+      javafx.animation.Timeline poll =
+          new javafx.animation.Timeline(
+              new javafx.animation.KeyFrame(
+                  javafx.util.Duration.millis(20),
+                  event -> {
+                    if (vm.accountAvatarProperty().get() != null)
+                      Platform.exitNestedEventLoop(loop, true);
+                  }));
+      poll.setCycleCount(200);
+      poll.setOnFinished(event -> Platform.exitNestedEventLoop(loop, false));
+      poll.play();
+      try {
+        assertEquals(true, Platform.enterNestedEventLoop(loop));
+      } finally {
+        poll.stop();
+      }
+      assertSame(vm.accountAvatarProperty().get(), avatar.getImage());
+      assertEquals(Color.BLUE, avatar.getImage().getPixelReader().getColor(0, 0));
+      awaitAccountOperation(vm, vm::logout);
+      assertNull(vm.accountAvatarProperty().get());
+      assertSame(fallback, avatar.getImage());
+      awaitAccountOperation(vm, vm::login);
+      assertTrue(loading.await(5, TimeUnit.SECONDS));
+      awaitAccountOperation(vm, vm::logout);
+      awaitAccountOperation(vm, () -> vm.loginOffline("OfflineFixture"));
+      release.countDown();
+      assertTrue(returned.await(5, TimeUnit.SECONDS));
+      Object drain = new Object();
+      var pause = new javafx.animation.PauseTransition(javafx.util.Duration.millis(200));
+      pause.setOnFinished(event -> Platform.exitNestedEventLoop(drain, true));
+      pause.play();
+      Platform.enterNestedEventLoop(drain);
+      assertNull(
+          vm.accountAvatarProperty().get(),
+          "Late Microsoft response must not replace offline avatar");
+      assertSame(fallback, avatar.getImage());
+      assertEquals(2, calls.get());
+    } finally {
+      release.countDown();
+      stage.getScene().setRoot(original);
+    }
+  }
+
+  private static void verifyDisabledMenuHighlight(Stage stage) {
+    MenuItem disabled = new MenuItem("禁用项目");
+    disabled.setDisable(true);
+    MenuItem enabled = new MenuItem("可用项目");
+    ContextMenu menu = new ContextMenu(disabled, enabled);
+    menu.show(stage, stage.getX() + 50, stage.getY() + 50);
+    try {
+      Node root = menu.getScene().getRoot();
+      root.applyCss();
+      Node blocked = disabled.getStyleableNode();
+      blocked.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("focused"), true);
+      blocked.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("hover"), true);
+      root.applyCss();
+      var background = ((javafx.scene.layout.Region) blocked).getBackground();
+      assertTrue(
+          background == null
+              || background.getFills().isEmpty()
+              || background.getFills().stream()
+                  .allMatch(fill -> Color.TRANSPARENT.equals(fill.getFill())));
+      assertEquals(Color.BLACK, ((Label) blocked.lookup(".label")).getTextFill());
+      enabled
+          .getStyleableNode()
+          .pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("focused"), true);
+      root.applyCss();
+      assertEquals(
+          Color.NAVY,
+          ((javafx.scene.layout.Region) enabled.getStyleableNode())
+              .getBackground()
+              .getFills()
+              .getFirst()
+              .getFill());
+    } finally {
+      menu.hide();
+    }
+  }
+
+  private static void verifyRootBrowser(Stage stage, LauncherViewModel vm, Path data)
+      throws Exception {
+    Path chosen = Files.createDirectories(data.resolve("picked-root")).toRealPath();
+    SettingsPage settings = new SettingsPage(stage, vm, ignored -> {});
+    stage.getScene().setRoot(settings);
+    settings.applyCss();
+    settings.layout();
+    Button browse = (Button) settings.lookup("#browse-game-root");
+    assertFalse(browse.isDisabled());
+    Platform.runLater(
+        () -> {
+          Window window =
+              Window.getWindows().stream()
+                  .filter(w -> w.getScene() != null && w.getScene().lookup("#path-dialog") != null)
+                  .findFirst()
+                  .orElseThrow();
+          DialogPane pane = (DialogPane) window.getScene().getRoot();
+          ((TextField) pane.lookup("#path-location")).setText(chosen.toString());
+          ((Button) pane.lookupButton(ButtonType.OK)).fire();
+        });
+    browse.fire();
+    assertEquals(chosen.toString(), ((TextField) settings.lookup("#game-root-path")).getText());
   }
 
   private static void verifyInstanceEditingLock(
@@ -178,6 +353,7 @@ class UiSmokeTest {
           new LauncherViewModel(
               new SettingsStore(data), new JsonInstanceRepository(data), null, auth, null, null)) {
         if (state == 0) {
+          verifyRootBrowser(stage, vm, data);
           var field = LauncherViewModel.class.getDeclaredField("gameRunning");
           field.setAccessible(true);
           var running = (javafx.beans.property.BooleanProperty) field.get(vm);

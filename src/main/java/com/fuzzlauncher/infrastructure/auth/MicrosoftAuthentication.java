@@ -169,7 +169,9 @@ public final class MicrosoftAuthentication
         new Account(
             microsoft.account().homeAccountId(),
             profile.get("id").getAsString(),
-            profile.get("name").getAsString());
+            profile.get("name").getAsString(),
+            AccountType.MICROSOFT,
+            SkinAvatars.activeSkinUrl(profile));
     return new GameSession(
         account, token, Instant.now().plusSeconds(response.get("expires_in").getAsLong()));
   }

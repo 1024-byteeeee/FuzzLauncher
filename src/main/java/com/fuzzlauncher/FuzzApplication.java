@@ -62,7 +62,14 @@ public final class FuzzApplication extends Application {
               new LaunchArguments(),
               data.resolve("logs"));
       viewModel =
-          new LauncherViewModel(settings, instances, catalog, authentication, install, launch);
+          new LauncherViewModel(
+              settings,
+              instances,
+              catalog,
+              authentication,
+              install,
+              launch,
+              new SkinAvatars(data, new HttpTransport()));
       viewModel.onRestartRequired(
           () -> {
             try {

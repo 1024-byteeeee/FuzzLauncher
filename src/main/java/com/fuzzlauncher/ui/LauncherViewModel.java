@@ -29,6 +29,14 @@ public final class LauncherViewModel implements AutoCloseable {
   private final AccountAuthenticator authentication;
   private final InstallGame install;
   private final LaunchGame launch;
+  private final AccountAvatars avatarLoader;
+  private final ObjectProperty<javafx.scene.image.Image> accountAvatar =
+      new SimpleObjectProperty<>();
+  private final ExecutorService avatarExecutor =
+      Executors.newSingleThreadExecutor(Thread.ofVirtual().name("account-avatar").factory());
+  private Future<?> avatarWork;
+  private volatile int avatarGeneration;
+  private volatile boolean closed;
   private final ExecutorService executor =
       Executors.newSingleThreadExecutor(
           Thread.ofPlatform().name("fuzz-operations").daemon(true).factory());
@@ -61,12 +69,25 @@ public final class LauncherViewModel implements AutoCloseable {
       InstallGame install,
       LaunchGame launch)
       throws IOException {
+    this(settingsStore, repository, catalog, authentication, install, launch, null);
+  }
+
+  public LauncherViewModel(
+      SettingsStore settingsStore,
+      InstanceRepository repository,
+      VersionCatalog catalog,
+      AccountAuthenticator authentication,
+      InstallGame install,
+      LaunchGame launch,
+      AccountAvatars avatarLoader)
+      throws IOException {
     this.settingsStore = settingsStore;
     this.repository = repository;
     this.catalog = catalog;
     this.authentication = authentication;
     this.install = install;
     this.launch = launch;
+    this.avatarLoader = avatarLoader;
     settings.set(settingsStore.load());
     instances.setAll(repository.findAll());
     for (GameInstance instance : instances) {
@@ -78,7 +99,53 @@ public final class LauncherViewModel implements AutoCloseable {
       }
     }
     if (!instances.isEmpty()) selected.set(instances.getFirst());
+    account.addListener((observable, old, identity) -> loadAvatar(identity));
     account.set(authentication.savedAccount().orElse(null));
+  }
+
+  public ReadOnlyObjectProperty<javafx.scene.image.Image> accountAvatarProperty() {
+    return accountAvatar;
+  }
+
+  private void loadAvatar(Account identity) {
+    int generation = ++avatarGeneration;
+    if (avatarWork != null) avatarWork.cancel(true);
+    accountAvatar.set(null);
+    if (identity == null || identity.isOffline() || avatarLoader == null || closed) return;
+    avatarWork =
+        avatarExecutor.submit(
+            () -> {
+              try {
+                byte[] bytes =
+                    avatarLoader.load(
+                        identity,
+                        new TaskContext() {
+                          public void report(String message, double progress) {}
+
+                          public boolean cancelled() {
+                            return closed
+                                || generation != avatarGeneration
+                                || Thread.currentThread().isInterrupted();
+                          }
+                        });
+                if (bytes != null && !closed)
+                  Platform.runLater(
+                      () -> {
+                        if (!closed
+                            && generation == avatarGeneration
+                            && identity.equals(account.get())) {
+                          var image =
+                              new javafx.scene.image.Image(new java.io.ByteArrayInputStream(bytes));
+                          if (!image.isError()) accountAvatar.set(image);
+                          else LauncherLog.LOGGER.warning("头像 PNG 解码失败");
+                        }
+                      });
+              } catch (InterruptedException | CancellationException ex) {
+                Thread.currentThread().interrupt();
+              } catch (Exception ex) {
+                LauncherLog.LOGGER.warning("头像加载失败：" + ex.getMessage());
+              }
+            });
   }
 
   public ReadOnlyObjectProperty<LauncherSettings> settingsProperty() {
@@ -463,6 +530,10 @@ public final class LauncherViewModel implements AutoCloseable {
 
   @Override
   public void close() {
+    closed = true;
+    avatarGeneration++;
+    if (avatarWork != null) avatarWork.cancel(true);
+    avatarExecutor.shutdownNow();
     cancel();
     executor.shutdownNow();
   }

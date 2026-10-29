@@ -33,6 +33,8 @@ class DataLocationsTest {
     Files.write(source.resolve("credentials.dpapi"), new byte[] {1, 2, 3});
     Files.createDirectories(source.resolve("logs"));
     Files.writeString(source.resolve("logs/launcher.log"), "history");
+    Files.createDirectories(source.resolve("skins"));
+    Files.writeString(source.resolve("skins/fixture.png"), "cached avatar fixture");
     DataLocations.configure(bootstrap, source, target);
     assertFalse(Files.exists(target));
     assertEquals(target, DataLocations.resolve(bootstrap));
@@ -41,6 +43,7 @@ class DataLocationsTest {
     assertArrayEquals(
         new byte[] {1, 2, 3}, Files.readAllBytes(target.resolve("credentials.dpapi")));
     assertEquals("history", Files.readString(target.resolve("logs/launcher.log")));
+    assertEquals("cached avatar fixture", Files.readString(target.resolve("skins/fixture.png")));
     assertTrue(Files.exists(source.resolve("settings.json")));
     assertTrue(Files.exists(game.resolve("world.dat")));
     assertFalse(Files.exists(target.resolve(".minecraft")));
@@ -60,6 +63,9 @@ class DataLocationsTest {
     Path occupied = Files.createDirectories(temp.resolve("occupied"));
     Files.writeString(occupied.resolve("keep"), "keep");
     assertThrows(IOException.class, () -> DataLocations.configure(bootstrap, source, occupied));
+    assertThrows(
+        IOException.class,
+        () -> DataLocations.configure(bootstrap, source, source.resolve("skins/nested")));
     DataLocations.configure(bootstrap, source, target);
     try (var channel =
             FileChannel.open(

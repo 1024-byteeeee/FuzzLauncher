@@ -42,6 +42,7 @@ public final class DataLocations {
     }
     if (target.getParent() == null
         || target.startsWith(current.resolve("logs"))
+        || target.startsWith(current.resolve("skins"))
         || target.startsWith(current.resolve("runtimes"))) throw new IOException("请选择独立的启动器数据目录");
     if (Files.exists(target)) {
       if (!Files.isDirectory(target) || Files.isSymbolicLink(target))
@@ -102,17 +103,19 @@ public final class DataLocations {
       if (Files.isRegularFile(file) && !Files.isSymbolicLink(file))
         JsonFiles.atomicWrite(target.resolve(name), Files.readAllBytes(file));
     }
-    Path logs = source.resolve("logs");
-    if (Files.isDirectory(logs) && !Files.isSymbolicLink(logs))
-      try (var files = Files.walk(logs)) {
-        for (Path file :
-            files.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)).toList()) {
-          Path relative = logs.relativize(file);
-          Path destination = JsonFiles.safeResolve(target.resolve("logs"), relative.toString());
-          Files.createDirectories(destination.getParent());
-          Files.copy(file, destination, StandardCopyOption.REPLACE_EXISTING);
+    for (String folder : List.of("logs", "skins")) {
+      Path logs = source.resolve(folder);
+      if (Files.isDirectory(logs) && !Files.isSymbolicLink(logs))
+        try (var files = Files.walk(logs)) {
+          for (Path file :
+              files.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)).toList()) {
+            Path relative = logs.relativize(file);
+            Path destination = JsonFiles.safeResolve(target.resolve(folder), relative.toString());
+            Files.createDirectories(destination.getParent());
+            Files.copy(file, destination, StandardCopyOption.REPLACE_EXISTING);
+          }
         }
-      }
+    }
     Path runtimes = source.resolve("runtimes");
     if (Files.isDirectory(runtimes))
       try (var markers = Files.newDirectoryStream(runtimes, "java-*.json")) {

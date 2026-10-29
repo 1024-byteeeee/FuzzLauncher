@@ -22,6 +22,18 @@ public final class AccountsPage extends RetroPage {
   private Node build() {
     Label microsoftAccount = accountInfo(false);
     Label offlineAccount = accountInfo(true);
+    ImageView avatar = icon("player", 64);
+    avatar.setId("microsoft-avatar");
+    Image defaultAvatar = avatar.getImage();
+    avatar
+        .imageProperty()
+        .bind(
+            Bindings.createObjectBinding(
+                () ->
+                    vm.accountAvatarProperty().get() == null
+                        ? defaultAvatar
+                        : vm.accountAvatarProperty().get(),
+                vm.accountAvatarProperty()));
     Button login = button("微软登录", vm::login);
     login.setId("microsoft-login");
     login.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
@@ -45,7 +57,7 @@ public final class AccountsPage extends RetroPage {
         new VBox(
             25,
             label("微软账号", "section-title"),
-            icon("player", 64),
+            avatar,
             microsoftAccount,
             new HBox(15, login, microsoftLogout));
     microsoftSection
