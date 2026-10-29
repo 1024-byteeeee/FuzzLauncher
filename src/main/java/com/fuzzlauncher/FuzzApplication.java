@@ -71,6 +71,7 @@ public final class FuzzApplication extends Application {
               install,
               launch,
               new SkinAvatars(data, new HttpTransport()));
+      viewModel.configureModpacks(new Modpacks(http, catalog, install, instances));
       viewModel.onRestartRequired(
           () -> {
             try {
@@ -91,7 +92,7 @@ public final class FuzzApplication extends Application {
       Scene scene = new Scene(new LauncherView(stage, viewModel), 1200, 860);
       scene.getStylesheets().add(getClass().getResource("retro.css").toExternalForm());
       stage.setScene(scene);
-      stage.setTitle("Fuzz Launcher");
+      stage.setTitle(Launcher.TITLE);
       stage
           .getIcons()
           .add(new javafx.scene.image.Image(getClass().getResourceAsStream("launcher.png")));

@@ -7,10 +7,6 @@ public interface TaskContext {
 
   boolean cancelled();
 
-  default void deviceLogin(DeviceLogin challenge) {}
-
-  default void deviceLoginCompleted() {}
-
   @FunctionalInterface
   interface Commit {
     void run() throws Exception;

@@ -18,7 +18,7 @@ public final class LauncherView extends RetroPage {
   private final Label title = new Label("游戏实例");
   private double dragX, dragY;
   private InstallProgressDialog installDialog;
-  private DeviceLoginDialog loginDialog;
+  private BrowserLoginDialog loginDialog;
 
   public LauncherView(Stage stage, LauncherViewModel vm) {
     super(stage, vm, ignored -> {});
@@ -31,7 +31,7 @@ public final class LauncherView extends RetroPage {
         .addListener(
             (observable, old, loggingIn) -> {
               if (loggingIn) {
-                loginDialog = new DeviceLoginDialog(stage, vm);
+                loginDialog = new BrowserLoginDialog(stage, vm);
                 loginDialog.show();
               } else if (loginDialog != null) {
                 loginDialog.close();
@@ -58,7 +58,7 @@ public final class LauncherView extends RetroPage {
   }
 
   private Node chrome() {
-    HBox bar = new HBox(9, icon("grass", 28), label("Fuzz Launcher", "title"));
+    HBox bar = new HBox(9, icon("grass", 28), label(com.fuzzlauncher.Launcher.TITLE, "title"));
     bar.setAlignment(Pos.CENTER_LEFT);
     bar.getStyleClass().add("title-bar");
     Region space = new Region();

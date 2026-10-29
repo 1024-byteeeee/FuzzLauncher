@@ -34,6 +34,21 @@
 /* Runtime controls use the same Win95 bevels as the reference. */
 .list-view, .combo-box, .spinner, .text-area { -fx-background-color: white; -fx-background-radius: 0; -fx-border-radius: 0; -fx-border-color: #808080 white white #808080; -fx-border-width: 2; }
 .list-view { -fx-padding: 3; }
+.tree-view { -fx-background-color: white; -fx-padding: 3; -fx-border-color: #808080 white white #808080; -fx-border-width: 2; }
+.tree-cell { -fx-background-color: white; -fx-text-fill: black; -fx-padding: 3 6; -fx-font-size: 17px; }
+.tree-cell:filled:selected { -fx-background-color: #000080; -fx-text-fill: white; }
+/* Fixed-size Win95 checkbox: two sunken one-pixel edges and a stepped bitmap-style tick. */
+.check-box { -fx-opacity: 1; -fx-padding: 0; -fx-label-padding: 0 0 0 6; -fx-graphic-text-gap: 6; }
+.check-box > .box { -fx-min-width: 17; -fx-pref-width: 17; -fx-max-width: 17; -fx-min-height: 17; -fx-pref-height: 17; -fx-max-height: 17; -fx-padding: 2; -fx-background-color: white; -fx-background-insets: 0; -fx-background-radius: 0; -fx-border-radius: 0; -fx-border-color: #808080 white white #808080, black #dfdfdf #dfdfdf black; -fx-border-insets: 0, 1; -fx-border-width: 1, 1; -fx-effect: null; }
+.check-box > .box > .mark { -fx-min-width: 9; -fx-pref-width: 9; -fx-max-width: 9; -fx-min-height: 9; -fx-pref-height: 9; -fx-max-height: 9; -fx-padding: 0; -fx-background-color: transparent; -fx-background-insets: 0; -fx-shape: "M0 3 H2 V5 H3 V6 H4 V4 H5 V3 H6 V2 H7 V1 H8 V0 H9 V3 H8 V4 H7 V5 H6 V6 H5 V7 H4 V9 H3 V8 H2 V7 H1 V6 H0 Z"; -fx-scale-shape: false; -fx-position-shape: true; }
+.check-box:selected > .box > .mark { -fx-background-color: black; }
+.check-box:indeterminate > .box > .mark { -fx-background-color: #808080; }
+.check-box:armed > .box { -fx-background-color: #c0c0c0; }
+.check-box:focused { -fx-border-color: black; -fx-border-style: dotted; -fx-border-width: 1; -fx-border-insets: -3; }
+.check-box:disabled { -fx-opacity: 1; -fx-text-fill: #808080; }
+.check-box:disabled > .box { -fx-background-color: #c0c0c0; }
+.check-box:disabled > .box > .mark { -fx-background-color: transparent; }
+.check-box:disabled:selected > .box > .mark, .check-box:disabled:indeterminate > .box > .mark { -fx-background-color: #808080; }
 .list-cell { -fx-background-color: white; -fx-text-fill: black; -fx-padding: 10 8; -fx-font-size: 19px; -fx-graphic-text-gap: 12px; }
 .list-view .list-cell:filled:selected { -fx-background-color: #000080; -fx-text-fill: white; }
 .list-cell:empty { -fx-background-color: white; }

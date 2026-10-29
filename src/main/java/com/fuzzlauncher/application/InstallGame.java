@@ -33,6 +33,11 @@ public final class InstallGame {
       String name,
       TaskContext task)
       throws Exception {
+    return execute(root, game, loader, loaderVersion, name, IsolationOverride.INHERIT, null, task);
+  }
+
+  public GameInstance execute(Path root, GameVersion game, LoaderType loader, String loaderVersion,
+      String name, IsolationOverride isolation, Path content, TaskContext task) throws Exception {
     if (loader != LoaderType.VANILLA && (loaderVersion == null || loaderVersion.isBlank()))
       throw new IllegalArgumentException("请选择兼容的加载器版本");
     String id = "fuzz-" + UUID.randomUUID();
@@ -43,7 +48,7 @@ public final class InstallGame {
             game.id(),
             loader,
             loaderVersion,
-            IsolationOverride.INHERIT,
+            isolation,
             4096,
             "",
             4096,
@@ -80,18 +85,30 @@ public final class InstallGame {
       if (!profile.has("inheritsFrom")) profile.addProperty("inheritsFrom", game.id());
       Path stagedVersion = staging.resolve("profile");
       Files.createDirectories(stagedVersion);
+      if (content != null) {
+        try (var paths = Files.walk(content)) {
+          for (Path source : paths.toList()) {
+            task.checkCancelled();
+            if (Files.isSymbolicLink(source)) throw new IOException("整合包包含目录链接");
+            Path target = stagedVersion.resolve(content.relativize(source));
+            if (Files.isDirectory(source)) Files.createDirectories(target);
+            else Files.copy(source, target);
+          }
+        }
+      }
       JsonFiles.write(stagedVersion.resolve(InstanceDirectories.PROFILE), profile);
       InstanceDirectories.checkAvailable(root, instance, instances.findAll());
       createdDirectory = !Files.exists(pending);
       if (createdDirectory) Files.move(stagedVersion, pending);
-      else
+      else if (content == null)
         Files.move(
             stagedVersion.resolve(InstanceDirectories.PROFILE),
             pending.resolve(InstanceDirectories.PROFILE));
+      else throw new IOException("整合包实例目录已存在，请使用不同名称");
       published = true;
       files.prepare(root, resolver.resolveInstance(root, instance), task);
       task.checkCancelled();
-      instances.save(instance);
+      task.commit(() -> instances.save(instance));
       committed = true;
       task.report("安装完成: " + name, 1);
       return instance;
@@ -128,6 +145,24 @@ public final class InstallGame {
   public GameInstance reinstallLoader(Path root, GameInstance instance, String version, TaskContext task)
       throws Exception {
     return new ReinstallLoader(instances, files, resolver, installers).execute(root, instance, version, task);
+  }
+
+  public JsonObject prepareModpackProfile(Path root, GameInstance instance, GameVersion game,
+      TaskContext task) throws Exception {
+    Path stagingRoot = root.toAbsolutePath().normalize().resolve(".fuzz-staging");
+    Files.createDirectories(stagingRoot);
+    Path staging = Files.createTempDirectory(stagingRoot, "pack-components-");
+    try {
+      files.installVanilla(root, game, task);
+      JsonObject profile = instance.loader() == LoaderType.VANILLA ? new JsonObject()
+          : Objects.requireNonNull(installers.get(instance.loader()), "缺少加载器适配器")
+              .install(root, staging, game, instance.loaderVersion(), task);
+      profile.addProperty("id", instance.id());
+      profile.addProperty("inheritsFrom", game.id());
+      profile.add("fuzzInstance", JsonFiles.GSON.toJsonTree(instance));
+      files.prepare(root, resolver.resolveProfile(root, profile), task);
+      return profile;
+    } finally { ModpackArchive.deleteWorkspace(staging, stagingRoot); }
   }
 
   private static void deleteInstallationPath(Path root, Path target) throws IOException {

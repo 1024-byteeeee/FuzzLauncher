@@ -18,6 +18,25 @@ public final class InstancesPage extends RetroPage {
   public InstancesPage(Stage stage, LauncherViewModel vm, Consumer<Integer> navigate) {
     super(stage, vm, navigate);
     setCenter(build());
+    setOnDragOver(event -> {
+      if (!vm.busyProperty().get() && !vm.gameRunningProperty().get() && event.getDragboard().hasFiles()
+          && event.getDragboard().getFiles().size() == 1 && isModpack(event.getDragboard().getFiles().getFirst().toPath()))
+        event.acceptTransferModes(javafx.scene.input.TransferMode.COPY);
+      event.consume();
+    });
+    setOnDragDropped(event -> {
+      boolean accepted = !vm.busyProperty().get() && !vm.gameRunningProperty().get() && event.getDragboard().hasFiles()
+          && event.getDragboard().getFiles().size() == 1 && isModpack(event.getDragboard().getFiles().getFirst().toPath());
+      if (accepted) {
+        Path archive = event.getDragboard().getFiles().getFirst().toPath();
+        javafx.application.Platform.runLater(() -> ModpackDialogs.importArchive(stage, vm, archive));
+      }
+      event.setDropCompleted(accepted); event.consume();
+    });
+  }
+
+  private static boolean isModpack(Path path) {
+    return Files.isRegularFile(path) && path.getFileName().toString().toLowerCase(Locale.ROOT).matches(".*\\.(zip|mrpack)");
   }
 
   private Node build() {
@@ -97,7 +116,22 @@ public final class InstancesPage extends RetroPage {
         .disableProperty()
         .bind(vm.busyProperty().or(vm.gameRunningProperty()).or(vm.selectedProperty().isNull()));
     add.disableProperty().bind(vm.busyProperty());
-    VBox toolbar = new VBox(8, heading, new HBox(6, add, remove, refresh));
+    Button importPack = button("导入", () -> ModpackDialogs.importPack(stage, vm));
+    importPack.setId("import-modpack");
+    importPack.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
+    Button exportPack = button("导出", () -> {
+      GameInstance instance = vm.selectedProperty().get();
+      if (instance != null) ModpackDialogs.exportPack(stage, vm, instance);
+    });
+    exportPack.setId("export-modpack");
+    exportPack.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()).or(vm.selectedProperty().isNull()));
+    for (Button action : java.util.List.of(add, remove, refresh, importPack, exportPack)) {
+      action.setStyle("-fx-padding: 5 3;");
+      action.setMinWidth(54);
+      action.setPrefWidth(54);
+      action.setMaxWidth(54);
+    }
+    VBox toolbar = new VBox(8, heading, new HBox(3, add, remove, refresh, importPack, exportPack));
     toolbar.setAlignment(Pos.CENTER_LEFT);
     VBox left = new VBox(12, toolbar, list);
     left.setPrefWidth(330);
@@ -286,7 +320,21 @@ public final class InstancesPage extends RetroPage {
     arguments.setId("launch-arguments");
     arguments.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
     HBox actions = new HBox(8, save, arguments, folder);
-    VBox panel = new VBox(12, label("实例详情", "section-title"), preview, form, directory, actions);
+    Button updatePack = button("检查整合包更新", () -> vm.updateModpack(instance));
+    updatePack.setId("update-modpack");
+    updatePack.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
+    Path packState = com.fuzzlauncher.infrastructure.InstanceDirectories.directory(
+        Path.of(vm.settingsProperty().get().gameRoot()), instance).resolve(com.fuzzlauncher.infrastructure.ModpackArchive.STATE);
+    boolean serverPack = false;
+    try { serverPack = Files.isRegularFile(packState) && "SERVER".equals(
+        com.fuzzlauncher.infrastructure.JsonFiles.string(com.fuzzlauncher.infrastructure.JsonFiles.read(packState), "format", "")); }
+    catch (java.io.IOException ignored) { /* A broken state is reported on launch. */ }
+    updatePack.setVisible(serverPack);
+    updatePack.setManaged(serverPack);
+    HBox packActions = new HBox(8, updatePack);
+    packActions.managedProperty().bind(updatePack.managedProperty());
+    packActions.visibleProperty().bind(updatePack.visibleProperty());
+    VBox panel = new VBox(12, label("实例详情", "section-title"), preview, form, directory, actions, packActions);
     panel.setMinWidth(0);
     panel.getStyleClass().add("details-box");
     VBox.setVgrow(panel, Priority.ALWAYS);

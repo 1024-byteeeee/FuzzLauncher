@@ -6,6 +6,14 @@ plugins {
 group = project.maven_group
 version = project.launcher_version
 
+def launcherDisplayVersion = project.version.toString()
+tasks.named('processResources') {
+    inputs.property('launcherVersion', launcherDisplayVersion)
+    filesMatching('com/fuzzlauncher/version.properties') {
+        expand(launcherVersion: launcherDisplayVersion)
+    }
+}
+
 repositories {
     mavenCentral()
 }

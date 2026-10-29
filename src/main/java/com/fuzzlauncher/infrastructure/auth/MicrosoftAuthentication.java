@@ -11,7 +11,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Microsoft device-code flow followed by Xbox and Minecraft entitlement checks. */
+/** Microsoft browser authorization followed by Xbox and Minecraft entitlement checks. */
 public final class MicrosoftAuthentication
     implements com.fuzzlauncher.application.AccountAuthenticator {
   private static final Set<String> SCOPES = Set.of("XboxLive.signin");
@@ -42,10 +42,11 @@ public final class MicrosoftAuthentication
   }
 
   private PublicClientApplication application() throws Exception {
-    return application(true);
+    return application(true, null);
   }
 
-  private PublicClientApplication application(boolean persistCache) throws Exception {
+  private PublicClientApplication application(boolean persistCache, ExecutorService executor)
+      throws Exception {
     ITokenCacheAccessAspect cache =
         new ITokenCacheAccessAspect() {
           @Override
@@ -69,34 +70,43 @@ public final class MicrosoftAuthentication
               }
           }
         };
-    return PublicClientApplication.builder(CLIENT_ID)
-        .authority("https://login.microsoftonline.com/consumers/")
-        .setTokenCacheAccessAspect(cache)
-        .build();
+    var builder =
+        PublicClientApplication.builder(CLIENT_ID)
+            .authority("https://login.microsoftonline.com/consumers/")
+            .setTokenCacheAccessAspect(cache);
+    if (executor != null) builder.executorService(executor);
+    return builder.build();
   }
 
   public GameSession login(TaskContext task) throws Exception {
     task.checkCancelled();
-    task.report("正在获取微软登录代码", -1);
+    task.report("正在打开微软登录网页", -1);
     // Keep a new authorization isolated until all Minecraft checks have succeeded.
-    PublicClientApplication app = application(false);
-    IAuthenticationResult result = DeviceCodeSignIn.acquire(app, SCOPES, task);
-    GameSession session = exchange(result, task);
-    task.checkCancelled();
-    String previousCache = secrets.read();
+    ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     try {
-      secrets.write(app.tokenCache().serialize());
+      PublicClientApplication app = application(false, executor);
+      IAuthenticationResult result = BrowserSignIn.acquire(app, SCOPES, task);
+      GameSession session = exchange(result, task);
       task.checkCancelled();
-      JsonFiles.write(identityFile, Map.of("account", session.account()));
-    } catch (IOException | RuntimeException ex) {
+      String previousCache = secrets.read();
       try {
-        secrets.write(previousCache);
-      } catch (IOException rollback) {
-        ex.addSuppressed(rollback);
+        secrets.write(app.tokenCache().serialize());
+        task.checkCancelled();
+        JsonFiles.write(identityFile, Map.of("account", session.account()));
+      } catch (IOException | RuntimeException ex) {
+        try {
+          secrets.write(previousCache);
+        } catch (IOException rollback) {
+          ex.addSuppressed(rollback);
+        }
+        throw ex;
       }
-      throw ex;
+      return session;
+    } finally {
+      // CompletableFuture.cancel does not interrupt the SDK callback listener. Interrupt its
+      // dedicated workers as well, so cancelling or closing login releases the local port.
+      executor.shutdownNow();
     }
-    return session;
   }
 
   public GameSession refresh(Account account, TaskContext task) throws Exception {

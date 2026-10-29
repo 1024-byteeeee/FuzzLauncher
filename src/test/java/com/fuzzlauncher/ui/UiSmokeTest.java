@@ -11,6 +11,7 @@ import java.util.concurrent.*;
 import javafx.application.Platform;
 import javafx.event.Event;
 import javafx.scene.Node;
+import javafx.scene.layout.VBox;
 import javafx.scene.control.*;
 import javafx.scene.control.skin.ComboBoxListViewSkin;
 import javafx.scene.input.MouseButton;
@@ -89,7 +90,9 @@ class UiSmokeTest {
             verifyInstanceEditingLock(view, app, repository);
             verifyAccountExclusion(stage);
             verifyAvatarLifecycle(stage);
-            verifyDeviceLoginDialog(stage);
+            verifyBrowserLoginDialog(stage);
+            verifyTaskProgressLayout(stage);
+            verifyModpackDialogs(stage);
             verifyLoaderReinstallation(stage);
             result.complete(null);
           } catch (Throwable ex) {
@@ -221,171 +224,273 @@ class UiSmokeTest {
     }
   }
 
-  private void verifyDeviceLoginDialog(Stage stage) throws Exception {
+  private void verifyBrowserLoginDialog(Stage stage) throws Exception {
     var original = stage.getScene().getRoot();
     var calls = new java.util.concurrent.atomic.AtomicInteger();
     var release = new CountDownLatch(1);
-    var releaseAuthorized = new CountDownLatch(1);
-    Account microsoft =
-        new Account("device-fixture", "0123456789abcdef0123456789abcdef", "DeviceFixture");
-    AccountAuthenticator auth =
-        new AccountAuthenticator() {
-          public java.util.Optional<Account> savedAccount() {
-            return java.util.Optional.empty();
+    var authorized = new CountDownLatch(1);
+    var verifying = new CountDownLatch(1);
+    Account microsoft = new Account("browser-fixture", "0123456789abcdef0123456789abcdef", "BrowserFixture");
+    AccountAuthenticator auth = new AccountAuthenticator() {
+      public java.util.Optional<Account> savedAccount() { return java.util.Optional.empty(); }
+      public GameSession login(TaskContext task) throws Exception {
+        int attempt = calls.incrementAndGet();
+        task.report("请在浏览器中完成微软登录，完成后会自动返回启动器", -1);
+        if (attempt == 1) {
+          // A late result from an already cancelled browser must not replace the active account.
+          while (release.getCount() != 0) {
+            try { release.await(); } catch (InterruptedException ignored) { Thread.interrupted(); }
           }
-
-          public GameSession login(TaskContext task) throws Exception {
-            int attempt = calls.incrementAndGet();
-            task.deviceLogin(
-                new DeviceLogin(
-                    attempt >= 4 ? "NEW-CODE" : "ABCD-EFGH",
-                    java.net.URI.create("https://microsoft.com/devicelogin"),
-                    java.time.Instant.now().plusSeconds(attempt == 3 ? -1 : 120)));
-            if (attempt == 1) {
-              // A late authenticator response must not resurrect the cancelled challenge or
-              // account.
-              while (release.getCount() != 0) {
-                try {
-                  release.await();
-                } catch (InterruptedException ignored) {
-                  Thread.interrupted();
-                }
-              }
-              try {
-                task.deviceLogin(
-                    new DeviceLogin(
-                        "STALE-CODE",
-                        java.net.URI.create("https://microsoft.com/devicelogin"),
-                        java.time.Instant.now().plusSeconds(120)));
-              } catch (CancellationException expected) {
-                /* The stale callback is rejected at its source. */
-              }
-            } else if (attempt == 2) {
-              task.deviceLoginCompleted();
-              releaseAuthorized.await();
-            } else if (attempt >= 3) {
-              while (true) {
-                task.checkCancelled();
-                Thread.sleep(20);
-              }
-            }
-            return new GameSession(microsoft, "fixture", java.time.Instant.MAX);
-          }
-
-          public GameSession loginOffline(String name, TaskContext task) {
-            return GameSession.offline(Account.offline(name));
-          }
-
-          public GameSession refresh(Account account, TaskContext task) {
-            throw new AssertionError();
-          }
-
-          public void logout(TaskContext task) {}
-        };
-    Path data = temp.resolve("device-login-state");
-    new SettingsStore(data)
-        .save(new LauncherSettings(data.resolve("game").toString(), IsolationMode.ALL));
-    try (var vm =
-        new LauncherViewModel(
-            new SettingsStore(data), new JsonInstanceRepository(data), null, auth, null, null)) {
-      LauncherView view = new LauncherView(stage, vm);
-      stage.getScene().setRoot(view);
+        } else if (attempt == 2) {
+          authorized.await();
+          task.report("Minecraft 正版权限校验", -1);
+          verifying.await();
+        } else {
+          while (true) { task.checkCancelled(); Thread.sleep(20); }
+        }
+        return new GameSession(microsoft, "fixture", java.time.Instant.MAX);
+      }
+      public GameSession loginOffline(String name, TaskContext task) { return GameSession.offline(Account.offline(name)); }
+      public GameSession refresh(Account account, TaskContext task) { throw new AssertionError(); }
+      public void logout(TaskContext task) {}
+    };
+    Path data = temp.resolve("browser-login-state");
+    new SettingsStore(data).save(new LauncherSettings(data.resolve("game").toString(), IsolationMode.ALL));
+    try (var vm = new LauncherViewModel(new SettingsStore(data), new JsonInstanceRepository(data), null, auth, null, null)) {
+      stage.getScene().setRoot(new LauncherView(stage, vm));
       vm.login();
       assertTrue(vm.loggingInProperty().get());
-      DialogPane pane = devicePane();
-      pane.applyCss();
-      pane.layout();
-      Label linkRow = (Label) pane.lookup("#device-login-url");
-      assertEquals("正在联系微软…", linkRow.getText());
-      double pendingLinkY = linkRow.localToScene(linkRow.getBoundsInLocal()).getMinY();
-      Node copyButton = pane.lookup("#copy-device-code");
-      double pendingButtonsY = copyButton.localToScene(copyButton.getBoundsInLocal()).getMinY();
-      assertTrue(((Button) pane.lookup("#copy-device-code")).isDisabled());
-      waitForFx(() -> vm.deviceLoginProperty().get() != null);
-      pane.applyCss();
-      pane.layout();
-      assertEquals("https://microsoft.com/devicelogin", linkRow.getText());
-      assertEquals(pendingLinkY, linkRow.localToScene(linkRow.getBoundsInLocal()).getMinY(), 0.01);
-      assertEquals(
-          pendingButtonsY, copyButton.localToScene(copyButton.getBoundsInLocal()).getMinY(), 0.01);
-      assertEquals("ABCD-EFGH", ((TextField) pane.lookup("#device-login-code")).getText());
-      assertFalse(((Button) pane.lookup("#copy-device-code")).isDisabled());
-      assertFalse(((Button) pane.lookup("#open-device-login")).isDisabled());
-      assertFalse(pane.lookup("#device-login-expiration").isVisible());
-      assertFalse(pane.lookup("#device-login-expiration").isManaged());
-      var clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
-      var previous = new java.util.HashMap<javafx.scene.input.DataFormat, Object>();
-      for (var type : clipboard.getContentTypes()) previous.put(type, clipboard.getContent(type));
-      try {
-        ((Button) pane.lookup("#copy-device-code")).fire();
-        assertEquals("ABCD-EFGH", clipboard.getString());
-      } finally {
-        if ("ABCD-EFGH".equals(clipboard.getString())) clipboard.setContent(previous);
-      }
-      javax.imageio.ImageIO.write(
-          javafx.embed.swing.SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null),
-          "png",
-          Path.of("build/ui-check/device-login.png").toFile());
-      Window loginWindow = pane.getScene().getWindow();
+      DialogPane pane = browserPane();
+      assertNull(pane.lookup("#device-login-code"));
+      assertNull(pane.lookup("#refresh-device-code"));
+      waitForFx(() -> ((Label) pane.lookup("#browser-login-status")).getText().contains("浏览器"));
+      pane.applyCss(); pane.layout();
+      javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null),
+          "png", Path.of("build/ui-check/browser-login.png").toFile());
+      Window window = pane.getScene().getWindow();
       ((Button) pane.lookupButton(pane.getButtonTypes().getFirst())).fire();
       waitForFx(() -> !vm.busyProperty().get());
-      assertFalse(vm.loggingInProperty().get());
-      assertNull(vm.deviceLoginProperty().get());
-      assertFalse(loginWindow.isShowing());
+      assertFalse(window.isShowing());
       release.countDown();
       awaitAccountOperation(vm, () -> vm.loginOffline("OfflineFixture"));
       assertTrue(vm.accountProperty().get().isOffline());
-      assertNull(vm.deviceLoginProperty().get());
       awaitAccountOperation(vm, vm::logout);
       vm.login();
-      waitForFx(() -> vm.deviceAuthorizedProperty().get());
-      DialogPane authorized = devicePane();
-      assertNull(vm.deviceLoginProperty().get());
-      assertFalse(authorized.lookup("#device-login-code").isVisible());
-      assertTrue(((Button) authorized.lookup("#copy-device-code")).isDisabled());
-      assertTrue(((Button) authorized.lookup("#open-device-login")).isDisabled());
-      assertTrue(((Button) authorized.lookup("#refresh-device-code")).isDisabled());
-      assertTrue(
-          ((Label) authorized.lookup("#device-login-expiration")).getText().contains("授权已完成"));
-      releaseAuthorized.countDown();
+      waitForFx(() -> calls.get() == 2);
+      authorized.countDown();
+      DialogPane validating = browserPane();
+      waitForFx(() -> ((Label) validating.lookup("#browser-login-status")).getText().contains("正版权限"));
+      assertTrue(validating.getScene().getWindow().isShowing());
+      verifying.countDown();
       waitForFx(() -> !vm.busyProperty().get());
       assertEquals(microsoft, vm.accountProperty().get());
       assertFalse(vm.loggingInProperty().get());
       awaitAccountOperation(vm, vm::logout);
       vm.login();
-      waitForFx(() -> vm.deviceLoginProperty().get() != null);
-      DialogPane expired = devicePane();
-      assertTrue(((Button) expired.lookup("#copy-device-code")).isDisabled());
-      assertTrue(((Button) expired.lookup("#open-device-login")).isDisabled());
-      assertTrue(((Label) expired.lookup("#device-login-expiration")).getText().contains("过期"));
-      Window expiredWindow = expired.getScene().getWindow();
-      ((Button) expired.lookup("#refresh-device-code")).fire();
-      waitForFx(() -> calls.get() == 4 && vm.deviceLoginProperty().get() != null);
-      assertFalse(expiredWindow.isShowing());
-      DialogPane refreshed = devicePane();
-      assertEquals("NEW-CODE", ((TextField) refreshed.lookup("#device-login-code")).getText());
-      assertFalse(((Button) refreshed.lookup("#open-device-login")).isDisabled());
-      ((Button) refreshed.lookup(".window-control")).fire();
+      waitForFx(() -> calls.get() == 3);
+      ((Button) browserPane().lookup(".window-control")).fire();
       waitForFx(() -> !vm.loggingInProperty().get());
       assertNull(vm.accountProperty().get());
     } finally {
-      release.countDown();
-      releaseAuthorized.countDown();
+      release.countDown(); authorized.countDown(); verifying.countDown();
       stage.getScene().setRoot(original);
     }
   }
 
-  private static DialogPane devicePane() {
-    return (DialogPane)
-        Window.getWindows().stream()
-            .filter(
-                window ->
-                    window.getScene() != null
-                        && window.getScene().lookup("#device-login-dialog") != null)
-            .findFirst()
-            .orElseThrow()
-            .getScene()
-            .getRoot();
+  private static DialogPane browserPane() {
+    return (DialogPane) Window.getWindows().stream()
+        .filter(window -> window.getScene() != null && window.getScene().lookup("#browser-login-dialog") != null)
+        .findFirst().orElseThrow().getScene().getRoot();
+  }
+  private void verifyTaskProgressLayout(Stage stage) throws Exception {
+    Path data = temp.resolve("progress-layout-state");
+    new SettingsStore(data).save(new LauncherSettings(data.resolve("game").toString(), IsolationMode.ALL));
+    try (var vm = new LauncherViewModel(new SettingsStore(data), new JsonInstanceRepository(data), null,
+        new com.fuzzlauncher.infrastructure.auth.MicrosoftAuthentication(new HttpTransport(), data), null, null)) {
+      InstallProgressDialog dialog = new InstallProgressDialog(stage, vm);
+      dialog.show();
+      try {
+        DialogPane pane = dialog.getDialogPane();
+        ProgressBar bar = (ProgressBar) pane.lookup("#task-progress-bar");
+        Label message = (Label) pane.lookup("#task-progress-message");
+        bar.progressProperty().unbind();
+        message.textProperty().unbind();
+        pane.applyCss(); pane.layout();
+        var original = bar.localToScene(bar.getBoundsInLocal());
+        double width = pane.getScene().getWindow().getWidth();
+        double height = pane.getScene().getWindow().getHeight();
+        for (double progress : new double[] {-1, 0, .25, 1, -1, .75}) {
+          for (String text : new String[] {"准备中", "正在下载：很长的资源路径/".repeat(30), "正在校验\n第一项\n第二项\n第三项\n第四项"}) {
+            bar.setProgress(progress); message.setText(text);
+            pane.applyCss(); pane.layout();
+            ((Stage) pane.getScene().getWindow()).sizeToScene();
+            var bounds = bar.localToScene(bar.getBoundsInLocal());
+            assertEquals(496, bounds.getWidth(), .01);
+            assertEquals(24, bounds.getHeight(), .01);
+            assertEquals(original.getMinY(), bounds.getMinY(), .01);
+            assertEquals(width, pane.getScene().getWindow().getWidth(), .01);
+            assertEquals(height, pane.getScene().getWindow().getHeight(), .01);
+          }
+        }
+        javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null),
+            "png", Path.of("build/ui-check/task-progress.png").toFile());
+      } finally { dialog.close(); }
+    }
+  }
+
+  private void verifyModpackDialogs(Stage stage) throws Exception {
+    Node original = stage.getScene().getRoot();
+    Path data = temp.resolve("modpack-ui"), root = data.resolve("game");
+    GameInstance instance = new GameInstance("pack-fixture", "整合包实例", "1.20.4", LoaderType.FABRIC,
+        "0.16.0", IsolationOverride.ISOLATED, 4096);
+    Path source = InstanceDirectories.directory(root, instance);
+    Files.createDirectories(source.resolve("mods")); Files.createDirectories(source.resolve("saves"));
+    Files.writeString(source.resolve("mods/test.jar"), "fixture");
+    Files.writeString(source.resolve("mods/excluded.jar"), "excluded fixture");
+    Files.createDirectories(source.resolve("config/nested"));
+    Files.writeString(source.resolve("config/nested/settings.json"), "configuration");
+    Files.writeString(source.resolve("options.txt"), "settings");
+    Files.writeString(source.resolve("account.json"), "private");
+    new SettingsStore(data).save(new LauncherSettings(root.toString(), IsolationMode.ALL));
+    var repository = new JsonInstanceRepository(data); repository.save(instance);
+    AccountAuthenticator auth = new AccountAuthenticator() {
+      public java.util.Optional<Account> savedAccount() { return java.util.Optional.empty(); }
+      public GameSession login(TaskContext task) { throw new AssertionError(); }
+      public GameSession loginOffline(String name, TaskContext task) { return GameSession.offline(Account.offline(name)); }
+      public GameSession refresh(Account account, TaskContext task) { throw new AssertionError(); }
+      public void logout(TaskContext task) {}
+    };
+    try (var vm = new LauncherViewModel(new SettingsStore(data), repository, null, auth, null, null)) {
+      LauncherView view = new LauncherView(stage, vm); stage.getScene().setRoot(view);
+      view.applyCss(); view.layout();
+      assertNotNull(view.lookup("#import-modpack")); assertNotNull(view.lookup("#export-modpack"));
+      assertFalse(view.lookup("#update-modpack").isVisible());
+      Dialog<ButtonType> export = ModpackDialogs.exportPack(stage, vm, instance);
+      DialogPane pane = export.getDialogPane(); pane.applyCss(); pane.layout();
+      assertNotNull(pane.lookup("#modpack-type-mcbbs"));
+      assertNotNull(pane.lookup("#modpack-type-multimc"));
+      assertNotNull(pane.lookup("#modpack-type-server"));
+      assertNotNull(pane.lookup("#modpack-type-modrinth"));
+      javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null), "png", Path.of("build/ui-check/modpack-types.png").toFile());
+      ((Button) pane.lookup("#modpack-type-server")).fire();
+      pane.applyCss(); pane.layout();
+      @SuppressWarnings("unchecked") ComboBox<ModpackFormat> format = (ComboBox<ModpackFormat>) pane.lookup("#modpack-format");
+      assertEquals(4, format.getItems().size());
+      assertEquals(ModpackFormat.SERVER, format.getValue());
+      assertFalse(pane.lookup("#modpack-file-api").isDisabled());
+      ((TextField) pane.lookup("#modpack-file-api")).setText("https://example.com/pack");
+      ((TextField) pane.lookup("#modpack-name")).setText("选择测试包");
+      ((Button) pane.lookup("#modpack-export-next")).fire();
+      waitForFx(() -> pane.lookup("#modpack-export-files") instanceof TreeView<?> tree && tree.getRoot().getChildren().size() >= 3);
+      ModpackFileTree selector = (ModpackFileTree) pane.lookup("#modpack-file-selector");
+      @SuppressWarnings("unchecked") TreeView<ModpackArchive.ContentEntry> tree = (TreeView<ModpackArchive.ContentEntry>) pane.lookup("#modpack-export-files");
+      assertNotNull(packItem(tree.getRoot(), "account.json"));
+      assertFalse(packItem(tree.getRoot(), "saves").isSelected());
+      assertFalse(packItem(tree.getRoot(), "options.txt").isSelected());
+      var mods = packItem(tree.getRoot(), "mods");
+      var excludedMod = packItem(tree.getRoot(), "mods/excluded.jar");
+      excludedMod.setSelected(false);
+      assertTrue(mods.isIndeterminate());
+      assertTrue(selector.selectedPaths().contains("mods/test.jar"));
+      assertFalse(selector.selectedPaths().contains("mods/excluded.jar"));
+      pane.applyCss(); pane.layout();
+      TreeCell<?> modsCell = tree.lookupAll(".tree-cell").stream().filter(TreeCell.class::isInstance)
+          .map(TreeCell.class::cast).filter(cell -> cell.getTreeItem() == mods).findFirst().orElseThrow();
+      var checkBoxSquare = modsCell.lookup(".check-box > .box");
+      assertEquals(17, checkBoxSquare.getLayoutBounds().getWidth(), 0.01);
+      assertEquals(17, checkBoxSquare.getLayoutBounds().getHeight(), 0.01);
+      ((CheckBox) modsCell.lookup(".check-box")).fire();
+      assertTrue(excludedMod.isSelected());
+      assertFalse(mods.isIndeterminate());
+      ((Button) pane.lookup("#modpack-select-none")).fire();
+      assertTrue(selector.selectedPaths().isEmpty());
+      ((Button) pane.lookup("#modpack-select-all")).fire();
+      assertTrue(packItem(tree.getRoot(), "saves").isSelected());
+      ((Button) pane.lookup("#modpack-select-recommended")).fire();
+      assertFalse(packItem(tree.getRoot(), "saves").isSelected());
+      excludedMod.setSelected(false);
+      var selection = selector.selectedPaths();
+      TextField search = (TextField) pane.lookup("#modpack-file-search");
+      search.setText("nested/settings"); search.fireEvent(new javafx.event.ActionEvent());
+      assertEquals("config/nested/settings.json", tree.getSelectionModel().getSelectedItem().getValue().path());
+      assertEquals(selection, selector.selectedPaths());
+      ((Button) pane.lookup("#modpack-collapse-all")).fire();
+      assertEquals(selection, selector.selectedPaths());
+      ((Button) pane.lookup("#modpack-export-back")).fire();
+      assertEquals("选择测试包", ((TextField) pane.lookup("#modpack-name")).getText());
+      assertEquals(ModpackFormat.SERVER, ((ComboBox<?>) pane.lookup("#modpack-format")).getValue());
+      ((Button) pane.lookup("#modpack-export-next")).fire();
+      assertEquals(selection, selector.selectedPaths());
+      ((Button) pane.lookup("#modpack-expand-all")).fire();
+      pane.applyCss(); pane.layout();
+      javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null), "png", Path.of("build/ui-check/modpack-export.png").toFile());
+      ((TextField) pane.lookup("#modpack-output-directory")).setText(data.resolve("exports").toString());
+      ((TextField) pane.lookup("#modpack-filename")).setText("selected");
+      ((Button) pane.lookup("#modpack-export-next")).fire();
+      waitForFx(() -> !vm.busyProperty().get());
+      try (var zip = new java.util.zip.ZipFile(data.resolve("exports/selected.zip").toFile())) {
+        assertNotNull(zip.getEntry("overrides/mods/test.jar"));
+        assertNotNull(zip.getEntry("overrides/config/nested/settings.json"));
+        assertNotNull(zip.getEntry("overrides/account.json"));
+        assertNull(zip.getEntry("overrides/mods/excluded.jar"));
+        assertNull(zip.getEntry("overrides/options.txt"));
+      }
+      var optionalManifest = com.google.gson.JsonParser.parseString("{\"files\":[{\"path\":\"mods/optional-a.jar\",\"fileSize\":100,\"env\":{\"client\":\"optional\"}},{\"path\":\"mods/optional-b.jar\",\"fileSize\":200,\"env\":{\"client\":\"optional\"}}]}").getAsJsonObject();
+      var info = new ModpackArchive.Info(ModpackFormat.MODRINTH, "测试整合包", "1.0.0", "作者", "导入说明",
+          "1.20.4", LoaderType.FABRIC, "0.16.0", optionalManifest, "");
+      Dialog<ButtonType> importing = ModpackDialogs.importOptions(stage, vm, temp.resolve("fixture.mrpack"), info);
+      DialogPane importPane = importing.getDialogPane(); importPane.applyCss(); importPane.layout();
+      assertEquals("测试整合包", ((TextField) importPane.lookup("#modpack-instance-name")).getText());
+      assertTrue(importPane.lookup("#modpack-optional-files").isVisible());
+      ModpackFileTree optional = (ModpackFileTree) importPane.lookup("#modpack-optional-files");
+      @SuppressWarnings("unchecked") TreeView<ModpackArchive.ContentEntry> optionalTree = (TreeView<ModpackArchive.ContentEntry>) optional.lookup("#modpack-export-files");
+      packItem(optionalTree.getRoot(), "mods").setExpanded(true);
+      packItem(optionalTree.getRoot(), "mods/optional-a.jar").setSelected(false);
+      assertEquals(java.util.Set.of("mods/optional-b.jar"), optional.selectedPaths());
+      waitForFx(() -> ((Label) optional.lookup("#modpack-selection-summary")).getText().startsWith("已选择 1 个文件"));
+      javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(importPane.getScene().snapshot(null), null), "png", Path.of("build/ui-check/modpack-import.png").toFile());
+      ((Button) importPane.lookupButton(ButtonType.CANCEL)).fire();
+      var malformed = new ModpackArchive.Info(ModpackFormat.MODRINTH, "无效清单", "1", "", "",
+          "1.20.4", LoaderType.VANILLA, null, com.google.gson.JsonParser.parseString("{\"files\":[42]}").getAsJsonObject(), "");
+      Dialog<ButtonType> invalid = ModpackDialogs.importOptions(stage, vm, temp.resolve("invalid.mrpack"), malformed);
+      ButtonType invalidStart = invalid.getDialogPane().getButtonTypes().stream()
+          .filter(type -> type.getButtonData() == ButtonBar.ButtonData.OK_DONE).findFirst().orElseThrow();
+      assertTrue(invalid.getDialogPane().lookupButton(invalidStart).isDisabled());
+      ((Button) invalid.getDialogPane().lookupButton(ButtonType.CANCEL)).fire();
+      Path archive = data.resolve("fixture.mrpack"); Files.writeString(archive, "picker fixture");
+      Platform.runLater(() -> {
+        DialogPane picker = (DialogPane) Window.getWindows().stream()
+            .filter(w -> w.getScene() != null && w.getScene().lookup("#path-dialog") != null)
+            .findFirst().orElseThrow().getScene().getRoot();
+        @SuppressWarnings("unchecked") ListView<Path> files = (ListView<Path>) picker.lookup("#path-entries");
+        files.getSelectionModel().select(archive.toAbsolutePath());
+        ((Button) picker.lookupButton(ButtonType.OK)).fire();
+      });
+      assertEquals(archive.toAbsolutePath(), RetroPathDialog.modpack(stage, data).orElseThrow());
+      ModpackFileTree large = new ModpackFileTree("大型整合包", path -> path.endsWith("-keep.jar"));
+      java.util.List<ModpackArchive.ContentEntry> largeEntries = new java.util.ArrayList<>();
+      for (int i = 0; i < 5000; i++) {
+        largeEntries.add(new ModpackArchive.ContentEntry("mods/" + i + "-keep.jar", false, 1024));
+        largeEntries.add(new ModpackArchive.ContentEntry("mods/" + i + "-skip.jar", false, 1024));
+      }
+      large.setEntries(largeEntries);
+      assertEquals(5000, large.selectedPaths().size());
+      ((Button) large.lookup("#modpack-select-none")).fire();
+      assertTrue(large.selectedPaths().isEmpty());
+      ((Button) large.lookup("#modpack-select-all")).fire();
+      assertEquals(10000, large.selectedPaths().size());
+      ((Button) large.lookup("#modpack-select-recommended")).fire();
+      assertEquals(5000, large.selectedPaths().size());
+    } finally { stage.getScene().setRoot((javafx.scene.Parent) original); }
+  }
+
+  private static CheckBoxTreeItem<ModpackArchive.ContentEntry> packItem(TreeItem<ModpackArchive.ContentEntry> root, String path) {
+    if (root.getValue().path().equals(path)) return (CheckBoxTreeItem<ModpackArchive.ContentEntry>) root;
+    for (var child : root.getChildren()) {
+      var found = packItem(child, path);
+      if (found != null) return found;
+    }
+    return null;
   }
 
   private void verifyLoaderReinstallation(Stage stage) throws Exception {

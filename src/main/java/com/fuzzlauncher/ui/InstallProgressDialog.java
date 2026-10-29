@@ -11,15 +11,29 @@ final class InstallProgressDialog extends Dialog<ButtonType> {
   InstallProgressDialog(Stage owner, LauncherViewModel vm) {
     initOwner(owner);
     initModality(Modality.WINDOW_MODAL);
-    RetroDialogs.decorate(this, owner, "Download");
+    RetroDialogs.decorate(this, owner, "任务进度");
     Label message = new Label();
+    message.setId("task-progress-message");
     message.setWrapText(true);
-    message.setMaxWidth(500);
+    message.setMinSize(496, 72);
+    message.setPrefSize(496, 72);
+    message.setMaxSize(496, 72);
+    message.setAlignment(Pos.TOP_LEFT);
+    Tooltip detail = new Tooltip();
+    detail.textProperty().bind(vm.statusProperty());
+    message.setTooltip(detail);
     message.textProperty().bind(vm.statusProperty());
     ProgressBar bar = new ProgressBar();
-    bar.setMaxWidth(Double.MAX_VALUE);
+    bar.setId("task-progress-bar");
+    // Keep both determinate and indeterminate skins in the same fixed layout slot.
+    bar.setMinSize(496, 24);
+    bar.setPrefSize(496, 24);
+    bar.setMaxSize(496, 24);
     bar.progressProperty().bind(vm.progressProperty());
     Label percent = new Label();
+    percent.setMinHeight(24);
+    percent.setPrefHeight(24);
+    percent.setMaxHeight(24);
     percent
         .textProperty()
         .bind(
@@ -30,12 +44,14 @@ final class InstallProgressDialog extends Dialog<ButtonType> {
                         : String.format(
                             java.util.Locale.ROOT, "%.0f%%", vm.progressProperty().get() * 100),
                 vm.progressProperty()));
-    VBox content = new VBox(16, new Label("正在下载并安装实例"), message, bar, percent);
+    VBox content = new VBox(16, new Label("正在处理，请稍候"), message, bar, percent);
     content.setPadding(new Insets(12));
-    content.setPrefWidth(520);
+    content.setMinSize(520, 222);
+    content.setPrefSize(520, 222);
+    content.setMaxSize(520, 222);
     getDialogPane().setContent(content);
     getDialogPane().setId("install-progress-dialog");
-    ButtonType cancel = new ButtonType("取消下载", ButtonBar.ButtonData.CANCEL_CLOSE);
+    ButtonType cancel = new ButtonType("取消任务", ButtonBar.ButtonData.CANCEL_CLOSE);
     getDialogPane().getButtonTypes().add(cancel);
     Button cancelButton = (Button) getDialogPane().lookupButton(cancel);
     cancelButton.addEventFilter(
@@ -55,6 +71,7 @@ final class InstallProgressDialog extends Dialog<ButtonType> {
     setOnHidden(
         event -> {
           message.textProperty().unbind();
+          detail.textProperty().unbind();
           bar.progressProperty().unbind();
           percent.textProperty().unbind();
         });

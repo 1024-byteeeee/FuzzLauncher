@@ -13,6 +13,10 @@ public final class VersionResolver {
     return resolve(root, id, new HashSet<>());
   }
 
+  public JsonObject resolveProfile(Path root, JsonObject profile) throws IOException {
+    return resolveChild(root, profile.deepCopy(), profile.get("id").getAsString(), new HashSet<>());
+  }
+
   public JsonObject resolveInstance(Path root, GameInstance instance) throws IOException {
     InstanceDirectories.migrate(root, instance);
     Path profile = InstanceDirectories.profile(root, instance);

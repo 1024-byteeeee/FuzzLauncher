@@ -19,6 +19,7 @@ import javafx.stage.Window;
 /** File picker and local file management using the launcher's shared dialog chrome. */
 final class RetroPathDialog extends Dialog<Path> {
   private final boolean directoryOnly;
+  private final java.util.function.Predicate<Path> fileFilter;
   private final TextField location = new TextField();
   private final ComboBox<Path> drives = new RetroComboBox<>();
   private final ListView<Path> files = new ListView<>();
@@ -27,12 +28,18 @@ final class RetroPathDialog extends Dialog<Path> {
   private final BooleanProperty fileBusy = new SimpleBooleanProperty();
 
   private RetroPathDialog(Window owner, String title, Path initial, boolean directoryOnly) {
+    this(owner, title, initial, directoryOnly, RetroPathDialog::isJava);
+  }
+
+  private RetroPathDialog(Window owner, String title, Path initial, boolean directoryOnly,
+      java.util.function.Predicate<Path> fileFilter) {
     this.directoryOnly = directoryOnly;
+    this.fileFilter = fileFilter;
     RetroDialogs.decorate(this, owner, title);
     getDialogPane().setId("path-dialog");
     getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
     Button choose = (Button) getDialogPane().lookupButton(ButtonType.OK);
-    choose.setText(directoryOnly ? "选择文件夹" : "选择 Java");
+    choose.setText(directoryOnly ? "选择文件夹" : "选择文件");
     ((Button) getDialogPane().lookupButton(ButtonType.CANCEL)).setText("取消");
     drives.setMinWidth(95);
     FileSystems.getDefault().getRootDirectories().forEach(drives.getItems()::add);
@@ -66,7 +73,7 @@ final class RetroPathDialog extends Dialog<Path> {
                         : (Files.isDirectory(path) ? "▸ " : "") + path.getFileName());
               }
             });
-    files.setPlaceholder(new Label(directoryOnly ? "没有子文件夹" : "没有子文件夹或 Java 程序"));
+    files.setPlaceholder(new Label(directoryOnly ? "没有子文件夹" : "没有可选择的文件"));
     files.setOnMouseClicked(
         event -> {
           if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2)
@@ -133,7 +140,7 @@ final class RetroPathDialog extends Dialog<Path> {
             if (!location.getText().equals(current == null ? "" : current.toString())) {
               try {
                 Path typed = Path.of(location.getText()).toAbsolutePath().normalize();
-                if (isJava(typed)) selected = typed;
+                if (fileFilter.test(typed)) selected = typed;
                 else {
                   openTypedPath();
                   event.consume();
@@ -145,8 +152,8 @@ final class RetroPathDialog extends Dialog<Path> {
                 return;
               }
             }
-            if (selected == null || !isJava(selected)) {
-              error.setText("请选择 java.exe 或 javaw.exe");
+            if (selected == null || !fileFilter.test(selected)) {
+              error.setText("请选择受支持的文件");
               event.consume();
               return;
             }
@@ -172,11 +179,17 @@ final class RetroPathDialog extends Dialog<Path> {
     return new RetroPathDialog(owner, "选择此实例的 Java", initial, false).showAndWait();
   }
 
+  static Optional<Path> modpack(Window owner, Path initial) {
+    return new RetroPathDialog(owner, "选择整合包", initial, false,
+        path -> Files.isRegularFile(path) && path.getFileName().toString().toLowerCase(Locale.ROOT).matches(".*\\.(zip|mrpack)"))
+        .showAndWait();
+  }
+
   private boolean navigate(Path path) {
     try (var entries = Files.list(path)) {
       List<Path> items =
           entries
-              .filter(entry -> Files.isDirectory(entry) || (!directoryOnly && isJava(entry)))
+              .filter(entry -> Files.isDirectory(entry) || (!directoryOnly && fileFilter.test(entry)))
               .sorted(
                   Comparator.<Path, Boolean>comparing(entry -> !Files.isDirectory(entry))
                       .thenComparing(
@@ -402,7 +415,7 @@ final class RetroPathDialog extends Dialog<Path> {
   private boolean openTypedPath() {
     try {
       Path path = Path.of(location.getText()).toAbsolutePath().normalize();
-      if (!directoryOnly && isJava(path)) {
+      if (!directoryOnly && fileFilter.test(path)) {
         setResult(path);
         close();
         return true;
@@ -418,7 +431,7 @@ final class RetroPathDialog extends Dialog<Path> {
     Path selected = files.getSelectionModel().getSelectedItem();
     if (selected == null) return;
     if (Files.isDirectory(selected)) navigate(selected);
-    else if (!directoryOnly && isJava(selected)) {
+    else if (!directoryOnly && fileFilter.test(selected)) {
       setResult(selected);
       close();
     }

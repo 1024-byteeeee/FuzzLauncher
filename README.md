@@ -9,6 +9,7 @@ Windows x64 / JavaFX，Windows 95 风格 Minecraft Java 启动器。
 - 全局“全部隔离 / 仅模组隔离 / 不隔离”；实例可继承或覆盖。隔离目录为 `versions/<实例名>/`，不同名称使用不同文件夹；已登记实例的旧 UUID 目录自动迁移，重命名同步移动实例数据。资源和依赖库共享。
 - 官方版本清单：正式版、快照、历史版筛选及搜索。
 - 原版、Fabric、Forge、NeoForge 客户端自动安装；下载校验、取消、重试、安装失败不登记实例。
+- MCBBS、MultiMC、服务器自动更新、Modrinth 整合包导入导出；独立实例导入、导出内容选择、服务器更新文件校验与本地修改保留。
 - 依赖和资源按 CPU 自动并发（上限 64）；支持下载重试内的 HTTP Range 续传、快速切换备用源和下载速度显示。
 - 微软浏览器授权、Xbox / XSTS / Minecraft 权益校验与加密缓存；另提供显式离线登录，保存本地用户名和离线 UUID。
 - 游戏 Java 自动检测及缺失时下载，与启动器内置 Java 分开。
@@ -28,6 +29,7 @@ Windows x64 / JavaFX，Windows 95 风格 Minecraft Java 启动器。
 ## 微软登录当前状态
 
 Fuzz 的 Microsoft 应用已注册，Client ID 已内置，用户可直接点击“微软登录”，无需手动配置。
+“微软登录”会直接打开默认浏览器，在微软网页授权后通过本机回调自动继续验证 Minecraft 正版权益，无需输入设备代码。
 Minecraft Services 准入申请已提交，当前登录曾返回 HTTP 403，尚未完成真实账号登录和进入游戏的端到端验收。
 微软账号没有权益或认证失败时会阻止启动，不会自动降级成离线身份。离线账号请在“账号 → 离线账号”输入 3–16 位英文字母、数字或下划线，再点击“离线登录”。账号会自动保存，适用于单人游戏和允许离线账号的服务器。
 离线登录不访问微软服务；断网游玩前需要准备好游戏文件、依赖、资源和对应的游戏 Java，缺失文件仍会触发下载。
@@ -44,7 +46,7 @@ Minecraft Services 准入申请已提交，当前登录曾返回 HTTP 403，尚�
 .\build.ps1                  # 同样执行 Gradle build
 .\build.ps1 -Preview         # 编译并导出实际 JavaFX 截图
 .\build.ps1 -Package         # jlink + jpackage，生成新时间目录，不覆盖旧包
-.\build.ps1 -Installer       # 额外生成 Windows 安装程序；需要 WiX 3 的 candle/light 在 PATH 中
+.\build.ps1 -Installer       # 额外生成中文管理员安装程序；需要 Inno Setup 6.5.4 的 ISCC 在 PATH 中
 .\build.ps1 -Integration     # 额外联网安装测试；需要较多下载流量
 
 # 单独执行完整安装和 UI 冒烟测试
@@ -59,18 +61,23 @@ $env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21'
 
 `build/`、`dist/`、旧 Maven 的 `target/`、本地 `tools/`、IDE 配置、截图和账号凭据不提交到仓库。
 
+## 整合包
+
+实例页支持 MCBBS、MultiMC、服务器自动更新和 Modrinth 整合包的导入导出，也可拖入 ZIP/MRPACK。导出采用三步向导，支持展开目录并逐个勾选模组、配置、资源包及存档，包含半选状态、批量选择、文件大小统计和查找定位；导入可逐个选择可选客户端文件。服务器包在启动前检查更新并保留本地修改。详见[整合包功能](docs/modpacks.md)。
+
 ## 自动发布 Windows 安装包
 
-将 `.github/workflows/release-windows.yml` 推送到仓库后，在 GitHub 的 Releases 页面新建版本，选择包含该工作流的提交，使用 `v0.2.0`、`0.2.0` 或 `v0.2.0-beta.1` 这类标签，点击 **Publish release**。
+将 `.github/workflows/release-windows.yml` 推送到仓库后，在 GitHub 的 Releases 页面新建版本，选择包含该工作流的提交，填写标签，点击 **Publish release**。工作流不检查标签的版本格式，也不比较标签与项目版本。
 正式版和预发布版都会触发 **Windows release**；仅保存草稿或推送标签不会触发。
 
-工作流检出该标签的源码，在 Windows x64 上使用 Zulu JDK 21 和经 SHA-256 校验的 WiX 3.14.1，执行构建及核心测试，然后上传到同一个 Release：
+工作流检出该标签的源码，在 Windows x64 上使用 Zulu JDK 21 和经 SHA-256 校验的 Inno Setup 6.5.4，执行构建及核心测试，然后上传到同一个 Release：
 
-- `FuzzLauncher-<版本>-windows-x64-setup.exe`：安装程序，内置 Java/JavaFX，支持选择安装目录、开始菜单和桌面快捷方式，默认按当前用户安装。
+- `FuzzLauncher-<版本>-windows-x64-setup.exe`：简体中文安装程序，以管理员权限运行，发布者为 `1024_byteeeee`，内置 Java/JavaFX，支持选择安装目录、开始菜单和桌面快捷方式，默认安装到 Program Files。
 - `FuzzLauncher-<版本>-windows-x64-portable.zip`：解压后运行的便携版，需保留完整目录。
 - `SHA256SUMS.txt`：以上文件的 SHA-256 校验值。
 
-发布标签会覆盖此次构建的 Gradle 项目版本，无需提前修改 `gradle.properties`。Windows 原生安装版本使用标签的三段数字；预发布后缀保留在下载文件名中。Windows 安装版本要求前两段不大于 255、第三段不大于 65535；同一数字版本的预发布与正式版具有相同的 Windows 安装版本。
+构建和下载文件名中的版本读取自 `gradle.properties` 的 `launcher_version`；标签仅用于定位源码和接收附件的 Release。Windows 原生安装版本使用项目版本的三段数字，预发布后缀保留在下载文件名中。Windows 安装版本要求前两段不大于 255、第三段不大于 65535；同一数字版本的预发布与正式版具有相同的 Windows 安装版本。
+便携包和安装程序不附带 README、项目文档或运行时说明文档。
 默认运行本地核心测试，不自动进行账号授权、联网安装或桌面交互测试。安装包尚未配置代码签名。
 
 无需添加个人令牌或 Secret，上传使用该仓库的 `GITHUB_TOKEN` 和 `contents: write` 权限。失败后可在 Actions 里重跑，或手动运行 **Windows release** 并输入已有的已发布标签；同名附件会替换。

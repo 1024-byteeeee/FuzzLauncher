@@ -30,6 +30,7 @@ public final class LauncherViewModel implements AutoCloseable {
   private final AccountAuthenticator authentication;
   private final InstallGame install;
   private final LaunchGame launch;
+  private Modpacks modpacks;
   private final AccountAvatars avatarLoader;
   private final ObjectProperty<javafx.scene.image.Image> accountAvatar =
       new SimpleObjectProperty<>();
@@ -68,26 +69,8 @@ public final class LauncherViewModel implements AutoCloseable {
   private final StringProperty error = new SimpleStringProperty("");
   private final BooleanProperty gameRunning = new SimpleBooleanProperty();
   private final BooleanProperty loggingIn = new SimpleBooleanProperty();
-  private final ObjectProperty<DeviceLogin> deviceLogin = new SimpleObjectProperty<>();
-  private final BooleanProperty deviceAuthorized = new SimpleBooleanProperty();
-  private boolean refreshLoginRequested;
-
-  public ReadOnlyBooleanProperty deviceAuthorizedProperty() {
-    return deviceAuthorized;
-  }
-
-  public void refreshDeviceLogin() {
-    if (!loggingIn.get() || deviceAuthorized.get() || active == null) return;
-    refreshLoginRequested = true;
-    if (!active.cancel(true)) refreshLoginRequested = false;
-  }
-
   public ReadOnlyBooleanProperty loggingInProperty() {
     return loggingIn;
-  }
-
-  public ReadOnlyObjectProperty<DeviceLogin> deviceLoginProperty() {
-    return deviceLogin;
   }
 
   private final BooleanProperty savingSettings = new SimpleBooleanProperty();
@@ -108,6 +91,56 @@ public final class LauncherViewModel implements AutoCloseable {
 
   public void onRestartRequired(Runnable action) {
     restart = Objects.requireNonNull(action);
+  }
+
+  public void configureModpacks(Modpacks service) {
+    modpacks = Objects.requireNonNull(service);
+  }
+
+  public void inspectModpack(Path archive, Consumer<ModpackArchive.Info> ready) {
+    if (busy.get() || gameRunning.get()) return;
+    submit("读取整合包", context -> ModpackArchive.inspect(archive), ready);
+  }
+
+  public void importModpack(Path archive, String name, boolean optional) {
+    importModpack(archive, name, optional, Set.of());
+  }
+
+  public void importModpack(Path archive, String name, boolean optional, Set<String> excludedOptional) {
+    if (busy.get() || gameRunning.get()) return;
+    if (modpacks == null) { error.set("整合包服务尚未初始化"); return; }
+    Path root = Path.of(settings.get().gameRoot());
+    installing.set(true);
+    Set<String> excluded = Set.copyOf(excludedOptional);
+    submit("导入整合包", context -> modpacks.importPack(root, archive, name, optional, excluded, context),
+        instance -> { instances.add(instance); selected.set(instance); status.set("整合包导入完成：" + instance.name()); });
+  }
+
+  public void exportModpack(GameInstance instance, ModpackFormat format, String name, String version,
+      String author, String description, String fileApi, Set<String> entries, Path destination, boolean replace) {
+    if (busy.get() || gameRunning.get()) return;
+    Path source = new IsolationPolicy().gameDirectory(Path.of(settings.get().gameRoot()), instance, settings.get().isolation());
+    installing.set(true);
+    submit("导出整合包", context -> {
+      ModpackArchive.export(source, instance, format, name, version, author, description, fileApi, entries, destination, replace, context);
+      return destination;
+    }, path -> status.set("整合包已导出：" + path));
+  }
+
+  public void updateModpack(GameInstance instance) {
+    if (busy.get() || gameRunning.get() || modpacks == null) return;
+    Path root = Path.of(settings.get().gameRoot());
+    installing.set(true);
+    submit("更新服务器整合包", context -> modpacks.update(root, instance, context), updated -> {
+      replaceInstance(updated);
+      status.set("整合包更新检查完成，本地修改已保留");
+    });
+  }
+
+  private void replaceInstance(GameInstance updated) {
+    for (int i = 0; i < instances.size(); i++)
+      if (instances.get(i).id().equals(updated.id())) { instances.set(i, updated); break; }
+    if (selected.get() != null && selected.get().id().equals(updated.id())) selected.set(updated);
   }
 
   public LauncherViewModel(
@@ -310,8 +343,6 @@ public final class LauncherViewModel implements AutoCloseable {
 
   public void login() {
     if (!canLogin()) return;
-    deviceLogin.set(null);
-    deviceAuthorized.set(false);
     loggingIn.set(true);
     submit(
         "微软登录",
@@ -393,6 +424,15 @@ public final class LauncherViewModel implements AutoCloseable {
       error.set("请先安装并选择一个游戏实例");
       return;
     }
+    if (modpacks != null && identity != null) {
+      submit("检查整合包更新", context -> modpacks.update(Path.of(config.gameRoot()), instance, context), updated -> {
+        replaceInstance(updated);
+        launchPrepared(config, updated, identity);
+      });
+    } else launchPrepared(config, instance, identity);
+  }
+
+  private void launchPrepared(LauncherSettings config, GameInstance instance, Account identity) {
     submit(
         "启动游戏",
         context -> launch.execute(config, instance, identity, context),
@@ -615,7 +655,6 @@ public final class LauncherViewModel implements AutoCloseable {
         new Task<>() {
           @Override
           protected T call() throws Exception {
-            Task<T> operation = this;
             return work.execute(
                 new TaskContext() {
                   @Override
@@ -638,32 +677,6 @@ public final class LauncherViewModel implements AutoCloseable {
                     action.run();
                   }
 
-                  @Override
-                  public void deviceLogin(DeviceLogin challenge) {
-                    checkCancelled();
-                    Platform.runLater(
-                        () -> {
-                          if (!closed
-                              && active == operation
-                              && !operation.isCancelled()
-                              && loggingIn.get()) deviceLogin.set(challenge);
-                        });
-                  }
-
-                  @Override
-                  public void deviceLoginCompleted() {
-                    checkCancelled();
-                    Platform.runLater(
-                        () -> {
-                          if (!closed
-                              && active == operation
-                              && !operation.isCancelled()
-                              && loggingIn.get()) {
-                            deviceAuthorized.set(true);
-                            deviceLogin.set(null);
-                          }
-                        });
-                  }
                 });
           }
         };
@@ -696,13 +709,6 @@ public final class LauncherViewModel implements AutoCloseable {
           if (!finish(task)) return;
           status.set(catalog ? "已停止获取版本列表" : "任务已取消");
           LauncherLog.LOGGER.info(title + "已取消");
-          if (refreshLoginRequested) {
-            refreshLoginRequested = false;
-            Platform.runLater(
-                () -> {
-                  if (!closed && !busy.get()) login();
-                });
-          }
         });
     executor.execute(task);
   }
@@ -721,8 +727,6 @@ public final class LauncherViewModel implements AutoCloseable {
     progress.set(0);
     installing.set(false);
     savingSettings.set(false);
-    deviceLogin.set(null);
-    deviceAuthorized.set(false);
     loggingIn.set(false);
     busy.set(false);
     return true;
