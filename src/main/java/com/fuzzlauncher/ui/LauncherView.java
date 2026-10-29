@@ -161,7 +161,9 @@ public final class LauncherView extends RetroPage {
     ProgressBar progress = new ProgressBar();
     progress.progressProperty().bind(vm.progressProperty());
     progress.setPrefWidth(150);
-    progress.setMaxHeight(20);
+    progress.minHeightProperty().bind(status.heightProperty());
+    progress.prefHeightProperty().bind(status.heightProperty());
+    progress.maxHeightProperty().bind(status.heightProperty());
     Button cancel = button("取消", vm::cancel);
     cancel.disableProperty().bind(vm.busyProperty().not());
     HBox box = new HBox(5, identity, status, progress, cancel);
