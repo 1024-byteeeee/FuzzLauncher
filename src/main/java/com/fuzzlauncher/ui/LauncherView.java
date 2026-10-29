@@ -18,6 +18,7 @@ public final class LauncherView extends RetroPage {
   private final Label title = new Label("游戏实例");
   private double dragX, dragY;
   private InstallProgressDialog installDialog;
+  private DeviceLoginDialog loginDialog;
 
   public LauncherView(Stage stage, LauncherViewModel vm) {
     super(stage, vm, ignored -> {});
@@ -26,6 +27,17 @@ public final class LauncherView extends RetroPage {
     setLeft(navigation());
     setCenter(workspace);
     setBottom(status());
+    vm.loggingInProperty()
+        .addListener(
+            (observable, old, loggingIn) -> {
+              if (loggingIn) {
+                loginDialog = new DeviceLoginDialog(stage, vm);
+                loginDialog.show();
+              } else if (loginDialog != null) {
+                loginDialog.close();
+                loginDialog = null;
+              }
+            });
     vm.installingProperty()
         .addListener(
             (observable, old, installing) -> {

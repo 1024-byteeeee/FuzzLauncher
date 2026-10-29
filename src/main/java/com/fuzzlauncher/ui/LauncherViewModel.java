@@ -56,6 +56,17 @@ public final class LauncherViewModel implements AutoCloseable {
   private final StringProperty status = new SimpleStringProperty("就绪");
   private final StringProperty error = new SimpleStringProperty("");
   private final BooleanProperty gameRunning = new SimpleBooleanProperty();
+  private final BooleanProperty loggingIn = new SimpleBooleanProperty();
+  private final ObjectProperty<DeviceLogin> deviceLogin = new SimpleObjectProperty<>();
+
+  public ReadOnlyBooleanProperty loggingInProperty() {
+    return loggingIn;
+  }
+
+  public ReadOnlyObjectProperty<DeviceLogin> deviceLoginProperty() {
+    return deviceLogin;
+  }
+
   private final BooleanProperty savingSettings = new SimpleBooleanProperty();
 
   public ReadOnlyBooleanProperty savingSettingsProperty() {
@@ -276,12 +287,14 @@ public final class LauncherViewModel implements AutoCloseable {
 
   public void login() {
     if (!canLogin(false)) return;
+    deviceLogin.set(null);
+    loggingIn.set(true);
     submit(
         "微软登录",
         authentication::login,
         session -> {
           account.set(session.account());
-          status.set("已登录正版账号: " + session.account().name());
+          status.set("已登录微软账号: " + session.account().name());
         });
   }
 
@@ -547,6 +560,7 @@ public final class LauncherViewModel implements AutoCloseable {
         new Task<>() {
           @Override
           protected T call() throws Exception {
+            Task<T> operation = this;
             return work.execute(
                 new TaskContext() {
                   @Override
@@ -558,6 +572,18 @@ public final class LauncherViewModel implements AutoCloseable {
                   @Override
                   public boolean cancelled() {
                     return isCancelled();
+                  }
+
+                  @Override
+                  public void deviceLogin(DeviceLogin challenge) {
+                    checkCancelled();
+                    Platform.runLater(
+                        () -> {
+                          if (!closed
+                              && active == operation
+                              && !operation.isCancelled()
+                              && loggingIn.get()) deviceLogin.set(challenge);
+                        });
                   }
                 });
           }
@@ -606,6 +632,8 @@ public final class LauncherViewModel implements AutoCloseable {
     progress.set(0);
     installing.set(false);
     savingSettings.set(false);
+    deviceLogin.set(null);
+    loggingIn.set(false);
     busy.set(false);
     return true;
   }

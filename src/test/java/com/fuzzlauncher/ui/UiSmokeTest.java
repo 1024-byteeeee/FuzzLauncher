@@ -89,6 +89,7 @@ class UiSmokeTest {
             verifyInstanceEditingLock(view, app, repository);
             verifyAccountExclusion(stage);
             verifyAvatarLifecycle(stage);
+            verifyDeviceLoginDialog(stage);
             result.complete(null);
           } catch (Throwable ex) {
             result.completeExceptionally(ex);
@@ -216,6 +217,158 @@ class UiSmokeTest {
     } finally {
       release.countDown();
       stage.getScene().setRoot(original);
+    }
+  }
+
+  private void verifyDeviceLoginDialog(Stage stage) throws Exception {
+    var original = stage.getScene().getRoot();
+    var calls = new java.util.concurrent.atomic.AtomicInteger();
+    var release = new CountDownLatch(1);
+    Account microsoft =
+        new Account("device-fixture", "0123456789abcdef0123456789abcdef", "DeviceFixture");
+    AccountAuthenticator auth =
+        new AccountAuthenticator() {
+          public java.util.Optional<Account> savedAccount() {
+            return java.util.Optional.empty();
+          }
+
+          public GameSession login(TaskContext task) throws Exception {
+            int attempt = calls.incrementAndGet();
+            task.deviceLogin(
+                new DeviceLogin(
+                    "ABCD-EFGH",
+                    java.net.URI.create("https://microsoft.com/devicelogin"),
+                    java.time.Instant.now().plusSeconds(attempt == 3 ? -1 : 120)));
+            if (attempt == 1) {
+              // A late authenticator response must not resurrect the cancelled challenge or
+              // account.
+              while (release.getCount() != 0) {
+                try {
+                  release.await();
+                } catch (InterruptedException ignored) {
+                  Thread.interrupted();
+                }
+              }
+              try {
+                task.deviceLogin(
+                    new DeviceLogin(
+                        "STALE-CODE",
+                        java.net.URI.create("https://microsoft.com/devicelogin"),
+                        java.time.Instant.now().plusSeconds(120)));
+              } catch (CancellationException expected) {
+                /* The stale callback is rejected at its source. */
+              }
+            } else if (attempt == 3) {
+              while (true) {
+                task.checkCancelled();
+                Thread.sleep(20);
+              }
+            }
+            return new GameSession(microsoft, "fixture", java.time.Instant.MAX);
+          }
+
+          public GameSession loginOffline(String name, TaskContext task) {
+            return GameSession.offline(Account.offline(name));
+          }
+
+          public GameSession refresh(Account account, TaskContext task) {
+            throw new AssertionError();
+          }
+
+          public void logout(TaskContext task) {}
+        };
+    Path data = temp.resolve("device-login-state");
+    new SettingsStore(data)
+        .save(new LauncherSettings(data.resolve("game").toString(), IsolationMode.ALL));
+    try (var vm =
+        new LauncherViewModel(
+            new SettingsStore(data), new JsonInstanceRepository(data), null, auth, null, null)) {
+      LauncherView view = new LauncherView(stage, vm);
+      stage.getScene().setRoot(view);
+      vm.login();
+      assertTrue(vm.loggingInProperty().get());
+      DialogPane pane = devicePane();
+      assertTrue(((Button) pane.lookup("#copy-device-code")).isDisabled());
+      waitForFx(() -> vm.deviceLoginProperty().get() != null);
+      pane.applyCss();
+      pane.layout();
+      assertEquals("ABCD-EFGH", ((TextField) pane.lookup("#device-login-code")).getText());
+      assertFalse(((Button) pane.lookup("#copy-device-code")).isDisabled());
+      assertFalse(((Button) pane.lookup("#open-device-login")).isDisabled());
+      var clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
+      var previous = new java.util.HashMap<javafx.scene.input.DataFormat, Object>();
+      for (var type : clipboard.getContentTypes()) previous.put(type, clipboard.getContent(type));
+      try {
+        ((Button) pane.lookup("#copy-device-code")).fire();
+        assertEquals("ABCD-EFGH", clipboard.getString());
+      } finally {
+        if ("ABCD-EFGH".equals(clipboard.getString())) clipboard.setContent(previous);
+      }
+      javax.imageio.ImageIO.write(
+          javafx.embed.swing.SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null),
+          "png",
+          Path.of("build/ui-check/device-login.png").toFile());
+      Window loginWindow = pane.getScene().getWindow();
+      ((Button) pane.lookupButton(pane.getButtonTypes().getFirst())).fire();
+      waitForFx(() -> !vm.busyProperty().get());
+      assertFalse(vm.loggingInProperty().get());
+      assertNull(vm.deviceLoginProperty().get());
+      assertFalse(loginWindow.isShowing());
+      release.countDown();
+      awaitAccountOperation(vm, () -> vm.loginOffline("OfflineFixture"));
+      assertTrue(vm.accountProperty().get().isOffline());
+      assertNull(vm.deviceLoginProperty().get());
+      awaitAccountOperation(vm, vm::logout);
+      awaitAccountOperation(vm, vm::login);
+      assertEquals(microsoft, vm.accountProperty().get());
+      assertFalse(vm.loggingInProperty().get());
+      awaitAccountOperation(vm, vm::logout);
+      vm.login();
+      waitForFx(() -> vm.deviceLoginProperty().get() != null);
+      DialogPane expired = devicePane();
+      assertTrue(((Button) expired.lookup("#copy-device-code")).isDisabled());
+      assertTrue(((Button) expired.lookup("#open-device-login")).isDisabled());
+      assertTrue(((Label) expired.lookup("#device-login-expiration")).getText().contains("过期"));
+      ((Button) expired.lookup(".window-control")).fire();
+      waitForFx(() -> !vm.loggingInProperty().get());
+      assertNull(vm.accountProperty().get());
+    } finally {
+      release.countDown();
+      stage.getScene().setRoot(original);
+    }
+  }
+
+  private static DialogPane devicePane() {
+    return (DialogPane)
+        Window.getWindows().stream()
+            .filter(
+                window ->
+                    window.getScene() != null
+                        && window.getScene().lookup("#device-login-dialog") != null)
+            .findFirst()
+            .orElseThrow()
+            .getScene()
+            .getRoot();
+  }
+
+  private static void waitForFx(java.util.function.BooleanSupplier done) {
+    if (done.getAsBoolean()) return;
+    Object loop = new Object();
+    var timer =
+        new javafx.animation.Timeline(
+            new javafx.animation.KeyFrame(
+                javafx.util.Duration.millis(20),
+                event -> {
+                  if (done.getAsBoolean()) Platform.exitNestedEventLoop(loop, true);
+                }));
+    timer.setCycleCount(250);
+    timer.setOnFinished(event -> Platform.exitNestedEventLoop(loop, false));
+    timer.play();
+    try {
+      assertEquals(
+          true, Platform.enterNestedEventLoop(loop), "Timed out waiting for device login UI");
+    } finally {
+      timer.stop();
     }
   }
 

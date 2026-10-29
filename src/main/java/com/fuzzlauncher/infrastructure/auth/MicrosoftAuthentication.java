@@ -6,13 +6,12 @@ import com.fuzzlauncher.infrastructure.*;
 import com.google.gson.*;
 import com.microsoft.aad.msal4j.*;
 import java.io.*;
-import java.net.URI;
 import java.nio.file.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Official Microsoft browser flow followed by Xbox and Minecraft entitlement checks. */
+/** Microsoft device-code flow followed by Xbox and Minecraft entitlement checks. */
 public final class MicrosoftAuthentication
     implements com.fuzzlauncher.application.AccountAuthenticator {
   private static final Set<String> SCOPES = Set.of("XboxLive.signin");
@@ -43,10 +42,15 @@ public final class MicrosoftAuthentication
   }
 
   private PublicClientApplication application() throws Exception {
+    return application(true);
+  }
+
+  private PublicClientApplication application(boolean persistCache) throws Exception {
     ITokenCacheAccessAspect cache =
         new ITokenCacheAccessAspect() {
           @Override
           public void beforeCacheAccess(ITokenCacheAccessContext context) {
+            if (!persistCache) return;
             try {
               String value = secrets.read();
               if (!value.isBlank()) context.tokenCache().deserialize(value);
@@ -57,7 +61,7 @@ public final class MicrosoftAuthentication
 
           @Override
           public void afterCacheAccess(ITokenCacheAccessContext context) {
-            if (context.hasCacheChanged())
+            if (persistCache && context.hasCacheChanged())
               try {
                 secrets.write(context.tokenCache().serialize());
               } catch (IOException ex) {
@@ -73,17 +77,25 @@ public final class MicrosoftAuthentication
 
   public GameSession login(TaskContext task) throws Exception {
     task.checkCancelled();
-    task.report("请在系统浏览器中完成微软登录", -1);
-    PublicClientApplication app = application();
-    var parameters =
-        InteractiveRequestParameters.builder(URI.create("http://localhost"))
-            .scopes(SCOPES)
-            .prompt(Prompt.SELECT_ACCOUNT)
-            .httpPollingTimeoutInSeconds(180)
-            .build();
-    IAuthenticationResult result = await(app.acquireToken(parameters), task);
+    task.report("正在获取微软登录代码", -1);
+    // Keep a new authorization isolated until all Minecraft checks have succeeded.
+    PublicClientApplication app = application(false);
+    IAuthenticationResult result = DeviceCodeSignIn.acquire(app, SCOPES, task);
     GameSession session = exchange(result, task);
-    JsonFiles.write(identityFile, Map.of("account", session.account()));
+    task.checkCancelled();
+    String previousCache = secrets.read();
+    try {
+      secrets.write(app.tokenCache().serialize());
+      task.checkCancelled();
+      JsonFiles.write(identityFile, Map.of("account", session.account()));
+    } catch (IOException | RuntimeException ex) {
+      try {
+        secrets.write(previousCache);
+      } catch (IOException rollback) {
+        ex.addSuppressed(rollback);
+      }
+      throw ex;
+    }
     return session;
   }
 

@@ -7,6 +7,8 @@ public interface TaskContext {
 
   boolean cancelled();
 
+  default void deviceLogin(DeviceLogin challenge) {}
+
   default void checkCancelled() {
     if (cancelled() || Thread.currentThread().isInterrupted())
       throw new CancellationException("任务已取消");
