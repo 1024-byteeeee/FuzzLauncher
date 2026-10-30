@@ -26,7 +26,8 @@ OutputDir={#OutputDir}
 OutputBaseFilename=FuzzLauncher-{#AppVersion}-windows-x64-setup
 Compression=lzma2
 SolidCompression=yes
-WizardStyle=modern
+WizardStyle=classic
+DisableWelcomePage=no
 SetupIconFile={#MyAppIcon}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 VersionInfoVersion={#AppVersion}
@@ -54,3 +55,41 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "运行 {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// Use the classic Windows control rendering without changing the user's theme.
+function SetWindowTheme(hwnd: HWND; subAppName, subIdList: String): Integer;
+  external 'SetWindowTheme@uxtheme.dll stdcall';
+function DwmSetWindowAttribute(hwnd: HWND; attribute: Integer;
+  var value: Cardinal; valueSize: Integer): Integer;
+  external 'DwmSetWindowAttribute@dwmapi.dll stdcall';
+
+procedure ClassicWindow(Window: HWND);
+var
+  CaptionColor, TextColor: Cardinal;
+begin
+  // Caption colors are supported by DWM on Windows 11; older systems keep
+  // their native title bars. COLORREF is stored in blue-green-red order.
+  CaptionColor := $00800000;
+  TextColor := $00FFFFFF;
+  DwmSetWindowAttribute(Window, 35, CaptionColor, 4);
+  DwmSetWindowAttribute(Window, 36, TextColor, 4);
+end;
+
+procedure InitializeWizard;
+begin
+  ClassicWindow(WizardForm.Handle);
+  SetWindowTheme(WizardForm.BackButton.Handle, ' ', ' ');
+  SetWindowTheme(WizardForm.NextButton.Handle, ' ', ' ');
+  SetWindowTheme(WizardForm.CancelButton.Handle, ' ', ' ');
+  SetWindowTheme(WizardForm.DirBrowseButton.Handle, ' ', ' ');
+  SetWindowTheme(WizardForm.GroupBrowseButton.Handle, ' ', ' ');
+  SetWindowTheme(WizardForm.ProgressGauge.Handle, ' ', ' ');
+end;
+
+procedure InitializeUninstallProgressForm;
+begin
+  ClassicWindow(UninstallProgressForm.Handle);
+  SetWindowTheme(UninstallProgressForm.CancelButton.Handle, ' ', ' ');
+  SetWindowTheme(UninstallProgressForm.ProgressBar.Handle, ' ', ' ');
+end;
