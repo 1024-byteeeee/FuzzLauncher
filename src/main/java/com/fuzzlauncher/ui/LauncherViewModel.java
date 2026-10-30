@@ -311,9 +311,17 @@ public final class LauncherViewModel implements AutoCloseable {
     }
 
     public void loadVersions(Object owner) {
+        loadVersions(owner, false);
+    }
+
+    public void loadVersions(Object owner, boolean force) {
         submit("获取游戏版本", context -> {
             context.report("读取官方版本清单", -1);
-            return catalog.games();
+            return catalog.games(force, values -> Platform.runLater(() -> {
+                if (!closed && !context.cancelled()) {
+                    versions.setAll(values);
+                }
+            }));
         }, versions::setAll, owner, true);
     }
 
@@ -322,6 +330,10 @@ public final class LauncherViewModel implements AutoCloseable {
     }
 
     public void loadLoaders(LoaderType type, GameVersion game, Object owner) {
+        loadLoaders(type, game, owner, false);
+    }
+
+    public void loadLoaders(LoaderType type, GameVersion game, Object owner, boolean force) {
         if (busy.get()) {
             return;
         }
@@ -331,7 +343,11 @@ public final class LauncherViewModel implements AutoCloseable {
         }
         submit("获取加载器版本", context -> {
             context.report("查询 " + type + " 兼容版本", -1);
-            return catalog.loaders(type, game.id());
+            return catalog.loaders(type, game.id(), force, values -> Platform.runLater(() -> {
+                if (!closed && !context.cancelled()) {
+                    loaderVersions.setAll(values);
+                }
+            }));
         }, values -> {
             loaderVersions.setAll(values);
             if (values.isEmpty()) {

@@ -3,6 +3,7 @@ package com.fuzzlauncher.ui;
 import com.fuzzlauncher.infrastructure.BrowserFiles;
 import com.fuzzlauncher.infrastructure.WindowsFileClipboard;
 
+import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
@@ -28,8 +29,15 @@ final class RetroPathDialog extends Dialog<Path> {
     private final Label error = new Label();
     private Path current;
     private final BooleanProperty fileBusy = new SimpleBooleanProperty();
+    private final BooleanProperty loading = new SimpleBooleanProperty();
+    private final Map<Path, Boolean> directories = new HashMap<>();
+    private Task<List<Entry>> listing;
+    private long navigation;
 
-    private RetroPathDialog(Window owner, String title, Path initial, boolean directoryOnly) {
+    private record Entry(Path path, boolean directory) {
+    }
+
+    RetroPathDialog(Window owner, String title, Path initial, boolean directoryOnly) {
         this(owner, title, initial, directoryOnly, RetroPathDialog::isJava);
     }
 
@@ -67,7 +75,7 @@ final class RetroPathDialog extends Dialog<Path> {
             @Override
             protected void updateItem(Path path, boolean empty) {
                 super.updateItem(path, empty);
-                setText(empty || path == null ? null : (Files.isDirectory(path) ? "▸ " : "") + path.getFileName());
+                setText(empty || path == null ? null : (directories.getOrDefault(path, false) ? "▸ " : "") + path.getFileName());
             }
         });
         files.setPlaceholder(new Label(directoryOnly ? "没有子文件夹" : "没有可选择的文件"));
@@ -78,6 +86,9 @@ final class RetroPathDialog extends Dialog<Path> {
         });
         files.setOnKeyPressed(event -> {
             if (fileBusy.get()) {
+                return;
+            }
+            if (loading.get() && event.getCode() != KeyCode.F5) {
                 return;
             }
             if (event.isControlDown() && event.getCode() == KeyCode.C) {
@@ -115,7 +126,7 @@ final class RetroPathDialog extends Dialog<Path> {
         getDialogPane().setContent(content);
         content.disableProperty().bind(fileBusy);
         for (ButtonType type : getDialogPane().getButtonTypes()) {
-            getDialogPane().lookupButton(type).disableProperty().bind(fileBusy);
+            getDialogPane().lookupButton(type).disableProperty().bind(type == ButtonType.OK ? fileBusy.or(loading) : fileBusy);
         }
         setOnCloseRequest(event -> {
             if (fileBusy.get()) {
@@ -127,13 +138,11 @@ final class RetroPathDialog extends Dialog<Path> {
             if (directoryOnly) {
                 // An edited address must be resolved before returning a folder.
                 if (!location.getText().equals(current == null ? "" : current.toString())) {
-                    if (!openTypedPath()) {
-                        event.consume();
-                        return;
-                    }
-                    selected = null;
+                    openTypedPath();
+                    event.consume();
+                    return;
                 }
-                setResult(selected != null && Files.isDirectory(selected) ? selected : current);
+                setResult(selected != null && directories.getOrDefault(selected, false) ? selected : current);
             } else {
                 if (!location.getText().equals(current == null ? "" : current.toString())) {
                     try {
@@ -163,14 +172,14 @@ final class RetroPathDialog extends Dialog<Path> {
             }
         });
         setResultConverter(button -> button == ButtonType.OK ? getResult() : null);
+        addEventHandler(DialogEvent.DIALOG_HIDDEN, event -> {
+            navigation++;
+            if (listing != null) {
+                listing.cancel(true);
+            }
+        });
         Path start = initial == null ? Path.of(System.getProperty("user.home")) : initial.toAbsolutePath().normalize();
-        if (Files.isRegularFile(start)) {
-            start = start.getParent();
-        }
-        while (start != null && !Files.isDirectory(start)) {
-            start = start.getParent();
-        }
-        navigate(start == null ? Path.of(System.getProperty("user.home")) : start);
+        navigate(start, true, null, null);
     }
 
     static Optional<Path> directory(Window owner, String title, Path initial) {
@@ -187,24 +196,103 @@ final class RetroPathDialog extends Dialog<Path> {
             .showAndWait();
     }
 
-    private boolean navigate(Path path) {
-        try (var entries = Files.list(path)) {
-            List<Path> items = entries.filter(entry -> Files.isDirectory(entry) || (!directoryOnly && fileFilter.test(entry)))
-                .sorted(Comparator.<Path, Boolean>comparing(entry -> !Files.isDirectory(entry))
-                    .thenComparing(entry -> entry.getFileName().toString(), String.CASE_INSENSITIVE_ORDER))
-                .toList();
-            current = path.toRealPath();
-            if (!Objects.equals(drives.getValue(), current.getRoot())) {
-                drives.setValue(current.getRoot());
+    private void navigate(Path path) {
+        navigate(path, false, null, null);
+    }
+
+    private void navigate(Path path, boolean nearest, Path select, String message) {
+        if (path == null) {
+            return;
+        }
+        long generation = ++navigation;
+        if (listing != null) {
+            listing.cancel(true);
+        }
+        loading.set(true);
+        files.getItems().clear();
+        directories.clear();
+        error.setText("正在读取目录…");
+        Task<List<Entry>> task = new Task<>() {
+            private Path resolved;
+
+            @Override
+            protected List<Entry> call() throws Exception {
+                Path target = path;
+                if (nearest) {
+                    while (target != null && !Files.isDirectory(target)) {
+                        if (isCancelled()) {
+                            throw new java.util.concurrent.CancellationException();
+                        }
+                        target = target.getParent();
+                    }
+                }
+                if (target == null) {
+                    throw new IOException("找不到可用目录");
+                }
+                resolved = target.toRealPath();
+                List<Entry> entries = new ArrayList<>();
+                try (var stream = Files.newDirectoryStream(resolved)) {
+                    for (Path entry : stream) {
+                        if (isCancelled() || Thread.currentThread().isInterrupted()) {
+                            throw new java.util.concurrent.CancellationException();
+                        }
+                        boolean directory = Files.isDirectory(entry);
+                        if (directory || (!directoryOnly && fileFilter.test(entry))) {
+                            entries.add(new Entry(entry, directory));
+                        }
+                    }
+                }
+                entries.sort(Comparator.comparing((Entry entry) -> !entry.directory)
+                    .thenComparing(entry -> entry.path.getFileName().toString(), String.CASE_INSENSITIVE_ORDER));
+                return entries;
             }
-            location.setText(current.toString());
-            files.getItems().setAll(items.stream().map(entry -> current.resolve(entry.getFileName())).toList());
-            files.getSelectionModel().clearSelection();
-            error.setText("");
-            return true;
-        } catch (IOException | SecurityException ex) {
-            error.setText("无法打开目录：" + Objects.toString(ex.getMessage(), path.toString()));
-            return false;
+
+            @Override
+            protected void succeeded() {
+                if (generation != navigation) {
+                    return;
+                }
+                current = resolved;
+                if (!Objects.equals(drives.getValue(), current.getRoot())) {
+                    drives.setValue(current.getRoot());
+                }
+                location.setText(current.toString());
+                publish(getValue(), 0, generation, select, message);
+            }
+
+            @Override
+            protected void failed() {
+                if (generation == navigation) {
+                    loading.set(false);
+                    error.setText("无法打开目录：" + Objects.toString(getException().getMessage(), path.toString()));
+                }
+            }
+        };
+        listing = task;
+        Thread.ofVirtual().name("file-browser-listing").start(task);
+    }
+
+    private void publish(List<Entry> entries, int offset, long generation, Path select, String message) {
+        if (generation != navigation) {
+            return;
+        }
+        int end = Math.min(entries.size(), offset + 256);
+        List<Path> batch = new ArrayList<>(end - offset);
+        for (Entry entry : entries.subList(offset, end)) {
+            directories.put(entry.path, entry.directory);
+            batch.add(entry.path);
+        }
+        files.getItems().addAll(batch);
+        if (end < entries.size()) {
+            Platform.runLater(() -> publish(entries, end, generation, select, message));
+        } else {
+            listing = null;
+            loading.set(false);
+            error.setText(message == null ? "" : message);
+            if (select != null) {
+                files.getSelectionModel().select(select);
+                files.scrollTo(select);
+            }
         }
     }
 
@@ -235,13 +323,13 @@ final class RetroPathDialog extends Dialog<Path> {
                 }
             }
             int count = files.getSelectionModel().getSelectedItems().size();
-            open.setDisable(fileBusy.get() || count != 1);
-            cut.setDisable(fileBusy.get() || count == 0);
-            copy.setDisable(fileBusy.get() || count == 0);
-            rename.setDisable(fileBusy.get() || count != 1);
-            delete.setDisable(fileBusy.get() || count == 0);
-            paste.setDisable(fileBusy.get() || !WindowsFileClipboard.hasFiles());
-            create.setDisable(fileBusy.get());
+            open.setDisable(fileBusy.get() || loading.get() || count != 1);
+            cut.setDisable(fileBusy.get() || loading.get() || count == 0);
+            copy.setDisable(fileBusy.get() || loading.get() || count == 0);
+            rename.setDisable(fileBusy.get() || loading.get() || count != 1);
+            delete.setDisable(fileBusy.get() || loading.get() || count == 0);
+            paste.setDisable(fileBusy.get() || loading.get() || current == null || !WindowsFileClipboard.hasFiles());
+            create.setDisable(fileBusy.get() || loading.get() || current == null);
             refresh.setDisable(fileBusy.get());
             menu.show(files, event.getScreenX(), event.getScreenY());
             event.consume();
@@ -253,7 +341,7 @@ final class RetroPathDialog extends Dialog<Path> {
         MenuItem item = new MenuItem(title);
         item.setId(id);
         item.setOnAction(event -> {
-            if (!fileBusy.get()) {
+            if (!fileBusy.get() && (!loading.get() || id.equals("path-refresh"))) {
                 action.run();
             }
         });
@@ -278,7 +366,7 @@ final class RetroPathDialog extends Dialog<Path> {
     }
 
     private void paste() {
-        if (fileBusy.get()) {
+        if (fileBusy.get() || loading.get()) {
             return;
         }
         try {
@@ -339,7 +427,7 @@ final class RetroPathDialog extends Dialog<Path> {
     }
 
     private void newFolder() {
-        if (fileBusy.get()) {
+        if (fileBusy.get() || loading.get()) {
             return;
         }
         Path parent = current;
@@ -347,7 +435,7 @@ final class RetroPathDialog extends Dialog<Path> {
     }
 
     private void rename() {
-        if (fileBusy.get() || selection().size() != 1) {
+        if (fileBusy.get() || loading.get() || selection().size() != 1) {
             return;
         }
         Path source = selection().getFirst();
@@ -356,7 +444,7 @@ final class RetroPathDialog extends Dialog<Path> {
     }
 
     private void recycle() {
-        if (fileBusy.get()) {
+        if (fileBusy.get() || loading.get()) {
             return;
         }
         List<Path> selected = selection();
@@ -377,7 +465,7 @@ final class RetroPathDialog extends Dialog<Path> {
     }
 
     private void runFileOperation(String title, Callable<Path> work) {
-        if (fileBusy.get()) {
+        if (fileBusy.get() || loading.get()) {
             return;
         }
         Path directory = current;
@@ -391,16 +479,11 @@ final class RetroPathDialog extends Dialog<Path> {
         };
         task.setOnSucceeded(event -> {
             fileBusy.set(false);
-            navigate(directory);
-            if (task.getValue() != null) {
-                files.getSelectionModel().select(task.getValue());
-                files.scrollTo(task.getValue());
-            }
+            navigate(directory, false, task.getValue(), null);
         });
         task.setOnFailed(event -> {
             fileBusy.set(false);
-            navigate(directory);
-            error.setText(Objects.toString(task.getException().getMessage(), "文件操作失败"));
+            navigate(directory, false, null, Objects.toString(task.getException().getMessage(), "文件操作失败"));
         });
         Thread.ofVirtual().name("file-browser-operation").start(task);
     }
@@ -413,7 +496,8 @@ final class RetroPathDialog extends Dialog<Path> {
                 close();
                 return true;
             }
-            return navigate(path);
+            navigate(path);
+            return false;
         } catch (InvalidPathException ex) {
             error.setText("路径无效");
             return false;
@@ -421,11 +505,14 @@ final class RetroPathDialog extends Dialog<Path> {
     }
 
     private void openSelection() {
+        if (fileBusy.get() || loading.get()) {
+            return;
+        }
         Path selected = files.getSelectionModel().getSelectedItem();
         if (selected == null) {
             return;
         }
-        if (Files.isDirectory(selected)) {
+        if (directories.getOrDefault(selected, false)) {
             navigate(selected);
         } else if (!directoryOnly && fileFilter.test(selected)) {
             setResult(selected);

@@ -97,20 +97,7 @@ public final class JavaRuntimeManager {
         Path home = executable.getParent().getParent();
         int actual = home == null ? -1 : major(home);
         if (actual < 0) {
-            Process probe = new ProcessBuilder(executable.toString(), "-version").redirectErrorStream(true).start();
-            try {
-                if (!probe.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)) {
-                    throw new IOException("所选 Java 版本检测超时");
-                }
-                String output = new String(probe.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-                var matcher = java.util.regex.Pattern.compile("version \"(?:1\\.)?(\\d+)").matcher(output);
-                if (probe.exitValue() != 0 || !matcher.find()) {
-                    throw new IOException("无法识别所选 Java 版本");
-                }
-                actual = Integer.parseInt(matcher.group(1));
-            } finally {
-                ProcessCleanup.terminate(probe);
-            }
+            actual = JvmEnvironment.inspect(executable).major();
         }
         if (actual < required) {
             throw new IOException("此实例需要 Java " + required + " 或更高版本，所选 Java 为 " + actual);

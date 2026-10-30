@@ -7,7 +7,7 @@ import javafx.beans.binding.Bindings;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.stage.*;
 
 /** A page-owned compatible-version query; closing the chooser cancels that query. */
@@ -25,8 +25,18 @@ final class LoaderVersionDialog extends Dialog<ButtonType> {
         Label status = new Label();
         status.setWrapText(true);
         status.textProperty().bind(vm.statusProperty());
+        Button refresh = new Button("刷新");
+        refresh.setId("refresh-loader-versions");
+        refresh.disableProperty().bind(vm.busyProperty());
+        refresh.setOnAction(
+            event -> vm.loadLoaders(instance.loader(), new GameVersion(instance.gameVersion(), "release", "", ""), this, true));
+        refresh.setMinWidth(Region.USE_PREF_SIZE);
+        refresh.minHeightProperty().bind(versions.heightProperty());
+        refresh.prefHeightProperty().bind(versions.heightProperty());
+        refresh.maxHeightProperty().bind(versions.heightProperty());
+        HBox.setHgrow(versions, Priority.ALWAYS);
         VBox content = new VBox(14, new Label("Minecraft " + instance.gameVersion() + " · " + instance.loader()),
-            new Label("当前版本：" + instance.loaderVersion()), versions, status);
+            new Label("当前版本：" + instance.loaderVersion()), new HBox(8, versions, refresh), status);
         content.setPadding(new Insets(12));
         content.setPrefWidth(520);
         getDialogPane().setContent(content);

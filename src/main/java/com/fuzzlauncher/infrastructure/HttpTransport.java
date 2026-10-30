@@ -58,6 +58,10 @@ public final class HttpTransport {
         downloadSource = Objects.requireNonNull(source);
     }
 
+    public String catalogSource() {
+        return downloadSource.name();
+    }
+
     private List<String> candidates(String url, boolean metadata) {
         if (downloadUrl == null) {
             return DownloadMirrors.candidates(downloadSource, url, metadata);
@@ -207,6 +211,7 @@ public final class HttpTransport {
                 }
                 try {
                     HttpResponse<InputStream> response = client.send(request.build(), HttpResponse.BodyHandlers.ofInputStream());
+                    MessageDigest streamingHash = null;
                     try (InputStream input = response.body()) {
                         int status = response.statusCode();
                         if (status != 200 && status != 206) {
@@ -240,6 +245,13 @@ public final class HttpTransport {
                         resumable = validator != null && total >= 0
                             && response.headers().firstValue("Content-Encoding").orElse("identity").equalsIgnoreCase("identity")
                             && (status == 206 || response.headers().firstValue("Accept-Ranges").orElse("").equalsIgnoreCase("bytes"));
+                        if (offset == 0 && sha1 != null && !sha1.isBlank()) {
+                            try {
+                                streamingHash = MessageDigest.getInstance("SHA-1");
+                            } catch (NoSuchAlgorithmException ex) {
+                                throw new IllegalStateException(ex);
+                            }
+                        }
                         var lastRead = new java.util.concurrent.atomic.AtomicLong(System.nanoTime());
                         var stalled = new java.util.concurrent.atomic.AtomicBoolean();
                         Thread worker = Thread.currentThread();
@@ -262,6 +274,9 @@ public final class HttpTransport {
                             while ((count = input.read(buffer)) != -1) {
                                 task.checkCancelled();
                                 output.write(buffer, 0, count);
+                                if (streamingHash != null) {
+                                    streamingHash.update(buffer, 0, count);
+                                }
                                 received += count;
                                 downloadedBytes.addAndGet(count);
                                 long now = System.nanoTime();
@@ -286,7 +301,9 @@ public final class HttpTransport {
                             watchdog.cancel(false);
                         }
                     }
-                    if (sha1 != null && !sha1.isBlank() && !digest(partial, "SHA-1").equalsIgnoreCase(sha1)) {
+                    if (sha1 != null && !sha1.isBlank()
+                        && !(streamingHash == null ? digest(partial, "SHA-1") : HexFormat.of().formatHex(streamingHash.digest()))
+                            .equalsIgnoreCase(sha1)) {
                         resumable = false;
                         throw new IOException("文件 SHA-1 校验失败: " + destination.getFileName());
                     }

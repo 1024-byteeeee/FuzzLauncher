@@ -94,30 +94,51 @@ public final class OperationJournal {
     }
 
     public void configuration(Path file, Object after) throws IOException {
-        byte[] bytes = JsonFiles.GSON.toJson(after).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        file(file, bytes);
-        file(RecoverableJson.backup(file), Files.exists(file) ? Files.readAllBytes(file) : bytes);
-        file(RecoverableJson.backup(file), bytes); // A normal rollback may rotate this generation into the backup.
+        configurationPlan(file, after, null);
     }
 
     public void configuration(Path file, Object after, Object rollback) throws IOException {
-        configuration(file, after);
-        byte[] previousModel = JsonFiles.GSON.toJson(rollback).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        file(file, previousModel);
-        file(RecoverableJson.backup(file), previousModel);
+        configurationPlan(file, after, JsonFiles.GSON.toJson(rollback).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private void configurationPlan(Path file, Object after, byte[] rollback) throws IOException {
+        byte[] bytes = JsonFiles.GSON.toJson(after).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        String nextHash = hash(bytes);
+        file = checked(file);
+        byte[] previous = Files.exists(file) ? Files.readAllBytes(file) : null;
+        String previousHash = previous == null ? nextHash : hash(previous);
+        planFile(file, nextHash, previous, previousHash);
+        planFile(RecoverableJson.backup(file), previousHash);
+        planFile(RecoverableJson.backup(file), nextHash);
+        if (rollback != null) {
+            String rollbackHash = hash(rollback);
+            planFile(file, rollbackHash);
+            planFile(RecoverableJson.backup(file), rollbackHash);
+        }
+        // All snapshots are durable before authorizing any configuration writes.
+        save();
     }
 
     public void file(Path path, byte[] after) throws IOException {
+        planFile(path, hash(after));
+        save();
+    }
+
+    private void planFile(Path path, String hash) throws IOException {
+        planFile(path, hash, null, null);
+    }
+
+    private void planFile(Path path, String hash, byte[] snapshot, String snapshotHash) throws IOException {
         path = checked(path);
         String target = path.toString();
-        String hash = hash(after);
         for (Change change : state.changes) {
             if (change.target.equals(target)) {
                 if (change.tree != null) {
                     throw new IOException("恢复目标类型发生变化");
                 }
-                change.after.add(hash);
-                save();
+                if (!change.after.contains(hash)) {
+                    change.after.add(hash);
+                }
                 return;
             }
         }
@@ -127,13 +148,12 @@ public final class OperationJournal {
             if (!Files.isRegularFile(path)) {
                 throw new IOException("恢复目标不是普通文件：" + path);
             }
-            byte[] previous = Files.readAllBytes(path);
+            byte[] previous = snapshot == null ? Files.readAllBytes(path) : snapshot;
             backup = "snapshot-" + state.changes.size();
-            before = hash(previous);
+            before = snapshot == null ? hash(previous) : snapshotHash;
             JsonFiles.atomicWrite(directory.resolve(backup), previous);
         }
         state.changes.add(new Change(target, backup, before, new ArrayList<>(List.of(hash)), null, false));
-        save();
     }
 
     public void file(Path path, Path after) throws IOException {

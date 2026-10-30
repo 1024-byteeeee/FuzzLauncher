@@ -16,6 +16,7 @@ import java.util.function.Consumer;
 
 /** Shared retro controls and dialogs. Contains no application logic. */
 public class RetroPage extends BorderPane {
+    private static final Map<String, Image> IMAGES = new java.util.concurrent.ConcurrentHashMap<>();
     protected final LauncherViewModel vm;
     protected final Stage stage;
     private final Consumer<Integer> navigate;
@@ -63,7 +64,13 @@ public class RetroPage extends BorderPane {
     }
 
     protected static Image image(String name) {
-        return new Image(Objects.requireNonNull(LauncherView.class.getResourceAsStream("/com/fuzzlauncher/" + name + ".png")));
+        return IMAGES.computeIfAbsent(name, key -> {
+            try (var input = Objects.requireNonNull(LauncherView.class.getResourceAsStream("/com/fuzzlauncher/" + key + ".png"))) {
+                return new Image(input);
+            } catch (java.io.IOException ex) {
+                throw new java.io.UncheckedIOException(ex);
+            }
+        });
     }
 
     protected static ImageView icon(String name, int size) {

@@ -12,11 +12,71 @@ import java.util.regex.Pattern;
 
 /** Queries the selected runtime, independently of the launcher's bundled JVM. */
 public record JvmEnvironment(int major, boolean is64Bit, boolean hotspot, long physicalMemory, String encoding, Set<String> flags) {
+
+    private static final Map<Path, Cached> CACHE = new LinkedHashMap<>(32, 0.75f, true);
+    private static final java.util.concurrent.locks.ReentrantLock[] LOCKS = java.util.stream.IntStream.range(0, 32)
+        .mapToObj(i -> new java.util.concurrent.locks.ReentrantLock()).toArray(java.util.concurrent.locks.ReentrantLock[]::new);
+
+    private record Stamp(Object key, long size, java.nio.file.attribute.FileTime modified, java.nio.file.attribute.FileTime created) {
+        static Stamp read(Path file) throws IOException {
+            var attributes = Files.readAttributes(file, java.nio.file.attribute.BasicFileAttributes.class);
+            return new Stamp(attributes.fileKey(), attributes.size(), attributes.lastModifiedTime(), attributes.creationTime());
+        }
+    }
+
+    private record Identity(Stamp executable, Stamp release, String releaseHash) {
+        static Identity read(Path file) throws IOException {
+            Path release = file.getParent().getParent().resolve("release");
+            boolean exists = Files.exists(release);
+            return new Identity(Stamp.read(file), exists ? Stamp.read(release) : null,
+                exists ? com.fuzzlauncher.infrastructure.HttpTransport.digest(release, "SHA-256") : "");
+        }
+    }
+
+    private record Cached(Identity identity, JvmEnvironment environment) {
+    }
+
     public JvmEnvironment {
         flags = Set.copyOf(flags);
     }
 
     public static JvmEnvironment inspect(Path executable) throws IOException, InterruptedException {
+        return inspect(executable, JvmEnvironment::inspectUncached);
+    }
+
+    @FunctionalInterface
+    interface Probe {
+        JvmEnvironment inspect(Path executable) throws IOException, InterruptedException;
+    }
+
+    static JvmEnvironment inspect(Path executable, Probe probe) throws IOException, InterruptedException {
+        Path path = executable.toRealPath();
+        var lock = LOCKS[Math.floorMod(path.hashCode(), LOCKS.length)];
+        lock.lockInterruptibly();
+        try {
+            Identity identity = Identity.read(path);
+            synchronized (CACHE) {
+                Cached cached = CACHE.get(path);
+                if (cached != null && cached.identity.equals(identity)) {
+                    return cached.environment;
+                }
+            }
+            JvmEnvironment result = probe.inspect(path);
+            if (!Thread.currentThread().isInterrupted() && identity.equals(Identity.read(path))) {
+                synchronized (CACHE) {
+                    CACHE.put(path, new Cached(identity, result));
+                    while (CACHE.size() > 32) {
+                        CACHE.remove(CACHE.keySet().iterator().next());
+                    }
+                }
+            }
+            return result;
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    private static JvmEnvironment inspectUncached(Path executable) throws IOException, InterruptedException {
         String properties = probe(executable, List.of("-XshowSettings:properties", "-version"));
         String version = property(properties, "java.version", "");
         var matcher = Pattern.compile("(?:1\\.)?(\\d+)").matcher(version);

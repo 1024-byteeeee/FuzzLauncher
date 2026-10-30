@@ -50,7 +50,11 @@ class UiSmokeTest {
                 view.applyCss();
                 view.layout();
                 ListView<?> list = (ListView<?>) view.lookup(".list-view");
+                Node originalForm = view.lookup("#instance-settings-form");
+                Node originalImage = view.lookup("#instance-preview-image");
                 list.getSelectionModel().select(1);
+                assertSame(originalForm, view.lookup("#instance-settings-form"));
+                assertSame(originalImage, view.lookup("#instance-preview-image"));
                 view.applyCss();
                 view.layout();
                 assertTrue(view.lookupAll(".text-field").stream().filter(TextField.class::isInstance).map(TextField.class::cast)
@@ -75,6 +79,7 @@ class UiSmokeTest {
                 verifyAvatarLifecycle(stage);
                 verifyBrowserLoginDialog(stage);
                 verifyTaskProgressLayout(stage);
+                verifyDirectoryLoading(stage);
                 verifyModpackDialogs(stage);
                 verifyLoaderReinstallation(stage);
                 verifyStartupRecovery(stage);
@@ -552,10 +557,18 @@ class UiSmokeTest {
                     .getRoot();
                 @SuppressWarnings("unchecked")
                 ListView<Path> files = (ListView<Path>) picker.lookup("#path-entries");
-                files.getSelectionModel().select(archive.toAbsolutePath());
+                waitForFx(() -> !picker.lookupButton(ButtonType.OK).isDisabled());
+                Path entry = files.getItems().stream().filter(path -> {
+                    try {
+                        return Files.isSameFile(path, archive);
+                    } catch (java.io.IOException ex) {
+                        throw new java.io.UncheckedIOException(ex);
+                    }
+                }).findFirst().orElseThrow();
+                files.getSelectionModel().select(entry);
                 ((Button) picker.lookupButton(ButtonType.OK)).fire();
             });
-            assertEquals(archive.toAbsolutePath(), RetroPathDialog.modpack(stage, data).orElseThrow());
+            assertEquals(archive.toRealPath(), RetroPathDialog.modpack(stage, data).orElseThrow().toRealPath());
             ModpackFileTree large = new ModpackFileTree("大型整合包", path -> path.endsWith("-keep.jar"));
             java.util.List<ModpackArchive.ContentEntry> largeEntries = new java.util.ArrayList<>();
             for (int i = 0; i < 5000; i++) {
@@ -733,6 +746,8 @@ class UiSmokeTest {
             releaseQuery.set(new CountDownLatch(1));
             holdQuery.set(true);
             ((Button) view.lookup("#change-instance-loader")).fire();
+            waitForFx(() -> !vm.busyProperty().get() && loaderPane().lookup("#refresh-loader-versions") != null);
+            ((Button) loaderPane().lookup("#refresh-loader-versions")).fire();
             waitForFx(() -> vm.busyProperty().get());
             ((Button) loaderPane().lookup(".window-control")).fire();
             waitForFx(() -> !vm.busyProperty().get());
@@ -743,6 +758,42 @@ class UiSmokeTest {
             releaseQuery.get().countDown();
             server.stop(0);
             stage.getScene().setRoot(originalRoot);
+        }
+    }
+
+    private void verifyDirectoryLoading(Stage stage) throws Exception {
+        Path root = Files.createDirectories(temp.resolve("browser-loading")).toRealPath();
+        Path large = Files.createDirectories(root.resolve("large"));
+        Path small = Files.createDirectories(root.resolve("small"));
+        Path expected = Files.createDirectories(small.resolve("only-folder"));
+        for (int i = 0; i < 600; i++) {
+            Files.createDirectories(large.resolve(String.format(java.util.Locale.ROOT, "folder-%04d", i)));
+        }
+        RetroPathDialog dialog = new RetroPathDialog(stage, "异步目录回归", large, true);
+        try {
+            dialog.show();
+            DialogPane pane = dialog.getDialogPane();
+            Button choose = (Button) pane.lookupButton(ButtonType.OK);
+            @SuppressWarnings("unchecked")
+            ListView<Path> files = (ListView<Path>) pane.lookup("#path-entries");
+            waitForFx(() -> !choose.isDisabled());
+            assertEquals(600, files.getItems().size());
+            assertEquals("folder-0000", files.getItems().getFirst().getFileName().toString());
+            TextField address = (TextField) pane.lookup("#path-location");
+            address.setText(large.toString());
+            address.fireEvent(new javafx.event.ActionEvent());
+            assertTrue(choose.isDisabled());
+            address.setText(small.toString());
+            address.fireEvent(new javafx.event.ActionEvent());
+            waitForFx(() -> !choose.isDisabled());
+            assertEquals(java.util.List.of(expected), files.getItems());
+            assertEquals(small.toString(), address.getText());
+            address.setText(large.toString());
+            address.fireEvent(new javafx.event.ActionEvent());
+            dialog.close();
+            waitForFx(() -> !dialog.isShowing());
+        } finally {
+            dialog.close();
         }
     }
 
@@ -757,13 +808,20 @@ class UiSmokeTest {
             return;
         }
         Object loop = new Object();
+        boolean[] finished = { false };
         var timer = new javafx.animation.Timeline(new javafx.animation.KeyFrame(javafx.util.Duration.millis(20), event -> {
-            if (done.getAsBoolean()) {
+            if (!finished[0] && done.getAsBoolean()) {
+                finished[0] = true;
                 Platform.exitNestedEventLoop(loop, true);
             }
         }));
         timer.setCycleCount(250);
-        timer.setOnFinished(event -> Platform.exitNestedEventLoop(loop, false));
+        timer.setOnFinished(event -> {
+            if (!finished[0]) {
+                finished[0] = true;
+                Platform.exitNestedEventLoop(loop, false);
+            }
+        });
         timer.play();
         try {
             assertEquals(true, Platform.enterNestedEventLoop(loop), "Timed out waiting for device login UI");
@@ -867,7 +925,11 @@ class UiSmokeTest {
             Window window = Window.getWindows().stream().filter(w -> w.getScene() != null && w.getScene().lookup("#path-dialog") != null)
                 .findFirst().orElseThrow();
             DialogPane pane = (DialogPane) window.getScene().getRoot();
+            waitForFx(() -> !pane.lookupButton(ButtonType.OK).isDisabled());
             ((TextField) pane.lookup("#path-location")).setText(chosen.toString());
+            ((Button) pane.lookupButton(ButtonType.OK)).fire();
+            waitForFx(() -> !pane.lookupButton(ButtonType.OK).isDisabled());
+            assertEquals(chosen.toString(), ((TextField) pane.lookup("#path-location")).getText());
             ((Button) pane.lookupButton(ButtonType.OK)).fire();
         });
         browse.fire();

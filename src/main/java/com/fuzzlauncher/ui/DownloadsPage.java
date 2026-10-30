@@ -25,9 +25,7 @@ public final class DownloadsPage extends RetroPage {
         Runnable loadWhenReady = () -> {
             if (getScene() != null && pendingInitialLoad[0] && !vm.busyProperty().get()) {
                 pendingInitialLoad[0] = false;
-                if (vm.versions().isEmpty()) {
-                    vm.loadVersions(this);
-                }
+                vm.loadVersions(this);
             }
         };
         ChangeListener<Boolean> busyListener = (observable, wasBusy, busy) -> javafx.application.Platform.runLater(loadWhenReady);
@@ -79,7 +77,13 @@ public final class DownloadsPage extends RetroPage {
         loaderVersion.setMaxWidth(Double.MAX_VALUE);
         loaderVersion.setPromptText("选择兼容的加载器版本");
         TextField name = new TextField();
+        boolean[] pendingQuery = { false };
         Runnable query = () -> {
+            if (vm.busyProperty().get()) {
+                pendingQuery[0] = true;
+                return;
+            }
+            pendingQuery[0] = false;
             GameVersion v = games.getSelectionModel().getSelectedItem();
             loaderVersion.getSelectionModel().clearSelection();
             if (v != null) {
@@ -89,6 +93,23 @@ public final class DownloadsPage extends RetroPage {
                 vm.loadLoaders(loader.getValue(), v, this);
             }
         };
+        ChangeListener<Boolean> queryWhenReady = (observable, old, busy) -> {
+            if (!busy && pendingQuery[0]) {
+                javafx.application.Platform.runLater(() -> {
+                    if (getScene() != null && pendingQuery[0] && !vm.busyProperty().get()) {
+                        query.run();
+                    }
+                });
+            }
+        };
+        sceneProperty().addListener((observable, old, scene) -> {
+            if (old != null) {
+                vm.busyProperty().removeListener(queryWhenReady);
+            }
+            if (scene != null) {
+                vm.busyProperty().addListener(queryWhenReady);
+            }
+        });
         games.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> query.run());
         loader.valueProperty().addListener((o, a, b) -> query.run());
         filtered.addListener((ListChangeListener<GameVersion>) change -> {
@@ -100,14 +121,15 @@ public final class DownloadsPage extends RetroPage {
             games.getSelectionModel().selectFirst();
         }
         loaderVersion.disableProperty().bind(vm.busyProperty().or(loader.valueProperty().isEqualTo(LoaderType.VANILLA)));
-        Button refresh = button("刷新版本", () -> vm.loadVersions(this));
+        Button refresh = button("刷新版本", () -> vm.loadVersions(this, true));
         refresh.getStyleClass().add("version-refresh");
         refresh.setMinWidth(Region.USE_PREF_SIZE);
         refresh.minHeightProperty().bind(type.heightProperty());
         refresh.prefHeightProperty().bind(type.heightProperty());
         refresh.maxHeightProperty().bind(type.heightProperty());
         refresh.disableProperty().bind(vm.busyProperty());
-        Button refreshLoader = button("刷新加载器", () -> vm.loadLoaders(loader.getValue(), games.getSelectionModel().getSelectedItem(), this));
+        Button refreshLoader = button("刷新加载器",
+            () -> vm.loadLoaders(loader.getValue(), games.getSelectionModel().getSelectedItem(), this, true));
         refreshLoader.disableProperty().bind(vm.busyProperty().or(games.getSelectionModel().selectedItemProperty().isNull())
             .or(loader.valueProperty().isEqualTo(LoaderType.VANILLA)));
         Button install = button("下载并安装",

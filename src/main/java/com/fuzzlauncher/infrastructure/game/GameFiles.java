@@ -174,25 +174,27 @@ public final class GameFiles {
         };
         try (ExecutorService workers = Executors.newFixedThreadPool(http.downloadConcurrency(), Thread.ofVirtual().factory())) {
             CompletionService<Void> completions = new ExecutorCompletionService<>(workers);
-            List<Future<?>> futures = new ArrayList<>();
+            Set<Future<?>> futures = new HashSet<>();
+            Iterator<Artifact> pending = artifacts.iterator();
             try {
-                for (Artifact artifact : artifacts) {
-                    futures.add(completions.submit(() -> {
-                        task.checkCancelled();
-                        // Generated Forge libraries may not have a download URL or
-                        // checksum.
-                        if (!(artifact.sha1().isBlank() && Files.isRegularFile(artifact.path()))) {
-                            http.download(artifact.url(), artifact.path(), artifact.sha1(), workerContext);
-                        }
-                        return null;
-                    }));
-                }
                 int completed = 0;
                 long lastReport = 0;
                 while (completed < artifacts.size()) {
                     task.checkCancelled();
+                    while (pending.hasNext() && futures.size() < http.downloadConcurrency()) {
+                        task.checkCancelled();
+                        Artifact artifact = pending.next();
+                        futures.add(completions.submit(() -> {
+                            task.checkCancelled();
+                            if (!(artifact.sha1().isBlank() && Files.isRegularFile(artifact.path()))) {
+                                http.download(artifact.url(), artifact.path(), artifact.sha1(), workerContext);
+                            }
+                            return null;
+                        }));
+                    }
                     Future<Void> done = completions.poll(250, TimeUnit.MILLISECONDS);
                     if (done != null) {
+                        futures.remove(done);
                         done.get();
                         completed++;
                     }
