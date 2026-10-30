@@ -78,13 +78,18 @@ public final class LaunchGame {
         }
         List<String> command = new ArrayList<>();
         command.add(java.toString());
-        command.addAll(arguments.build(root, gameDir, natives, instance, session, version, classpath));
+        task.report("检测游戏 Java 参数", -1);
+        JvmEnvironment environment = JvmEnvironment.inspect(java);
+        task.checkCancelled();
+        command.addAll(arguments.build(root, gameDir, natives, instance, session, version, classpath, environment));
+        var outputEncoding = JvmDefaults.outputEncoding(environment,
+            command.stream().takeWhile(argument -> !argument.equals(version.get("mainClass").getAsString())).toList());
         task.checkCancelled();
         Files.createDirectories(logs);
         Path log = logs.resolve(instance.id() + "-" + System.currentTimeMillis() + ".log");
         task.report("正在启动 " + instance.name(), -1);
         if (settings.launcherVisibility() == LauncherVisibility.EXIT) {
-            Process detached = DetachedGame.start(command, gameDir, log, account.isOffline() ? "" : session.accessToken());
+            Process detached = DetachedGame.start(command, gameDir, log, account.isOffline() ? "" : session.accessToken(), outputEncoding);
             task.report("游戏已启动", 1);
             return new RunningGame(detached, log);
         }
@@ -92,7 +97,7 @@ public final class LaunchGame {
         String token = session.accessToken();
         boolean redactToken = !account.isOffline();
         Thread.ofVirtual().name("game-log-" + process.pid()).start(() -> {
-            try (BufferedReader input = process.inputReader(StandardCharsets.UTF_8);
+            try (BufferedReader input = process.inputReader(outputEncoding);
                 BufferedWriter output = Files.newBufferedWriter(log, StandardCharsets.UTF_8)) {
                 String line;
                 while ((line = input.readLine()) != null) {
@@ -106,5 +111,14 @@ public final class LaunchGame {
         });
         task.report("游戏已启动", 1);
         return new RunningGame(process, log);
+    }
+
+    public LaunchArguments.Preview previewJvm(Path root, GameInstance instance) throws Exception {
+        JsonObject version = resolver.resolveInstance(root, instance);
+        Path executable = instance.javaPath().isBlank() ? runtimes.findInstalled(runtimes.requiredMajor(version))
+            : JavaRuntimeManager.configuredExecutable(instance.javaPath());
+        JsonObject arguments = version.has("arguments") ? version.getAsJsonObject("arguments") : new JsonObject();
+        List<String> jvm = arguments.has("jvm") ? VersionResolver.argumentValues(arguments.getAsJsonArray("jvm")) : List.of();
+        return new LaunchArguments.Preview(executable == null ? null : JvmEnvironment.inspect(executable), jvm);
     }
 }

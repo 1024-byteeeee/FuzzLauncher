@@ -1,5 +1,6 @@
 package com.fuzzlauncher.ui;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.domain.*;
 import com.fuzzlauncher.infrastructure.ModpackArchive;
 
@@ -71,7 +72,7 @@ final class ModpackDialogs {
         dialog.getDialogPane().lookupButton(start).addEventFilter(ActionEvent.ACTION, event -> {
             try {
                 new GameInstance("validation", name.getText(), info.game(), info.loader(), info.loaderVersion(), IsolationOverride.ISOLATED,
-                    4096);
+                    LauncherConfig.get().defaults().maxMemoryMb());
                 java.util.Set<String> excluded = new java.util.HashSet<>(optionalPaths);
                 excluded.removeAll(optional.selectedPaths());
                 vm.importModpack(archive, name.getText().strip(), true, excluded);

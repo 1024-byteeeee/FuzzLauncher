@@ -44,12 +44,12 @@ class LaunchArgumentsTest {
         var parsed = LaunchArguments.parseMemory("-Xms1024M -Xmx 4096M -Dfile.encoding=UTF-8 -XX:+UseG1GC");
         assertEquals(1024, parsed.minimum());
         assertEquals(4096, parsed.maximum());
-        assertEquals(List.of("-XX:+UseG1GC"), parsed.jvmArguments());
+        assertEquals(List.of("-Dfile.encoding=UTF-8", "-XX:+UseG1GC"), parsed.jvmArguments());
 
         parsed = LaunchArguments.parseMemory("-Xmx4G -Dfile.encoding=UTF-8");
         assertEquals(4096, parsed.maximum());
         assertNull(parsed.minimum());
-        assertEquals(List.of(), parsed.jvmArguments());
+        assertEquals(List.of("-Dfile.encoding=UTF-8"), parsed.jvmArguments());
 
         parsed = LaunchArguments.parseMemory("-Dfile.encoding=GBK -XX:+UseG1GC");
         assertNull(parsed.minimum());

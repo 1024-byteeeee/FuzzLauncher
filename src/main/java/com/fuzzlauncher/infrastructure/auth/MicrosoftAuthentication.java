@@ -1,5 +1,6 @@
 package com.fuzzlauncher.infrastructure.auth;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.application.TaskContext;
 import com.fuzzlauncher.domain.*;
 import com.fuzzlauncher.infrastructure.*;
@@ -15,8 +16,8 @@ import java.util.concurrent.*;
 
 /** Microsoft browser authorization followed by Xbox and Minecraft entitlement checks. */
 public final class MicrosoftAuthentication implements com.fuzzlauncher.application.AccountAuthenticator {
-    private static final Set<String> SCOPES = Set.of("XboxLive.signin");
-    private static final String CLIENT_ID = "76c4eab4-d8c4-49df-9fa1-c996e33748a8";
+    private static final Set<String> SCOPES = LauncherConfig.get().authentication().scopes();
+    private static final String CLIENT_ID = LauncherConfig.get().authentication().clientId();
     private final HttpTransport http;
     private final Path identityFile;
     private final WindowsSecretStore secrets;
@@ -75,7 +76,7 @@ public final class MicrosoftAuthentication implements com.fuzzlauncher.applicati
                 }
             }
         };
-        var builder = PublicClientApplication.builder(CLIENT_ID).authority("https://login.microsoftonline.com/consumers/")
+        var builder = PublicClientApplication.builder(CLIENT_ID).authority(LauncherConfig.get().authentication().authority())
             .setTokenCacheAccessAspect(cache);
         if (executor != null) {
             builder.executorService(executor);
@@ -145,14 +146,14 @@ public final class MicrosoftAuthentication implements com.fuzzlauncher.applicati
             "{\"Properties\":{\"AuthMethod\":\"RPS\",\"SiteName\":\"user.auth.xboxlive.com\"},\"RelyingParty\":\"http://auth.xboxlive.com\",\"TokenType\":\"JWT\"}")
             .getAsJsonObject();
         body.getAsJsonObject("Properties").addProperty("RpsTicket", "d=" + microsoft.accessToken());
-        JsonObject xbox = http.postJson("https://user.auth.xboxlive.com/user/authenticate", body);
+        JsonObject xbox = http.postJson(LauncherConfig.get().authentication().xboxAuth(), body);
         JsonObject xstsBody = JsonParser.parseString(
             "{\"Properties\":{\"SandboxId\":\"RETAIL\",\"UserTokens\":[]},\"RelyingParty\":\"rp://api.minecraftservices.com/\",\"TokenType\":\"JWT\"}")
             .getAsJsonObject();
         xstsBody.getAsJsonObject("Properties").getAsJsonArray("UserTokens").add(xbox.get("Token").getAsString());
         task.checkCancelled();
         task.report("XSTS 验证", -1);
-        JsonObject xsts = http.postJson("https://xsts.auth.xboxlive.com/xsts/authorize", xstsBody);
+        JsonObject xsts = http.postJson(LauncherConfig.get().authentication().xstsAuth(), xstsBody);
         String hash = xsts.getAsJsonObject("DisplayClaims").getAsJsonArray("xui").get(0).getAsJsonObject().get("uhs").getAsString();
         JsonObject login = new JsonObject();
         login.addProperty("identityToken", "XBL3.0 x=" + hash + ";" + xsts.get("Token").getAsString());
@@ -160,7 +161,7 @@ public final class MicrosoftAuthentication implements com.fuzzlauncher.applicati
         task.report("Minecraft 正版权限校验", -1);
         JsonObject response;
         try {
-            response = http.postJson("https://api.minecraftservices.com/authentication/login_with_xbox", login);
+            response = http.postJson(LauncherConfig.get().service("minecraftBase") + "authentication/login_with_xbox", login);
         } catch (HttpTransport.HttpStatusException ex) {
             if (ex.statusCode() != 403) {
                 throw ex;
@@ -168,7 +169,7 @@ public final class MicrosoftAuthentication implements com.fuzzlauncher.applicati
             throw new IOException("Minecraft 服务返回 HTTP 403。请检查 Fuzz Client ID 的应用准入及账号状态。" + ex.getMessage(), ex);
         }
         String token = response.get("access_token").getAsString();
-        JsonObject entitlements = http.authorizedGet("https://api.minecraftservices.com/entitlements/mcstore", token);
+        JsonObject entitlements = http.authorizedGet(LauncherConfig.get().service("minecraftBase") + "entitlements/mcstore", token);
         boolean owns = false;
         if (entitlements.has("items")) {
             for (JsonElement item : entitlements.getAsJsonArray("items")) {
@@ -179,7 +180,7 @@ public final class MicrosoftAuthentication implements com.fuzzlauncher.applicati
         if (!owns) {
             throw new IOException("此微软账号没有有效的 Minecraft Java 版权益，无法启动游戏");
         }
-        JsonObject profile = http.authorizedGet("https://api.minecraftservices.com/minecraft/profile", token);
+        JsonObject profile = http.authorizedGet(LauncherConfig.get().service("minecraftBase") + "minecraft/profile", token);
         Account account = new Account(microsoft.account().homeAccountId(), profile.get("id").getAsString(),
             profile.get("name").getAsString(), AccountType.MICROSOFT, SkinAvatars.activeSkinUrl(profile));
         return new GameSession(account, token, Instant.now().plusSeconds(response.get("expires_in").getAsLong()));

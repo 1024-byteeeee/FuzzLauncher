@@ -1,5 +1,6 @@
 package com.fuzzlauncher.infrastructure;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.application.TaskContext;
 import com.fuzzlauncher.domain.Account;
 
@@ -69,7 +70,7 @@ public final class SkinAvatars implements com.fuzzlauncher.application.AccountAv
             }
         }
         if (url.isBlank()) {
-            JsonObject profile = http.getJson("https://sessionserver.mojang.com/session/minecraft/profile/" + uuid);
+            JsonObject profile = http.getJson(LauncherConfig.get().service("sessionProfile") + uuid);
             task.checkCancelled();
             if (profile.has("properties")) {
                 for (JsonElement element : profile.getAsJsonArray("properties")) {
@@ -117,7 +118,7 @@ public final class SkinAvatars implements com.fuzzlauncher.application.AccountAv
                 || !uri.getPath().matches("/texture/[0-9a-fA-F]{32,128}")) {
                 throw new IOException("皮肤地址不是官方纹理地址");
             }
-            return "https://textures.minecraft.net" + uri.getPath();
+            return LauncherConfig.get().service("textureBase") + uri.getPath().substring(1);
         } catch (IllegalArgumentException ex) {
             throw new IOException("皮肤地址无效", ex);
         }

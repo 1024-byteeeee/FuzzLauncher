@@ -1,5 +1,6 @@
 package com.fuzzlauncher.infrastructure.game;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.application.*;
 import com.fuzzlauncher.domain.GameVersion;
 import com.fuzzlauncher.infrastructure.HttpTransport;
@@ -23,6 +24,6 @@ public final class FabricInstaller implements LoaderInstaller {
         task.report("生成 Fabric 安装描述", -1);
         String gameId = URLEncoder.encode(game.id(), StandardCharsets.UTF_8).replace("+", "%20");
         String loaderId = URLEncoder.encode(loaderVersion, StandardCharsets.UTF_8);
-        return http.getJson("https://meta.fabricmc.net/v2/versions/loader/" + gameId + "/" + loaderId + "/profile/json");
+        return http.getJson(LauncherConfig.get().service("fabricMeta") + gameId + "/" + loaderId + "/profile/json");
     }
 }

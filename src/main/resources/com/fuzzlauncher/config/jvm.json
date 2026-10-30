@@ -1,0 +1,19 @@
+{
+    "jvmRules": [
+        {"minJava": 8, "maxJava": 99, "group": "common", "arguments": ["-Dfile.encoding=${encoding}", "-Djava.rmi.server.useCodebaseOnly=true", "-Dcom.sun.jndi.rmi.object.trustURLCodebase=false", "-Dcom.sun.jndi.cosnaming.object.trustURLCodebase=false", "-Dlog4j2.formatMsgNoLookups=true", "-Djava.net.useSystemProxies=true", "-Dfml.ignoreInvalidMinecraftCertificates=true", "-Dfml.ignorePatchDiscrepancies=true", "-Dminecraft.launcher.brand=FuzzLauncher", "-Dminecraft.launcher.version=${launcherVersion}"]},
+        {"minJava": 8, "maxJava": 99, "group": "windows", "arguments": ["-XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump"]},
+        {"minJava": 8, "maxJava": 99, "group": "windows10", "arguments": ["-Dos.name=Windows 10", "-Dos.version=10.0"]},
+        {"minJava": 8, "maxJava": 18, "group": "common", "arguments": ["-Dsun.stdout.encoding=${encoding}", "-Dsun.stderr.encoding=${encoding}"]},
+        {"minJava": 19, "maxJava": 99, "group": "common", "arguments": ["-Dstdout.encoding=${encoding}", "-Dstderr.encoding=${encoding}"]},
+        {"minJava": 8, "maxJava": 99, "group": "hotspot", "arguments": ["-XX:+UnlockExperimentalVMOptions", "-XX:+UnlockDiagnosticVMOptions"]},
+        {"minJava": 8, "maxJava": 99, "group": "g1", "arguments": ["-XX:+UseG1GC", "-XX:G1MixedGCCountTarget=5", "-XX:G1NewSizePercent=20", "-XX:G1ReservePercent=20", "-XX:MaxGCPauseMillis=50", "-XX:G1HeapRegionSize=32m"]},
+        {"minJava": 8, "maxJava": 99, "group": "hotspot", "arguments": ["-XX:-OmitStackTraceInFastThrow"]},
+        {"minJava": 8, "maxJava": 8, "group": "hotspot", "arguments": ["-XX:MaxInlineLevel=15"]},
+        {"minJava": 8, "maxJava": 99, "group": "large64", "arguments": ["-XX:-DontCompileHugeMethods", "-XX:MaxNodeLimit=240000", "-XX:NodeLimitFudgeFactor=8000", "-XX:TieredCompileTaskTimeout=10000", "-XX:ReservedCodeCacheSize=400M", "-XX:NmethodSweepActivity=1"]},
+        {"minJava": 9, "maxJava": 99, "group": "large64", "arguments": ["-XX:NonNMethodCodeHeapSize=12M", "-XX:ProfiledCodeHeapSize=194M"]},
+        {"minJava": 25, "maxJava": 26, "group": "compact64", "arguments": ["-XX:+UseCompactObjectHeaders"]},
+        {"minJava": 8, "maxJava": 99, "group": "32bit", "arguments": ["-Xss1m"]},
+        {"minJava": 16, "maxJava": 16, "group": "common", "arguments": ["--illegal-access=permit"]},
+        {"minJava": 24, "maxJava": 25, "group": "common", "arguments": ["--sun-misc-unsafe-memory-access=allow"]}
+    ]
+}

@@ -1,5 +1,6 @@
 package com.fuzzlauncher.infrastructure;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.domain.*;
 
 import java.io.IOException;
@@ -19,7 +20,8 @@ public final class SettingsStore {
     public LauncherSettings load() throws IOException {
         Path file = directory.resolve("settings.json");
         if (!Files.exists(file)) {
-            return new LauncherSettings(LauncherPaths.directory().resolve("game").toString(), IsolationMode.ALL);
+            return new LauncherSettings(LauncherPaths.directory().resolve(LauncherConfig.get().defaults().gameDirectory()).toString(),
+                LauncherConfig.get().defaults().isolation());
         }
         LauncherSettings settings = JsonFiles.GSON.fromJson(JsonFiles.read(file), LauncherSettings.class);
         if (settings.gameRoot() == null || settings.isolation() == null) {

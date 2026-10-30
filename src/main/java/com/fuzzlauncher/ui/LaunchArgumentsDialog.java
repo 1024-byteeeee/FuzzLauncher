@@ -4,7 +4,6 @@ import com.fuzzlauncher.domain.GameInstance;
 import com.fuzzlauncher.infrastructure.game.LaunchArguments;
 
 import javafx.geometry.Insets;
-import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -24,18 +23,64 @@ final class LaunchArgumentsDialog extends Dialog<ButtonType> {
         jvm.setId("launch-jvm-arguments");
         TextArea game = textArea(LaunchArguments.display(instance.gameArguments()));
         game.setId("launch-game-arguments");
-        Button jvmReset = button("恢复默认", () -> jvm.setText(defaultJvm(instance)));
-        jvmReset.setId("restore-default-jvm");
-        Button gameReset = button("恢复默认", () -> game.setText(""));
-        gameReset.setId("restore-default-game");
-        VBox content = new VBox(10, section("JVM 参数", jvmReset, jvm), section("游戏附加参数", gameReset, game));
+        TextArea automatic = textArea("正在检测 Java…");
+        automatic.setId("automatic-jvm-arguments");
+        automatic.setEditable(false);
+        automatic.setPrefRowCount(4);
+        LaunchArguments.Preview[] preview = new LaunchArguments.Preview[1];
+        Runnable updatePreview = () -> {
+            if (preview[0] == null) {
+                return;
+            }
+            if (preview[0].environment() == null) {
+                automatic.setText("尚未安装所需 Java，启动时自动生成");
+                return;
+            }
+            try {
+                automatic.setText(LaunchArguments.display(preview[0].generated(jvm.getText())));
+            } catch (IOException ex) {
+                automatic.setText("请完成 JVM 参数输入后查看");
+            }
+        };
+        jvm.textProperty().addListener((observable, before, after) -> updatePreview.run());
+        var work = vm.jvmPreview(instance);
+        java.util.concurrent.FutureTask<LaunchArguments.Preview> load = new java.util.concurrent.FutureTask<>(work) {
+            @Override
+            protected void done() {
+                javafx.application.Platform.runLater(() -> {
+                    if (isCancelled() || !isShowing()) {
+                        return;
+                    }
+                    try {
+                        preview[0] = get();
+                        updatePreview.run();
+                    } catch (InterruptedException ex) {
+                        Thread.currentThread().interrupt();
+                    } catch (java.util.concurrent.ExecutionException ex) {
+                        automatic.setText("无法预览自动参数：" + ex.getCause().getMessage());
+                    }
+                });
+            }
+        };
+        addEventHandler(DialogEvent.DIALOG_SHOWN, event -> Thread.ofVirtual().name("jvm-preview").start(load));
+        addEventHandler(DialogEvent.DIALOG_HIDDEN, event -> load.cancel(true));
+        VBox content = new VBox(10, section("JVM 参数", jvm), label("自动 JVM 参数"), automatic, section("游戏附加参数", game));
         content.setPadding(new Insets(10));
         content.setPrefWidth(640);
         getDialogPane().setContent(content);
         getDialogPane().setId("launch-arguments-dialog");
         ButtonType ok = new ButtonType("确定", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancel = new ButtonType("取消", ButtonBar.ButtonData.CANCEL_CLOSE);
-        getDialogPane().getButtonTypes().addAll(ok, cancel);
+        ButtonType reset = new ButtonType("恢复默认", ButtonBar.ButtonData.OTHER);
+        getDialogPane().getButtonTypes().addAll(reset, ok, cancel);
+        ((ButtonBar) getDialogPane().lookup(".button-bar")).setButtonOrder("+UOC");
+        Button resetButton = (Button) getDialogPane().lookupButton(reset);
+        resetButton.setId("restore-default-arguments");
+        resetButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            jvm.setText(defaultJvm(instance));
+            game.clear();
+            event.consume();
+        });
         ((Button) getDialogPane().lookupButton(ok)).addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
             try {
                 LaunchArguments.MemoryArguments parsed = LaunchArguments.parseMemory(jvm.getText());
@@ -53,23 +98,19 @@ final class LaunchArgumentsDialog extends Dialog<ButtonType> {
     }
 
     private static String defaultJvm(GameInstance instance) {
-        return "-Xms" + instance.minMemoryMb() + "M -Xmx" + instance.memoryMb() + "M -Dfile.encoding=UTF-8";
+        return LaunchArguments.display(LaunchArguments.defaultJvm(instance));
     }
 
     private static TextArea textArea(String text) {
         TextArea area = new TextArea(text);
-        area.setWrapText(false);
+        area.setWrapText(true);
         area.setPrefRowCount(5);
         area.setFont(new javafx.scene.text.Font("Courier New", 16));
         return area;
     }
 
-    private static Node section(String title, Button reset, TextArea area) {
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox header = new HBox(8, label(title), spacer, reset);
-        header.setAlignment(Pos.CENTER_LEFT);
-        VBox box = new VBox(6, header, area);
+    private static Node section(String title, TextArea area) {
+        VBox box = new VBox(6, label(title), area);
         VBox.setVgrow(area, Priority.ALWAYS);
         return box;
     }
@@ -80,10 +121,4 @@ final class LaunchArgumentsDialog extends Dialog<ButtonType> {
         return l;
     }
 
-    private static Button button(String text, Runnable action) {
-        Button b = new Button(text);
-        b.setOnAction(e -> action.run());
-        b.setFocusTraversable(false);
-        return b;
-    }
 }

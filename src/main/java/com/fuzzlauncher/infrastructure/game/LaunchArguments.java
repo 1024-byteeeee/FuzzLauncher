@@ -1,5 +1,6 @@
 package com.fuzzlauncher.infrastructure.game;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.domain.*;
 import com.fuzzlauncher.infrastructure.BaseVersions;
 import com.fuzzlauncher.infrastructure.JsonFiles;
@@ -26,6 +27,11 @@ public final class LaunchArguments {
 
     public List<String> build(Path root, Path gameDir, Path natives, GameInstance instance, GameSession session, JsonObject version,
         List<Path> libraries) throws IOException {
+        return build(root, gameDir, natives, instance, session, version, libraries, null);
+    }
+
+    public List<String> build(Path root, Path gameDir, Path natives, GameInstance instance, GameSession session, JsonObject version,
+        List<Path> libraries, JvmEnvironment environment) throws IOException {
         String client = version.get("_clientVersion").getAsString();
         List<Path> classpath = new ArrayList<>(libraries);
         classpath.add(version.has("_clientJarPath") ? JsonFiles.safeResolve(root, version.get("_clientJarPath").getAsString())
@@ -33,7 +39,7 @@ public final class LaunchArguments {
         Map<String, String> values = new HashMap<>();
         values.put("natives_directory", natives.toAbsolutePath().toString());
         values.put("launcher_name", "FuzzLauncher");
-        values.put("launcher_version", "0.2.0");
+        values.put("launcher_version", com.fuzzlauncher.Launcher.VERSION);
         values.put("classpath",
             String.join(java.io.File.pathSeparator, classpath.stream().map(p -> p.toAbsolutePath().toString()).toList()));
         values.put("classpath_separator", java.io.File.pathSeparator);
@@ -52,10 +58,15 @@ public final class LaunchArguments {
         values.put("version_type", JsonFiles.string(version, "type", "release"));
         values.put("clientid", "");
         values.put("auth_xuid", "");
-        List<String> result = new ArrayList<>(
-            List.of("-Xms" + instance.minMemoryMb() + "M", "-Xmx" + instance.memoryMb() + "M", "-Dfile.encoding=UTF-8"));
+        List<String> result = new ArrayList<>(defaultJvm(instance));
         JsonObject arguments = version.has("arguments") ? version.getAsJsonObject("arguments") : new JsonObject();
         List<String> jvm = arguments.has("jvm") ? VersionResolver.argumentValues(arguments.getAsJsonArray("jvm")) : List.of();
+        if (environment != null) {
+            List<String> existing = new ArrayList<>(result);
+            existing.addAll(jvm);
+            existing.addAll(instance.jvmArguments());
+            result.addAll(JvmDefaults.generate(environment, existing));
+        }
         if (jvm.isEmpty()) {
             result.addAll(List.of("-Djava.library.path=" + natives.toAbsolutePath(), "-cp", values.get("classpath")));
         } else {
@@ -88,6 +99,21 @@ public final class LaunchArguments {
     public record MemoryArguments(Integer minimum, Integer maximum, List<String> jvmArguments) {
     }
 
+    public record Preview(JvmEnvironment environment, List<String> versionArguments) {
+        public Preview {
+            versionArguments = List.copyOf(versionArguments);
+        }
+
+        public List<String> generated(String editableArguments) throws IOException {
+            if (environment == null) {
+                return List.of();
+            }
+            List<String> occupied = new ArrayList<>(versionArguments);
+            occupied.addAll(splitLegacy(editableArguments));
+            return JvmDefaults.generate(environment, occupied);
+        }
+    }
+
     public static MemoryArguments parseMemory(String text) throws IOException {
         List<String> tokens = splitLegacy(text);
         List<String> rest = new ArrayList<>();
@@ -109,7 +135,7 @@ public final class LaunchArguments {
                 }
                 continue;
             }
-            if (token.equals("-Dfile.encoding=UTF-8")) {
+            if (LauncherConfig.get().defaults().jvmArguments().contains(token)) {
                 continue;
             }
             rest.add(token);
@@ -120,6 +146,14 @@ public final class LaunchArguments {
     public static String display(List<String> tokens) {
         return tokens.stream().map(token -> token.indexOf(' ') >= 0 ? "\"" + token + "\"" : token)
             .collect(java.util.stream.Collectors.joining(" "));
+    }
+
+    public static List<String> defaultJvm(GameInstance instance) {
+        List<String> result = new ArrayList<>();
+        result.add("-Xms" + instance.minMemoryMb() + "M");
+        result.add("-Xmx" + instance.memoryMb() + "M");
+        result.addAll(LauncherConfig.get().defaults().jvmArguments());
+        return List.copyOf(result);
     }
 
     private static Integer memoryValue(String token, String prefix, int index, List<String> tokens) throws IOException {

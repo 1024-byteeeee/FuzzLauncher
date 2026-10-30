@@ -1,0 +1,21 @@
+{
+    "services": {
+        "manifest": "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+        "fabricMeta": "https://meta.fabricmc.net/v2/versions/loader/",
+        "forgeMaven": "https://maven.minecraftforge.net/net/minecraftforge/forge/",
+        "neoMaven": "https://maven.neoforged.net/releases/net/neoforged/",
+        "libraries": "https://libraries.minecraft.net/",
+        "assets": "https://resources.download.minecraft.net/",
+        "javaApi": "https://api.adoptium.net/v3/assets/latest/",
+        "sessionProfile": "https://sessionserver.mojang.com/session/minecraft/profile/",
+        "textureBase": "https://textures.minecraft.net/",
+        "minecraftBase": "https://api.minecraftservices.com/"
+    },
+    "authentication": {
+        "clientId": "76c4eab4-d8c4-49df-9fa1-c996e33748a8",
+        "authority": "https://login.microsoftonline.com/consumers/",
+        "scopes": ["XboxLive.signin"],
+        "xboxAuth": "https://user.auth.xboxlive.com/user/authenticate",
+        "xstsAuth": "https://xsts.auth.xboxlive.com/xsts/authorize"
+    }
+}

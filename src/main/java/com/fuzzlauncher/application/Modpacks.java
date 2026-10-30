@@ -1,5 +1,6 @@
 package com.fuzzlauncher.application;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.domain.*;
 import com.fuzzlauncher.infrastructure.*;
 import com.fuzzlauncher.infrastructure.ModpackArchive.Info;
@@ -69,14 +70,16 @@ public final class Modpacks {
 
     private static GameInstance instance(Info info, String id, String name, GameInstance previous) {
         String loader = info.loaderVersion();
-        if ((info.loader() == LoaderType.FORGE || info.loader() == LoaderType.NEOFORGE && info.game().equals("1.20.1"))
+        if ((info.loader() == LoaderType.FORGE
+            || info.loader() == LoaderType.NEOFORGE && LauncherConfig.get().java().neoForgeLegacyGames().contains(info.game()))
             && !loader.startsWith(info.game() + "-")) {
             loader = info.game() + "-" + loader;
         }
         return new GameInstance(id, name, info.game(), info.loader(), loader, IsolationOverride.ISOLATED,
-            previous == null ? 4096 : previous.memoryMb(), previous == null ? "" : previous.javaPath(),
-            previous == null ? 4096 : previous.minMemoryMb(), previous == null ? List.of() : previous.jvmArguments(),
-            previous == null ? List.of() : previous.gameArguments());
+            previous == null ? LauncherConfig.get().defaults().maxMemoryMb() : previous.memoryMb(),
+            previous == null ? "" : previous.javaPath(),
+            previous == null ? LauncherConfig.get().defaults().minMemoryMb() : previous.minMemoryMb(),
+            previous == null ? List.of() : previous.jvmArguments(), previous == null ? List.of() : previous.gameArguments());
     }
 
     public GameInstance update(Path root, GameInstance current, TaskContext task) throws Exception {

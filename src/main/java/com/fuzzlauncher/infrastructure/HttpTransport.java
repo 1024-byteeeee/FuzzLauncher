@@ -1,5 +1,6 @@
 package com.fuzzlauncher.infrastructure;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.application.TaskContext;
 import com.fuzzlauncher.domain.DownloadSource;
 
@@ -16,6 +17,25 @@ import java.util.function.UnaryOperator;
 import javax.net.ssl.SSLException;
 
 public final class HttpTransport {
+    private final Object downloadGate = new Object();
+    private volatile int downloadConcurrency = LauncherConfig.get().network().concurrency();
+    private int activeDownloads;
+
+    public int downloadConcurrency() {
+        return downloadConcurrency;
+    }
+
+    public void setDownloadConcurrency(int value) {
+        if (value < 1 || value > 128) {
+            throw new IllegalArgumentException("下载并行数应在 1–128 之间");
+        }
+        synchronized (downloadGate) {
+            downloadConcurrency = value;
+            downloadGate.notifyAll();
+        }
+    }
+
+    private final LauncherConfig.Network network = LauncherConfig.get().network();
     private volatile DownloadSource downloadSource = DownloadSource.OFFICIAL;
     private final UnaryOperator<String> downloadUrl;
     private final java.util.concurrent.atomic.AtomicLong downloadedBytes = new java.util.concurrent.atomic.AtomicLong();
@@ -59,7 +79,7 @@ public final class HttpTransport {
     }
 
     private final HttpClient client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL)
-        .connectTimeout(Duration.ofSeconds(10)).build();
+        .connectTimeout(Duration.ofSeconds(network.connectTimeoutSeconds())).build();
 
     public JsonObject getJson(String url) throws IOException, InterruptedException {
         IOException failure = null;
@@ -86,8 +106,9 @@ public final class HttpTransport {
     }
 
     private JsonObject json(HttpRequest request) throws IOException, InterruptedException {
-        HttpRequest bounded = HttpRequest.newBuilder(request, (name, value) -> true).timeout(Duration.ofSeconds(60))
-            .header("User-Agent", "FuzzLauncher/0.2.0").build();
+        HttpRequest bounded = HttpRequest.newBuilder(request, (name, value) -> true)
+            .timeout(Duration.ofSeconds(network.requestTimeoutSeconds()))
+            .header("User-Agent", "FuzzLauncher/" + com.fuzzlauncher.Launcher.VERSION).build();
         HttpResponse<String> response;
         try {
             response = client.send(bounded, HttpResponse.BodyHandlers.ofString());
@@ -125,7 +146,8 @@ public final class HttpTransport {
     }
 
     private String getTextDirect(String url) throws IOException, InterruptedException {
-        HttpResponse<String> response = client.send(HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(60)).GET().build(),
+        HttpResponse<String> response = client.send(
+            HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(network.requestTimeoutSeconds())).GET().build(),
             HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() / 100 != 2) {
             throw new IOException("元数据请求失败 HTTP " + response.statusCode());
@@ -134,6 +156,25 @@ public final class HttpTransport {
     }
 
     public void download(String url, Path destination, String sha1, TaskContext task) throws IOException, InterruptedException {
+        synchronized (downloadGate) {
+            while (activeDownloads >= downloadConcurrency) {
+                task.checkCancelled();
+                downloadGate.wait(100);
+            }
+            task.checkCancelled();
+            activeDownloads++;
+        }
+        try {
+            downloadFile(url, destination, sha1, task);
+        } finally {
+            synchronized (downloadGate) {
+                activeDownloads--;
+                downloadGate.notifyAll();
+            }
+        }
+    }
+
+    private void downloadFile(String url, Path destination, String sha1, TaskContext task) throws IOException, InterruptedException {
         task.checkCancelled();
         if (Files.isRegularFile(destination) && sha1 != null && !sha1.isBlank() && digest(destination, "SHA-1").equalsIgnoreCase(sha1)) {
             return;
@@ -146,7 +187,7 @@ public final class HttpTransport {
         boolean resumable = false;
         IOException failure = null;
         try {
-            for (int attempt = 0; attempt < 3; attempt++) {
+            for (int attempt = 0; attempt < network.attempts(); attempt++) {
                 task.checkCancelled();
                 String candidate = urls.get(Math.min(attempt, urls.size() - 1));
                 if (!candidate.equals(previousUrl)) {
@@ -158,8 +199,9 @@ public final class HttpTransport {
                 }
                 previousUrl = candidate;
                 long offset = resumable ? Files.size(partial) : 0;
-                HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(candidate)).timeout(Duration.ofSeconds(30))
-                    .header("User-Agent", "FuzzLauncher/0.2.0").header("Accept-Encoding", "identity").GET();
+                HttpRequest.Builder request = HttpRequest.newBuilder(URI.create(candidate))
+                    .timeout(Duration.ofSeconds(network.downloadTimeoutSeconds()))
+                    .header("User-Agent", "FuzzLauncher/" + com.fuzzlauncher.Launcher.VERSION).header("Accept-Encoding", "identity").GET();
                 if (offset > 0) {
                     request.header("Range", "bytes=" + offset + "-").header("If-Range", validator);
                 }
@@ -203,7 +245,7 @@ public final class HttpTransport {
                         Thread worker = Thread.currentThread();
                         var watchdog = DOWNLOAD_WATCHDOG.scheduleAtFixedRate(() -> {
                             if (worker.isInterrupted() || task.cancelled()
-                                || System.nanoTime() - lastRead.get() > Duration.ofSeconds(20).toNanos()) {
+                                || System.nanoTime() - lastRead.get() > Duration.ofSeconds(network.idleTimeoutSeconds()).toNanos()) {
                                 stalled.set(true);
                                 try {
                                     input.close();
@@ -224,7 +266,7 @@ public final class HttpTransport {
                                 downloadedBytes.addAndGet(count);
                                 long now = System.nanoTime();
                                 lastRead.set(now);
-                                if (now - lastReport >= Duration.ofMillis(500).toNanos()) {
+                                if (now - lastReport >= Duration.ofMillis(network.progressIntervalMillis()).toNanos()) {
                                     double seconds = Math.max(0.001, (now - start) / 1e9);
                                     task.report(
                                         String.format(Locale.ROOT, "下载 %s · %.1f MiB · %.1f MiB/s", destination.getFileName(),
@@ -235,7 +277,7 @@ public final class HttpTransport {
                             }
                             task.checkCancelled();
                             if (stalled.get()) {
-                                throw new IOException("下载连接中断或连续 20 秒没有接收到数据");
+                                throw new IOException("下载连接中断或连续 " + network.idleTimeoutSeconds() + " 秒没有接收到数据");
                             }
                             if (total >= 0 && received != total) {
                                 throw new IOException("下载未完成，可从已接收位置续传");

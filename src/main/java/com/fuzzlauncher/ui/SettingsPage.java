@@ -73,8 +73,31 @@ public final class SettingsPage extends RetroPage {
         visibility.setValue(config.launcherVisibility());
         visibility.setMaxWidth(Double.MAX_VALUE);
         visibility.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
+        CheckBox automaticDownloads = new CheckBox("自动");
+        automaticDownloads.setId("auto-download-threads");
+        automaticDownloads.setSelected(config.autoDownloadThreads());
+        Spinner<Integer> downloadThreads = new Spinner<>(1, 128, config.downloadThreads());
+        downloadThreads.setId("download-threads");
+        downloadThreads.setEditable(true);
+        downloadThreads.setPrefWidth(130);
+        downloadThreads.disableProperty().bind(automaticDownloads.selectedProperty().or(vm.busyProperty()));
+        automaticDownloads.disableProperty().bind(vm.busyProperty());
+        Label automaticCount = new Label("自动：" + com.fuzzlauncher.config.LauncherConfig.get().network().concurrency());
+        HBox parallelism = new HBox(12, automaticDownloads, downloadThreads, automaticCount);
+        parallelism.setAlignment(Pos.CENTER_LEFT);
         Button save = button("保存设置", () -> {
             try {
+                if (!automaticDownloads.isSelected()) {
+                    String input = downloadThreads.getEditor().getText().strip();
+                    if (!input.matches("[0-9]{1,3}")) {
+                        throw new IllegalArgumentException("下载并行数应为 1–128 之间的整数");
+                    }
+                    int count = Integer.parseInt(input);
+                    if (count < 1 || count > 128) {
+                        throw new IllegalArgumentException("下载并行数应在 1–128 之间");
+                    }
+                    downloadThreads.getValueFactory().setValue(count);
+                }
                 if (root.getText().isBlank()) {
                     throw new IllegalArgumentException("游戏根目录不能为空");
                 }
@@ -100,7 +123,7 @@ public final class SettingsPage extends RetroPage {
                     migrate = answer.get() == move;
                 }
                 vm.saveSettings(new LauncherSettings(normalized.toString(), mode.getValue(), source.getValue(), requested.toString(),
-                    visibility.getValue()), migrate);
+                    visibility.getValue(), automaticDownloads.isSelected(), downloadThreads.getValue()), migrate);
             } catch (IllegalArgumentException | java.io.IOException ex) {
                 message(Alert.AlertType.ERROR, "设置无效", ex.getMessage());
             }
@@ -108,8 +131,10 @@ public final class SettingsPage extends RetroPage {
         save.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
         Button data = button("打开启动器数据目录", () -> openFolder(vm.dataDirectory()));
         Button logs = button("打开启动器日志目录", () -> openFolder(vm.dataDirectory().resolve("logs")));
-        VBox content = new VBox(25, label("启动器设置", "section-title"), form(new String[] { "游戏根目录:", "数据文件目录:", "默认隔离:", "下载源:", "启动器可见性:" },
-            new Node[] { rootControl, dataControl, mode, source, visibility }), new HBox(10, save, data, logs));
+        VBox content = new VBox(25, label("启动器设置", "section-title"),
+            form(new String[] { "游戏根目录:", "数据文件目录:", "默认隔离:", "下载源:", "下载并行数:", "启动器可见性:" },
+                new Node[] { rootControl, dataControl, mode, source, parallelism, visibility }),
+            new HBox(10, save, data, logs));
         content.setPadding(new Insets(30));
         return content;
     }

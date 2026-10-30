@@ -1,5 +1,6 @@
 package com.fuzzlauncher;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.application.*;
 import com.fuzzlauncher.domain.*;
 import com.fuzzlauncher.infrastructure.*;
@@ -34,11 +35,13 @@ public final class FuzzApplication extends Application {
                 throw new java.io.IOException("此数据目录已有 Fuzz Launcher 运行，请先关闭已有窗口");
             }
             LauncherLog.configure(data);
+            LauncherConfig.initialize(data);
             SettingsStore settings = new SettingsStore(data);
             java.nio.file.Files.createDirectories(Path.of(settings.load().gameRoot()));
             InstanceRepository instances = new JsonInstanceRepository(data);
             HttpTransport http = new HttpTransport();
             http.setDownloadSource(settings.load().downloadSource());
+            http.setDownloadConcurrency(settings.load().effectiveDownloadThreads());
             VersionCatalog catalog = new VersionCatalog(http);
             BaseVersions baseVersions = new BaseVersions(LauncherPaths.directory().resolve("baseVerisons"));
             VersionResolver resolver = new VersionResolver(baseVersions);
@@ -62,8 +65,10 @@ public final class FuzzApplication extends Application {
                     RetroDialogs.alert(stage, Alert.AlertType.ERROR, "自动重启失败", "请手动重新打开启动器：" + ex.getMessage()).showAndWait();
                 }
             });
-            viewModel.settingsProperty()
-                .addListener((observable, oldSettings, newSettings) -> http.setDownloadSource(newSettings.downloadSource()));
+            viewModel.settingsProperty().addListener((observable, oldSettings, newSettings) -> {
+                http.setDownloadSource(newSettings.downloadSource());
+                http.setDownloadConcurrency(newSettings.effectiveDownloadThreads());
+            });
             stage.initStyle(StageStyle.UNDECORATED);
             Scene scene = new Scene(new LauncherView(stage, viewModel), 1200, 860);
             scene.getStylesheets().add(getClass().getResource("retro.css").toExternalForm());

@@ -2,6 +2,7 @@ package com.fuzzlauncher.infrastructure.game;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.util.*;
 
@@ -13,6 +14,10 @@ public final class DetachedGame {
     }
 
     public static Process start(List<String> command, Path directory, Path log, String token) throws IOException {
+        return start(command, directory, log, token, StandardCharsets.UTF_8);
+    }
+
+    public static Process start(List<String> command, Path directory, Path log, String token, Charset encoding) throws IOException {
         Path java = Path.of(System.getProperty("java.home"), "bin", "java.exe");
         if (!Files.isRegularFile(java)) {
             java = Path.of(System.getProperty("java.home"), "bin", "java");
@@ -34,6 +39,7 @@ public final class DetachedGame {
                 writeString(input, directory.toString());
                 writeString(input, log.toString());
                 writeString(input, token);
+                writeString(input, encoding.name());
             }
             String ready = relay.inputReader(StandardCharsets.UTF_8).readLine();
             if (!"STARTED".equals(ready)) {
@@ -69,6 +75,7 @@ public final class DetachedGame {
         Path directory;
         Path log;
         String token;
+        Charset encoding;
         try (DataInputStream input = new DataInputStream(System.in)) {
             int count = input.readInt();
             if (count <= 0) {
@@ -80,6 +87,7 @@ public final class DetachedGame {
             directory = Path.of(readString(input));
             log = Path.of(readString(input));
             token = readString(input);
+            encoding = Charset.forName(readString(input));
         }
         // Open the log before starting the game so failure cannot leave an unmonitored game behind.
         int code;
@@ -87,7 +95,7 @@ public final class DetachedGame {
             Process game = new ProcessBuilder(command).directory(directory.toFile()).redirectErrorStream(true).start();
             System.out.println("STARTED");
             System.out.flush();
-            try (BufferedReader input = game.inputReader(StandardCharsets.UTF_8)) {
+            try (BufferedReader input = game.inputReader(encoding)) {
                 String line;
                 while ((line = input.readLine()) != null) {
                     output.write(token.isEmpty() ? line : line.replace(token, "[REDACTED]"));

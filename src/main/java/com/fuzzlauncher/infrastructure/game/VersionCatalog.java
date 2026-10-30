@@ -1,5 +1,6 @@
 package com.fuzzlauncher.infrastructure.game;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.domain.*;
 import com.fuzzlauncher.infrastructure.*;
 
@@ -12,7 +13,7 @@ import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 
 public final class VersionCatalog {
-    public static final String MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
+    public static final String MANIFEST = LauncherConfig.get().service("manifest");
     private final HttpTransport http;
 
     public VersionCatalog(HttpTransport http) {
@@ -35,17 +36,14 @@ public final class VersionCatalog {
         }
         if (loader == LoaderType.FABRIC) {
             String gameId = java.net.URLEncoder.encode(game, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
-            JsonArray values = JsonParser.parseString(http.getText("https://meta.fabricmc.net/v2/versions/loader/" + gameId))
-                .getAsJsonArray();
+            JsonArray values = JsonParser.parseString(http.getText(LauncherConfig.get().service("fabricMeta") + gameId)).getAsJsonArray();
             List<String> result = new ArrayList<>();
             for (JsonElement item : values) {
                 result.add(item.getAsJsonObject().getAsJsonObject("loader").get("version").getAsString());
             }
             return result;
         }
-        String base = loader == LoaderType.FORGE ? "https://maven.minecraftforge.net/net/minecraftforge/forge/"
-            : game.equals("1.20.1") ? "https://maven.neoforged.net/releases/net/neoforged/forge/"
-                : "https://maven.neoforged.net/releases/net/neoforged/neoforge/";
+        String base = LauncherConfig.get().loaderMaven(loader, game);
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
         factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
@@ -58,7 +56,9 @@ public final class VersionCatalog {
             if (loader == LoaderType.FORGE && version.startsWith(game + "-")) {
                 result.add(version);
             }
-            if (loader == LoaderType.NEOFORGE && (game.equals("1.20.1") ? version.startsWith(game + "-") : neoMatches(game, version))) {
+            if (loader == LoaderType.NEOFORGE
+                && (LauncherConfig.get().java().neoForgeLegacyGames().contains(game) ? version.startsWith(game + "-")
+                    : neoMatches(game, version))) {
                 result.add(version);
             }
         }

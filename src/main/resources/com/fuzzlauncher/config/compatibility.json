@@ -1,0 +1,15 @@
+{
+    "java": {
+        "vendorDirectories": ["Java", "Zulu", "Eclipse Adoptium", "Microsoft", "BellSoft"],
+        "architecture": "x64",
+        "imageType": "jre",
+        "os": "windows",
+        "vendor": "eclipse",
+        "fallbackMajor": 8,
+        "rules": [
+            {"pattern": "1\\.17.*", "major": 16},
+            {"pattern": "1\\.(18|19|20)(\\..*)?", "major": 17}
+        ],
+        "neoForgeLegacyGames": ["1.20.1"]
+    }
+}

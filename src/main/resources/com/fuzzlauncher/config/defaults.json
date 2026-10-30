@@ -1,0 +1,12 @@
+{
+    "schemaVersion": 1,
+    "defaults": {
+        "minMemoryMb": 4096,
+        "maxMemoryMb": 4096,
+        "gameDirectory": "game",
+        "isolation": "ALL",
+        "downloadSource": "AUTO",
+        "launcherVisibility": "KEEP",
+        "jvmArguments": []
+    }
+}

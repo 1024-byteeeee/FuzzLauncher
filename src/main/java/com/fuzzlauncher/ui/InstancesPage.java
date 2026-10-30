@@ -117,7 +117,8 @@ public final class InstancesPage extends RetroPage {
             action.setStyle("-fx-padding: 5 3;");
             action.setMinWidth(54);
             action.setPrefWidth(54);
-            action.setMaxWidth(54);
+            action.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(action, Priority.ALWAYS);
         }
         VBox toolbar = new VBox(8, heading, new HBox(3, add, remove, refresh, importPack, exportPack));
         toolbar.setAlignment(Pos.CENTER_LEFT);

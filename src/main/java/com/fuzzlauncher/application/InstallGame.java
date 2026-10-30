@@ -1,5 +1,6 @@
 package com.fuzzlauncher.application;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.domain.*;
 import com.fuzzlauncher.infrastructure.*;
 import com.fuzzlauncher.infrastructure.game.*;
@@ -39,8 +40,8 @@ public final class InstallGame {
             throw new IllegalArgumentException("请选择兼容的加载器版本");
         }
         String id = "fuzz-" + UUID.randomUUID();
-        GameInstance instance = new GameInstance(id, name.strip(), game.id(), loader, loaderVersion, isolation, 4096, "", 4096, List.of(),
-            List.of());
+        GameInstance instance = new GameInstance(id, name.strip(), game.id(), loader, loaderVersion, isolation,
+            LauncherConfig.get().defaults().maxMemoryMb(), "", LauncherConfig.get().defaults().minMemoryMb(), List.of(), List.of());
         InstanceDirectories.checkAvailable(root, instance, instances.findAll());
         root = root.toAbsolutePath().normalize();
         Files.createDirectories(root);

@@ -519,6 +519,12 @@ public final class LauncherViewModel implements AutoCloseable {
         saveSettings(config, false);
     }
 
+    Callable<com.fuzzlauncher.infrastructure.game.LaunchArguments.Preview> jvmPreview(GameInstance instance) {
+        Path root = Path.of(settings.get().gameRoot());
+        return () -> launch == null ? new com.fuzzlauncher.infrastructure.game.LaunchArguments.Preview(null, List.of())
+            : launch.previewJvm(root, instance);
+    }
+
     public void saveSettings(LauncherSettings config, boolean migrate) {
         if (busy.get()) {
             return;

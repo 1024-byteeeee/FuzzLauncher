@@ -43,10 +43,10 @@ if ($Package) {
     $inputDir = Join-Path $PSScriptRoot 'build\package-input'
     $sdk = Join-Path $PSScriptRoot 'build\javafx\lib'
     $destination = Join-Path $PSScriptRoot "dist\$buildId"
-    & "$JdkPath\bin\jlink.exe" --module-path "$JdkPath\jmods;$sdk" --add-modules java.se,javafx.controls,javafx.swing,jdk.httpserver,jdk.crypto.ec,jdk.unsupported --strip-debug --no-header-files --no-man-pages --exclude-files 'glob:**/legal/**,glob:**/README*,glob:**/readme*' --output $runtime
+    & "$JdkPath\bin\jlink.exe" --module-path "$JdkPath\jmods;$sdk" --add-modules java.se,javafx.controls,javafx.swing,jdk.httpserver,jdk.crypto.ec,jdk.unsupported,jdk.management --strip-debug --no-header-files --no-man-pages --exclude-files 'glob:**/legal/**,glob:**/README*,glob:**/readme*' --output $runtime
     if ($LASTEXITCODE -ne 0) { throw 'Runtime creation failed.' }
     Copy-Item -Path build\javafx\bin\*.dll -Destination "$runtime\bin" -Force
-    & "$JdkPath\bin\jpackage.exe" --type app-image --name FuzzLauncher --dest $destination --input $inputDir --main-jar "fuzz-launcher-$Version.jar" --main-class com.fuzzlauncher.Launcher --runtime-image $runtime --app-version $nativeVersion --vendor '1024_byteeeee' --icon 'src/main/resources/com/fuzzlauncher/launcher.ico' --java-options '--add-modules=javafx.controls,javafx.swing,jdk.httpserver'
+    & "$JdkPath\bin\jpackage.exe" --type app-image --name FuzzLauncher --dest $destination --input $inputDir --main-jar "fuzz-launcher-$Version.jar" --main-class com.fuzzlauncher.Launcher --runtime-image $runtime --app-version $nativeVersion --vendor '1024_byteeeee' --icon 'src/main/resources/com/fuzzlauncher/launcher.ico' --java-options '--add-modules=javafx.controls,javafx.swing,jdk.httpserver,jdk.management'
     if ($LASTEXITCODE -ne 0) { throw 'Packaging failed.' }
     Write-Output "Portable application: $destination\FuzzLauncher\FuzzLauncher.exe"
     if ($Installer) {

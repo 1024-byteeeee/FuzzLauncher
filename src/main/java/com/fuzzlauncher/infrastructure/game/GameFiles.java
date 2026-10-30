@@ -1,5 +1,6 @@
 package com.fuzzlauncher.infrastructure.game;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.application.TaskContext;
 import com.fuzzlauncher.domain.GameVersion;
 import com.fuzzlauncher.infrastructure.*;
@@ -13,7 +14,7 @@ import java.util.concurrent.*;
 
 /** Downloads vanilla manifests, libraries, natives and assets using official metadata. */
 public final class GameFiles {
-    public static final int DOWNLOAD_CONCURRENCY = Math.min(Runtime.getRuntime().availableProcessors() * 4, 64);
+    public static final int DOWNLOAD_CONCURRENCY = LauncherConfig.get().network().concurrency();
 
     public record Artifact(String url, Path path, String sha1, boolean nativeJar) {
     }
@@ -71,7 +72,7 @@ public final class GameFiles {
                 }
             } else {
                 String path = VersionResolver.mavenPath(coordinate);
-                String base = JsonFiles.string(library, "url", "https://libraries.minecraft.net/");
+                String base = JsonFiles.string(library, "url", LauncherConfig.get().service("libraries"));
                 Path destination = JsonFiles.safeResolve(root.resolve("libraries"), path);
                 if (base.isBlank()) {
                     if (!Files.isRegularFile(destination)) {
@@ -129,8 +130,8 @@ public final class GameFiles {
                 throw new IOException("资源哈希格式无效");
             }
             String path = hash.substring(0, 2) + "/" + hash;
-            assets.add(new Artifact("https://resources.download.minecraft.net/" + path, root.resolve("assets/objects").resolve(path), hash,
-                false));
+            assets.add(
+                new Artifact(LauncherConfig.get().service("assets") + path, root.resolve("assets/objects").resolve(path), hash, false));
         }
         downloadAll(assets, "游戏资源", task);
         if (assetIndex.has("virtual") && assetIndex.get("virtual").getAsBoolean()) {
@@ -171,7 +172,7 @@ public final class GameFiles {
                 return task.cancelled();
             }
         };
-        try (ExecutorService workers = Executors.newFixedThreadPool(DOWNLOAD_CONCURRENCY, Thread.ofVirtual().factory())) {
+        try (ExecutorService workers = Executors.newFixedThreadPool(http.downloadConcurrency(), Thread.ofVirtual().factory())) {
             CompletionService<Void> completions = new ExecutorCompletionService<>(workers);
             List<Future<?>> futures = new ArrayList<>();
             try {

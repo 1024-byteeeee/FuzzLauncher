@@ -1,0 +1,33 @@
+{
+    "network": {
+        "connectTimeoutSeconds": 10,
+        "requestTimeoutSeconds": 60,
+        "downloadTimeoutSeconds": 30,
+        "idleTimeoutSeconds": 20,
+        "attempts": 3,
+        "threadsPerProcessor": 4,
+        "maxConcurrency": 64,
+        "progressIntervalMillis": 500
+    },
+    "downloads": {
+        "autoMirrorRegions": ["CN"],
+        "sources": {
+            "AUTO": {"label": "自动选择", "website": "https://bmclapi2.bangbang93.com/"},
+            "OFFICIAL": {"label": "官方源", "website": "https://www.minecraft.net/"},
+            "MIRROR": {"label": "镜像源（BMCLAPI）", "website": "https://bmclapi2.bangbang93.com/"}
+        },
+        "rules": [
+            {"hosts": ["repo.maven.apache.org", "repo1.maven.org"], "pathPrefix": "/maven2/", "target": "https://mirrors.cloud.tencent.com/nexus/repository/maven-public/"},
+            {"hosts": ["maven.fabricmc.net", "maven.minecraftforge.net"], "pathPrefix": "/", "target": "https://bmclapi2.bangbang93.com/maven/"},
+            {"hosts": ["files.minecraftforge.net"], "pathPrefix": "/maven/", "target": "https://bmclapi2.bangbang93.com/maven/"},
+            {"hosts": ["maven.neoforged.net"], "pathPrefix": "/releases/", "target": "https://bmclapi2.bangbang93.com/maven/"},
+            {"hosts": ["launchermeta.mojang.com", "launcher.mojang.com", "piston-meta.mojang.com", "piston-data.mojang.com"], "pathPrefix": "/", "target": "https://bmclapi2.bangbang93.com/"},
+            {"hosts": ["resources.download.minecraft.net"], "pathPrefix": "/", "target": "https://bmclapi2.bangbang93.com/assets/"},
+            {"hosts": ["libraries.minecraft.net"], "pathPrefix": "/", "target": "https://bmclapi2.bangbang93.com/libraries/"},
+            {"hosts": ["meta.fabricmc.net"], "pathPrefix": "/", "target": "https://bmclapi2.bangbang93.com/fabric-meta/"}
+        ],
+        "fallbacks": [
+            {"hosts": ["maven.neoforged.net"], "pathPrefix": "/", "target": "https://neoforged.forgecdn.net/"}
+        ]
+    }
+}

@@ -1,5 +1,6 @@
 package com.fuzzlauncher.infrastructure.game;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.application.*;
 import com.fuzzlauncher.domain.*;
 import com.fuzzlauncher.infrastructure.*;
@@ -34,9 +35,8 @@ public final class OfficialLoaderInstaller implements LoaderInstaller {
     @Override
     public JsonObject install(Path root, Path staging, GameVersion game, String loaderVersion, BaseVersions baseVersions, TaskContext task)
         throws Exception {
-        String artifact = type == LoaderType.FORGE || game.id().equals("1.20.1") ? "forge" : "neoforge";
-        String base = type == LoaderType.FORGE ? "https://maven.minecraftforge.net/net/minecraftforge/forge/"
-            : "https://maven.neoforged.net/releases/net/neoforged/" + artifact + "/";
+        String artifact = LauncherConfig.get().loaderArtifact(type, game.id());
+        String base = LauncherConfig.get().loaderMaven(type, game.id());
         Path installer = staging.resolve("installer.jar");
         String url = base + loaderVersion + "/" + artifact + "-" + loaderVersion + "-installer.jar";
         task.report("下载 " + type + " 安装器", -1);

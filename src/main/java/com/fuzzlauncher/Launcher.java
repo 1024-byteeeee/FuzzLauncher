@@ -2,7 +2,8 @@ package com.fuzzlauncher;
 
 /** Classpath entry point used by jpackage and java -jar. */
 public final class Launcher {
-    public static final String TITLE = "Fuzz launcher v" + version();
+    public static final String VERSION = version();
+    public static final String TITLE = "Fuzz launcher v" + VERSION;
 
     private Launcher() {
     }

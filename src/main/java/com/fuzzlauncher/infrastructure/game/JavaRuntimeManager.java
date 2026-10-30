@@ -1,5 +1,6 @@
 package com.fuzzlauncher.infrastructure.game;
 
+import com.fuzzlauncher.config.LauncherConfig;
 import com.fuzzlauncher.application.TaskContext;
 import com.fuzzlauncher.infrastructure.*;
 
@@ -24,16 +25,10 @@ public final class JavaRuntimeManager {
             return version.getAsJsonObject("javaVersion").get("majorVersion").getAsInt();
         }
         String id = JsonFiles.string(version, "_clientVersion", JsonFiles.string(version, "id", ""));
-        if (id.startsWith("1.17")) {
-            return 16;
-        }
-        if (id.matches("1\\.(18|19|20)(\\..*)?")) {
-            return 17;
-        }
-        return 8;
+        return LauncherConfig.get().java().requiredMajor(id);
     }
 
-    public Path resolve(int major, TaskContext task) throws Exception {
+    public Path findInstalled(int major) throws IOException {
         Path marker = directory.resolve("java-" + major + ".json");
         if (Files.exists(marker)) {
             Path home = Path.of(JsonFiles.read(marker).get("home").getAsString());
@@ -51,7 +46,7 @@ public final class JavaRuntimeManager {
             homes.add(current);
         }
         String programs = Objects.toString(System.getenv("ProgramFiles"), "C:/Program Files");
-        for (String vendor : List.of("Java", "Zulu", "Eclipse Adoptium", "Microsoft", "BellSoft")) {
+        for (String vendor : LauncherConfig.get().java().vendorDirectories()) {
             Path parent = Path.of(programs, vendor);
             if (Files.isDirectory(parent)) {
                 try (var children = Files.list(parent)) {
@@ -64,9 +59,20 @@ public final class JavaRuntimeManager {
                 return home.resolve("bin/java.exe");
             }
         }
+        return null;
+    }
+
+    public Path resolve(int major, TaskContext task) throws Exception {
+        Path marker = directory.resolve("java-" + major + ".json");
+        task.checkCancelled();
+        Path installed = findInstalled(major);
+        if (installed != null) {
+            return installed;
+        }
         task.report("自动下载游戏 Java " + major, -1);
-        String url = "https://api.adoptium.net/v3/assets/latest/" + major
-            + "/hotspot?architecture=x64&image_type=jre&os=windows&vendor=eclipse";
+        String url = LauncherConfig.get().service("javaApi") + major + "/hotspot?architecture=" + LauncherConfig.get().java().architecture()
+            + "&image_type=" + LauncherConfig.get().java().imageType() + "&os=" + LauncherConfig.get().java().os() + "&vendor="
+            + LauncherConfig.get().java().vendor();
         JsonArray releases = JsonParser.parseString(http.getText(url)).getAsJsonArray();
         if (releases.isEmpty()) {
             throw new IOException("没有可用的 Java " + major + "，请安装对应的 x64 JDK/JRE");
