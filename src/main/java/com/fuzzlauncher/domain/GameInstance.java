@@ -77,6 +77,9 @@ public record GameInstance(String id, String name, String gameVersion, LoaderTyp
     }
 
     public GameInstance withLaunchArguments(int minimumMemory, int maximumMemory, List<String> jvm, List<String> game) {
+        if (minimumMemory < 128) {
+            throw new IllegalArgumentException("最小内存应在 128–65536 MB 之间");
+        }
         return new GameInstance(id, name, gameVersion, loader, loaderVersion, isolation, maximumMemory, javaPath, minimumMemory, jvm, game);
     }
 }

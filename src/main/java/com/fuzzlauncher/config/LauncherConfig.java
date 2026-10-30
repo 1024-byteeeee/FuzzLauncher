@@ -114,8 +114,9 @@ public record LauncherConfig(Defaults defaults, Network network, Downloads downl
     }
 
     private void validate() {
-        require(defaults.minMemoryMb >= 128 && defaults.minMemoryMb <= defaults.maxMemoryMb && defaults.maxMemoryMb >= 512
-            && defaults.maxMemoryMb <= 65536, "默认内存范围无效");
+        bounded(defaults.minMemoryMb, 128, 65536, "defaults.minMemoryMb");
+        bounded(defaults.maxMemoryMb, 512, 65536, "defaults.maxMemoryMb");
+        require(defaults.minMemoryMb <= defaults.maxMemoryMb, "defaults.minMemoryMb 不能大于 defaults.maxMemoryMb");
         require(defaults.gameDirectory != null && defaults.gameDirectory.matches("[a-zA-Z0-9_-]+"), "默认游戏目录必须为目录名");
         Objects.requireNonNull(defaults.isolation, "默认隔离模式无效");
         Objects.requireNonNull(defaults.downloadSource(), "默认下载源无效");
@@ -144,7 +145,7 @@ public record LauncherConfig(Defaults defaults, Network network, Downloads downl
         for (Route rule : downloads.fallbacks) {
             rule.validate();
         }
-        for (String name : Set.of("manifest", "fabricMeta", "forgeMaven", "neoMaven", "libraries", "assets", "javaApi", "sessionProfile",
+        for (String name : Set.of("manifest", "fabricMeta", "forgeMaven", "neoMaven", "libraries", "assets", "sessionProfile",
             "textureBase", "minecraftBase")) {
             https(service(name));
         }
@@ -161,9 +162,6 @@ public record LauncherConfig(Defaults defaults, Network network, Downloads downl
         }
         for (String vendor : java.vendorDirectories) {
             require(!vendor.isBlank() && !vendor.contains("/") && !vendor.contains("\\") && !vendor.equals(".."), "Java 厂商目录无效");
-        }
-        for (String value : List.of(java.architecture, java.imageType, java.os, java.vendor)) {
-            require(value.matches("[a-zA-Z0-9_-]+"), "Java 下载参数无效");
         }
         for (JvmRule rule : jvmRules) {
             require(rule.minJava >= 8 && rule.maxJava >= rule.minJava && rule.maxJava <= 99, "JVM 规则版本范围无效");
@@ -274,8 +272,7 @@ public record LauncherConfig(Defaults defaults, Network network, Downloads downl
     public record JavaRule(String pattern, int major) {
     }
 
-    public record JavaRuntime(List<String> vendorDirectories, String architecture, String imageType, String os, String vendor,
-        int fallbackMajor, List<JavaRule> rules, Set<String> neoForgeLegacyGames) {
+    public record JavaRuntime(List<String> vendorDirectories, int fallbackMajor, List<JavaRule> rules, Set<String> neoForgeLegacyGames) {
         public JavaRuntime {
             vendorDirectories = List.copyOf(vendorDirectories);
             rules = List.copyOf(rules);

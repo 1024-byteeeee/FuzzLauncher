@@ -125,6 +125,10 @@ public final class LaunchArguments {
                 String prefix = initialHeap ? "-Xms" : "-Xmx";
                 boolean separated = token.equals(prefix);
                 Integer value = memoryValue(token, prefix, i, tokens);
+                int minimumValue = initialHeap ? 128 : 512;
+                if (value < minimumValue) {
+                    throw new IOException(prefix + " 应在 " + minimumValue + "–65536 MB 之间");
+                }
                 if (separated) {
                     i++;
                 }
@@ -144,8 +148,25 @@ public final class LaunchArguments {
     }
 
     public static String display(List<String> tokens) {
-        return tokens.stream().map(token -> token.indexOf(' ') >= 0 ? "\"" + token + "\"" : token)
-            .collect(java.util.stream.Collectors.joining(" "));
+        return tokens.stream().map(LaunchArguments::quote).collect(java.util.stream.Collectors.joining(" "));
+    }
+
+    private static String quote(String token) {
+        if (!token.isEmpty() && token.chars().noneMatch(c -> Character.isWhitespace(c) || c == '"' || c == '\'')) {
+            return token;
+        }
+        StringBuilder result = new StringBuilder("\"");
+        int slashes = 0;
+        for (char c : token.toCharArray()) {
+            if (c == '\\') {
+                slashes++;
+                continue;
+            }
+            result.append("\\".repeat(c == '"' ? slashes * 2 + 1 : slashes));
+            result.append(c);
+            slashes = 0;
+        }
+        return result.append("\\".repeat(slashes * 2)).append('"').toString();
     }
 
     public static List<String> defaultJvm(GameInstance instance) {
@@ -183,6 +204,9 @@ public final class LaunchArguments {
             throw new IOException("无效的内存参数: " + token);
         }
         if (unit != null && (unit.equals("g") || unit.equals("G"))) {
+            if (value > 65536 / 1024) {
+                throw new IOException("内存参数超出 65536 MB 上限: " + token);
+            }
             value *= 1024;
         }
         if (value > 65536) {
@@ -210,7 +234,29 @@ public final class LaunchArguments {
         StringBuilder token = new StringBuilder();
         char quote = 0;
         boolean started = false;
-        for (char c : input.toCharArray()) {
+        for (int index = 0; index < input.length(); index++) {
+            char c = input.charAt(index);
+            if (c == '\\') {
+                int start = index;
+                while (index < input.length() && input.charAt(index) == '\\') {
+                    index++;
+                }
+                int count = index - start;
+                char next = index < input.length() ? input.charAt(index) : 0;
+                if ((next == '"' || next == '\'') && (quote == 0 || quote == next)) {
+                    token.append("\\".repeat(count / 2));
+                    if (count % 2 != 0) {
+                        token.append(next);
+                    } else {
+                        quote = quote == 0 ? next : 0;
+                    }
+                } else {
+                    token.append("\\".repeat(count));
+                    index--;
+                }
+                started = true;
+                continue;
+            }
             if ((c == '\"' || c == '\'') && (quote == 0 || quote == c)) {
                 quote = quote == 0 ? c : 0;
                 started = true;

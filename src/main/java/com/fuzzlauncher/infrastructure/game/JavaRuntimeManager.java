@@ -12,11 +12,9 @@ import java.util.*;
 
 /** Game runtimes are independent of the launcher's trimmed, bundled Java runtime. */
 public final class JavaRuntimeManager {
-    private final HttpTransport http;
     private final Path directory;
 
-    public JavaRuntimeManager(HttpTransport http, Path directory) {
-        this.http = http;
+    public JavaRuntimeManager(Path directory) {
         this.directory = directory;
     }
 
@@ -63,41 +61,12 @@ public final class JavaRuntimeManager {
     }
 
     public Path resolve(int major, TaskContext task) throws Exception {
-        Path marker = directory.resolve("java-" + major + ".json");
         task.checkCancelled();
         Path installed = findInstalled(major);
         if (installed != null) {
             return installed;
         }
-        task.report("自动下载游戏 Java " + major, -1);
-        String url = LauncherConfig.get().service("javaApi") + major + "/hotspot?architecture=" + LauncherConfig.get().java().architecture()
-            + "&image_type=" + LauncherConfig.get().java().imageType() + "&os=" + LauncherConfig.get().java().os() + "&vendor="
-            + LauncherConfig.get().java().vendor();
-        JsonArray releases = JsonParser.parseString(http.getText(url)).getAsJsonArray();
-        if (releases.isEmpty()) {
-            throw new IOException("没有可用的 Java " + major + "，请安装对应的 x64 JDK/JRE");
-        }
-        JsonObject archive = releases.get(0).getAsJsonObject().getAsJsonObject("binary").getAsJsonObject("package");
-        Files.createDirectories(directory);
-        Path zip = directory.resolve("java-" + major + ".zip");
-        String expected = archive.get("checksum").getAsString();
-        if (!Files.isRegularFile(zip) || !HttpTransport.digest(zip, "SHA-256").equalsIgnoreCase(expected)) {
-            http.download(archive.get("link").getAsString(), zip, "", task);
-        }
-        if (!HttpTransport.digest(zip, "SHA-256").equalsIgnoreCase(expected)) {
-            throw new IOException("Java 安装包 SHA-256 校验失败");
-        }
-        Path extracted = Files.createTempDirectory(directory, "java-" + major + "-");
-        ZipFiles.extract(zip, extracted, false, task);
-        try (var children = Files.list(extracted)) {
-            for (Path home : children.toList()) {
-                if (major(home) == major && Files.exists(home.resolve("bin/java.exe"))) {
-                    JsonFiles.write(marker, Map.of("home", home.toAbsolutePath().toString()));
-                    return home.resolve("bin/java.exe");
-                }
-            }
-        }
-        throw new IOException("Java 安装包缺少有效运行环境");
+        throw new IOException("未找到可用的 Java " + major + "。\n请先安装对应版本的 Java，或在实例详情的“Java 路径”中指定 java.exe 后重试。");
     }
 
     public static Path configuredExecutable(String configured) throws IOException {
@@ -140,7 +109,7 @@ public final class JavaRuntimeManager {
                 }
                 actual = Integer.parseInt(matcher.group(1));
             } finally {
-                probe.destroyForcibly();
+                ProcessCleanup.terminate(probe);
             }
         }
         if (actual < required) {

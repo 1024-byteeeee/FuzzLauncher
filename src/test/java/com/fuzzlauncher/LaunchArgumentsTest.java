@@ -60,8 +60,8 @@ class LaunchArgumentsTest {
         assertEquals(6000, parsed.maximum());
         assertEquals(List.of(), parsed.jvmArguments());
 
-        parsed = LaunchArguments.parseMemory("-Xmx 12M 34M");
-        assertEquals(12, parsed.maximum());
+        parsed = LaunchArguments.parseMemory("-Xmx 512M 34M");
+        assertEquals(512, parsed.maximum());
         assertEquals(List.of("34M"), parsed.jvmArguments());
 
         parsed = LaunchArguments.parseMemory("-Dfoo=\"a b\"");

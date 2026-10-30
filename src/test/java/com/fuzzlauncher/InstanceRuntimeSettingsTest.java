@@ -74,7 +74,7 @@ class InstanceRuntimeSettingsTest {
         Files.createDirectories(home.resolve("bin"));
         Path executable = Files.createFile(home.resolve("bin/java.exe"));
         Files.writeString(home.resolve("release"), "JAVA_VERSION=\"21.0.4\"\n");
-        var manager = new JavaRuntimeManager(new HttpTransport(), temp.resolve("auto"));
+        var manager = new JavaRuntimeManager(temp.resolve("auto"));
         assertEquals(executable, manager.resolve(21, home.toString(), task));
         assertEquals(executable, manager.resolve(17, "\"" + executable + "\"", task));
         assertEquals(executable, JavaRuntimeManager.configuredExecutable(home.resolve("bin").toString()));
@@ -82,5 +82,26 @@ class InstanceRuntimeSettingsTest {
         assertThrows(IOException.class, () -> manager.resolve(25, home.toString(), task));
         assertThrows(IOException.class, () -> manager.resolve(21, temp.resolve("missing/java.exe").toString(), task));
         assertFalse(Files.exists(temp.resolve("auto")), "Invalid explicit path must not silently download another Java");
+    }
+
+    @Test
+    void missingJavaReportsVersionWithoutCreatingDownloadFiles() {
+        Path cache = temp.resolve("no-download");
+        var manager = new JavaRuntimeManager(cache);
+        IOException failure = assertThrows(IOException.class, () -> manager.resolve(99, task));
+        assertTrue(failure.getMessage().contains("Java 99"));
+        assertTrue(failure.getMessage().contains("Java 路径"));
+        assertFalse(Files.exists(cache));
+    }
+
+    @Test
+    void previouslyCachedLocalJavaRemainsUsable() throws Exception {
+        Path home = temp.resolve("previous-java");
+        Files.createDirectories(home.resolve("bin"));
+        Path executable = Files.createFile(home.resolve("bin/java.exe"));
+        Files.writeString(home.resolve("release"), "JAVA_VERSION=\"21.0.4\"\n");
+        Path cache = Files.createDirectories(temp.resolve("cached"));
+        JsonFiles.write(cache.resolve("java-21.json"), java.util.Map.of("home", home.toString()));
+        assertEquals(executable, new JavaRuntimeManager(cache).resolve(21, task));
     }
 }

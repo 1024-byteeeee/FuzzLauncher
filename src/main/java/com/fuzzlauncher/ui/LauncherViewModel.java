@@ -33,6 +33,12 @@ public final class LauncherViewModel implements AutoCloseable {
     private final InstallGame install;
     private final BaseVersions baseVersions;
     private final LaunchGame launch;
+    private OperationJournal.Store recovery;
+
+    public void configureRecovery(OperationJournal.Store recovery) {
+        this.recovery = recovery;
+    }
+
     private Modpacks modpacks;
     private final AccountAvatars avatarLoader;
     private final ObjectProperty<javafx.scene.image.Image> accountAvatar = new SimpleObjectProperty<>();
@@ -557,43 +563,73 @@ public final class LauncherViewModel implements AutoCloseable {
                 }
             }
             Path requested = config.dataDirectory().isBlank() ? dataDirectory() : Path.of(config.dataDirectory());
-            try (GameRootMigration migration = rootChanged && migrate
-                ? GameRootMigration.prepare(previousRoot, targetRoot, List.of(dataDirectory(), LauncherPaths.directory()), context)
-                : null) {
-                Files.createDirectories(targetRoot);
-                List<GameInstance> available = rootChanged
-                    ? InstanceCatalog.scan(targetRoot, migrate ? oldInstances : List.of(), baseVersions)
-                    : oldInstances;
-                context.checkCancelled();
-                try {
-                    if (rootChanged) {
-                        repository.replaceAll(available);
-                    }
-                    settingsStore.save(config);
-                    DataLocations.configure(DataLocations.bootstrapDirectory(), dataDirectory(), requested);
-                } catch (IOException | RuntimeException ex) {
+            OperationJournal operation = recovery != null
+                ? recovery.begin(rootChanged && migrate ? "迁移游戏目录" : "保存启动器设置", previousRoot, targetRoot,
+                    DataLocations.bootstrapDirectory())
+                : null;
+            try {
+                try (GameRootMigration migration = rootChanged && migrate
+                    ? GameRootMigration.prepare(previousRoot, targetRoot,
+                        List.of(dataDirectory(), LauncherPaths.directory(), DataLocations.bootstrapDirectory()), context, operation)
+                    : null) {
+                    Files.createDirectories(targetRoot);
+                    List<GameInstance> available = rootChanged
+                        ? InstanceCatalog.scan(targetRoot, migrate ? oldInstances : List.of(), baseVersions)
+                        : oldInstances;
+                    context.checkCancelled();
                     try {
-                        if (rootChanged) {
-                            repository.replaceAll(oldInstances);
+                        if (operation != null) {
+                            operation.configuration(dataDirectory().resolve("instances.json"), Map.of("instances", available),
+                                Map.of("instances", oldInstances));
+                            operation.configuration(dataDirectory().resolve("settings.json"), config, previous);
+                            Path pointer = DataLocations.bootstrapDirectory().resolve("data-location.json");
+                            boolean dataChanged = !requested.toAbsolutePath().normalize()
+                                .equals(dataDirectory().toAbsolutePath().normalize());
+                            if (dataChanged || Files.exists(pointer)) {
+                                com.google.gson.JsonObject location = new com.google.gson.JsonObject();
+                                location.addProperty("directory", requested.toAbsolutePath().normalize().toString());
+                                if (dataChanged) {
+                                    location.addProperty("previous", dataDirectory().toAbsolutePath().normalize().toString());
+                                }
+                                operation.file(pointer, JsonFiles.GSON.toJson(location).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                            }
                         }
-                        settingsStore.save(previous);
-                    } catch (IOException rollback) {
-                        ex.addSuppressed(rollback);
+                        if (rootChanged) {
+                            repository.replaceAll(available);
+                        }
+                        settingsStore.save(config);
+                        DataLocations.configure(DataLocations.bootstrapDirectory(), dataDirectory(), requested);
+                    } catch (IOException | RuntimeException ex) {
+                        try {
+                            if (rootChanged) {
+                                repository.replaceAll(oldInstances);
+                            }
+                            settingsStore.save(previous);
+                        } catch (IOException rollback) {
+                            ex.addSuppressed(rollback);
+                        }
+                        throw ex;
                     }
-                    throw ex;
-                }
-                String warning = "";
-                if (migration != null) {
-                    migration.commit();
-                    context.report("正在清理旧游戏目录", -1);
-                    try {
-                        migration.cleanSource();
-                    } catch (IOException ex) {
-                        warning = "游戏文件已完整迁移到新目录，但部分旧文件未能清理，请检查后手动清理：" + ex.getMessage();
-                        LauncherLog.LOGGER.warning(warning);
+                    if (operation != null) {
+                        operation.commit();
                     }
+                    String warning = "";
+                    if (migration != null) {
+                        migration.commit();
+                        context.report("正在清理旧游戏目录", -1);
+                        try {
+                            migration.cleanSource();
+                        } catch (IOException ex) {
+                            warning = "游戏文件已完整迁移到新目录，但部分旧文件未能清理，请检查后手动清理：" + ex.getMessage();
+                            LauncherLog.LOGGER.warning(warning);
+                        }
+                    }
+                    return new SavedSettings(available, warning);
                 }
-                return new SavedSettings(available, warning);
+            } finally {
+                if (operation != null) {
+                    operation.recover();
+                }
             }
         }, result -> {
             List<GameInstance> available = result.instances();
@@ -747,7 +783,22 @@ public final class LauncherViewModel implements AutoCloseable {
             avatarWork.cancel(true);
         }
         avatarExecutor.shutdownNow();
-        cancel();
-        executor.shutdownNow();
+        synchronized (commitGate) {
+            if (committing) {
+                executor.shutdown();
+            } else {
+                cancel();
+                executor.shutdownNow();
+            }
+        }
+    }
+
+    public boolean awaitShutdown() {
+        try {
+            return executor.awaitTermination(10, TimeUnit.SECONDS) && avatarExecutor.awaitTermination(5, TimeUnit.SECONDS);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 }

@@ -28,7 +28,13 @@ public final class JsonFiles {
         Files.createDirectories(path.toAbsolutePath().getParent());
         Path temporary = Files.createTempFile(path.toAbsolutePath().getParent(), ".fuzz-", ".tmp");
         try {
-            Files.write(temporary, bytes);
+            try (var channel = java.nio.channels.FileChannel.open(temporary, StandardOpenOption.WRITE)) {
+                var buffer = java.nio.ByteBuffer.wrap(bytes);
+                while (buffer.hasRemaining()) {
+                    channel.write(buffer);
+                }
+                channel.force(true);
+            }
             try {
                 Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
             } catch (AtomicMoveNotSupportedException ex) {

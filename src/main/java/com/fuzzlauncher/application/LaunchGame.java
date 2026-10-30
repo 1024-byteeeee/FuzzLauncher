@@ -42,7 +42,7 @@ public final class LaunchGame {
         GameSession session = account.isOffline() ? GameSession.offline(account) : authentication.refresh(account, task);
         Path root = Path.of(settings.gameRoot()).toAbsolutePath().normalize();
         JsonObject version = resolver.resolveInstance(root, instance);
-        Path java = instance.javaPath().isBlank() ? null : runtimes.resolve(runtimes.requiredMajor(version), instance.javaPath(), task);
+        Path java = runtimes.resolve(runtimes.requiredMajor(version), instance.javaPath(), task);
         files.prepare(root, version, task);
         Path gameDir = isolation.gameDirectory(root, instance, settings.isolation());
         Files.createDirectories(gameDir);
@@ -70,9 +70,6 @@ public final class LaunchGame {
             }
         }
         files.legacyResources(root, gameDir, version, task);
-        if (java == null) {
-            java = runtimes.resolve(runtimes.requiredMajor(version), task);
-        }
         if (!account.isOffline() && !session.expiresAt().isAfter(Instant.now().plusSeconds(60))) {
             session = authentication.refresh(account, task);
         }

@@ -17,9 +17,9 @@ AppId={{F9EBDB38-42A1-4BDB-8756-D66737E29DDC}
 AppName={#MyAppName}
 AppVersion={#AppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\FuzzLauncher
+DefaultDirName={localappdata}\Programs\FuzzLauncher
 DefaultGroupName=FuzzLauncher
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutputDir}
@@ -44,10 +44,12 @@ Name: "chinesesimplified"; MessagesFile: "packaging\ChineseSimplified.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; Flags: unchecked
 
 [Files]
-Source: "{#SrcDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#SrcDir}\*"; DestDir: "{app}"; Excludes: "data\*,game\*,baseVerisons\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Dirs]
-Name: "{app}\baseVerisons"; Permissions: users-modify
+Name: "{app}\baseVerisons"
+Name: "{app}\game"
+Name: "{app}\data"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

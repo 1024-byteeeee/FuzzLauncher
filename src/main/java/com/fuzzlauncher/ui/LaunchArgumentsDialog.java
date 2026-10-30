@@ -33,7 +33,7 @@ final class LaunchArgumentsDialog extends Dialog<ButtonType> {
                 return;
             }
             if (preview[0].environment() == null) {
-                automatic.setText("尚未安装所需 Java，启动时自动生成");
+                automatic.setText("未检测到所需 Java，请先安装或在实例详情中指定 Java 路径");
                 return;
             }
             try {

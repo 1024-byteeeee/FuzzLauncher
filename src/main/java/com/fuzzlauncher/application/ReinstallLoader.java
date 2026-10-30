@@ -17,13 +17,20 @@ public final class ReinstallLoader {
     private final GameFiles files;
     private final VersionResolver resolver;
     private final Map<LoaderType, LoaderInstaller> installers;
+    private final OperationJournal.Store recovery;
 
     public ReinstallLoader(InstanceRepository repository, GameFiles files, VersionResolver resolver,
         Map<LoaderType, LoaderInstaller> installers) {
+        this(repository, files, resolver, installers, null);
+    }
+
+    public ReinstallLoader(InstanceRepository repository, GameFiles files, VersionResolver resolver,
+        Map<LoaderType, LoaderInstaller> installers, OperationJournal.Store recovery) {
         this.repository = repository;
         this.files = files;
         this.resolver = resolver;
         this.installers = Map.copyOf(installers);
+        this.recovery = recovery;
     }
 
     public GameInstance execute(Path root, GameInstance original, String version, TaskContext task) throws Exception {
@@ -53,7 +60,12 @@ public final class ReinstallLoader {
         Map<Path, Path> changed = new LinkedHashMap<>();
         boolean[] recoveryRequired = { false };
         Exception failure = null;
+        OperationJournal journal = null;
         try {
+            if (recovery != null) {
+                journal = recovery.begin("重装加载器：" + original.name(), root);
+                journal.workspace(workspace);
+            }
             Path originalProfile = workspace.resolve("original-profile.json");
             Files.write(originalProfile, oldProfile);
             JsonFiles.write(workspace.resolve("original-instances.json"), Map.of("instances", repository.findAll()));
@@ -64,7 +76,7 @@ public final class ReinstallLoader {
             JsonFiles.write(base.resolve(original.gameVersion() + ".json"), vanilla);
             Path client = resolver.baseVersions().client(root, original.gameVersion());
             checkPath(resolver.baseVersions().directory(root), client);
-            Files.copy(client, base.resolve(original.gameVersion() + ".jar"));
+            CancellableFiles.copy(client, base.resolve(original.gameVersion() + ".jar"), task);
             Set<Path> vanillaPaths = libraryPaths(root, vanilla);
             // Only vanilla inputs are reusable. No old loader descriptor, JAR or generated output
             // is
@@ -75,7 +87,7 @@ public final class ReinstallLoader {
                 if (Files.isRegularFile(source)) {
                     checkPath(root, source);
                     Files.createDirectories(staged.resolve(relative).getParent());
-                    Files.copy(source, staged.resolve(relative));
+                    CancellableFiles.copy(source, staged.resolve(relative), task);
                 }
             }
             JsonObject fresh = Objects.requireNonNull(installers.get(original.loader()), "缺少加载器适配器").install(staged,
@@ -116,6 +128,7 @@ public final class ReinstallLoader {
             obsolete.removeAll(otherReferences);
             Path committedRoot = root;
             task.checkCancelled();
+            OperationJournal operation = journal;
             task.commit(() -> {
                 task.report("正在提交全新加载器安装", -1);
                 if (!repository.findAll().contains(original) || !Arrays.equals(oldProfile, Files.readAllBytes(profile))) {
@@ -141,10 +154,24 @@ public final class ReinstallLoader {
                             Files.copy(target, backup);
                         }
                         changed.put(target, backup);
+                        if (operation != null) {
+                            operation.file(target, source);
+                        }
                         publish(source, target);
+                    }
+                    if (operation != null) {
+                        operation.file(profile, JsonFiles.GSON.toJson(fresh).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        List<GameInstance> previous = repository.findAll();
+                        List<GameInstance> next = previous.stream()
+                            .map(instance -> instance.id().equals(original.id()) ? replacement : instance).toList();
+                        operation.configuration(recovery.dataDirectory().resolve("instances.json"), Map.of("instances", next),
+                            Map.of("instances", previous));
                     }
                     JsonFiles.write(profile, fresh);
                     repository.save(replacement);
+                    if (operation != null) {
+                        operation.commit();
+                    }
                 } catch (Exception ex) {
                     for (var entry : new ArrayList<>(changed.entrySet()).reversed()) {
                         try {
@@ -221,6 +248,16 @@ public final class ReinstallLoader {
                 /* Other workspaces must be retained. */
             } catch (IOException ex) {
                 LauncherLog.LOGGER.warning("加载器临时目录清理失败：" + ex.getMessage());
+            }
+            if (journal != null) {
+                try {
+                    journal.recover();
+                } catch (IOException ex) {
+                    if (failure != null) {
+                        failure.addSuppressed(ex);
+                    }
+                    LauncherLog.LOGGER.warning("加载器恢复记录已保留，重启后处理：" + ex.getMessage());
+                }
             }
         }
     }
@@ -305,6 +342,9 @@ public final class ReinstallLoader {
         Path temp = Files.createTempFile(target.getParent(), ".loader-", ".tmp");
         try {
             Files.copy(source, temp, StandardCopyOption.REPLACE_EXISTING);
+            try (var channel = java.nio.channels.FileChannel.open(temp, StandardOpenOption.WRITE)) {
+                channel.force(true);
+            }
             try {
                 Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ex) {

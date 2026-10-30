@@ -314,6 +314,9 @@ public final class HttpTransport {
                 byte[] buffer = new byte[65536];
                 int count;
                 while ((count = input.read(buffer)) != -1) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        throw new java.io.InterruptedIOException("文件校验已取消");
+                    }
                     digest.update(buffer, 0, count);
                 }
             }

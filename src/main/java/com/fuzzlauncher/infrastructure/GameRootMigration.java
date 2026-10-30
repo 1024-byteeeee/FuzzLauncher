@@ -45,6 +45,11 @@ public final class GameRootMigration implements AutoCloseable {
     }
 
     public static GameRootMigration prepare(Path source, Path target, List<Path> protectedPaths, TaskContext task) throws IOException {
+        return prepare(source, target, protectedPaths, task, null);
+    }
+
+    public static GameRootMigration prepare(Path source, Path target, List<Path> protectedPaths, TaskContext task, OperationJournal journal)
+        throws IOException {
         if (Files.exists(source, LinkOption.NOFOLLOW_LINKS)) {
             requireOrdinary(source);
         }
@@ -80,8 +85,14 @@ public final class GameRootMigration implements AutoCloseable {
         Path workspace = Files.createTempDirectory(target.getParent(), ".fuzz-migration-");
         GameRootMigration migration = new GameRootMigration(source, target, workspace, exists);
         try {
+            if (journal != null) {
+                journal.workspace(workspace);
+            }
             migration.copy(task);
             task.checkCancelled();
+            if (journal != null) {
+                journal.tree(target, workspace.resolve("content"), exists);
+            }
             if (exists) {
                 Files.delete(target);
             } // Only an empty target may be replaced.
@@ -123,9 +134,9 @@ public final class GameRootMigration implements AutoCloseable {
                 requireOrdinaryPath(source, file);
                 Path relative = source.relativize(file);
                 task.report("正在迁移 " + relative, -1);
-                Files.copy(file, staged.resolve(relative), StandardCopyOption.COPY_ATTRIBUTES);
+                CancellableFiles.copy(file, staged.resolve(relative), task);
                 task.checkCancelled();
-                if (Files.mismatch(file, staged.resolve(relative)) != -1) {
+                if (!CancellableFiles.equal(file, staged.resolve(relative), task)) {
                     throw new IOException("文件复制校验失败：" + relative);
                 }
                 entries.add(relative);
@@ -145,7 +156,7 @@ public final class GameRootMigration implements AutoCloseable {
                 task.checkCancelled();
                 requireOrdinaryPath(source, path);
                 Path relative = source.relativize(path);
-                if (!expected.remove(relative) || (!directory && Files.mismatch(path, copied.resolve(relative)) != -1)) {
+                if (!expected.remove(relative) || (!directory && !CancellableFiles.equal(path, copied.resolve(relative), task))) {
                     throw new IOException("源目录在迁移过程中发生变化，请重试：" + relative);
                 }
             }

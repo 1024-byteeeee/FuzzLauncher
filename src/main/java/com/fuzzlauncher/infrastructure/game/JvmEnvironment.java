@@ -1,5 +1,7 @@
 package com.fuzzlauncher.infrastructure.game;
 
+import com.fuzzlauncher.infrastructure.ProcessCleanup;
+
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.*;
@@ -69,9 +71,8 @@ public record JvmEnvironment(int major, boolean is64Bit, boolean hotspot, long p
             return Files.readString(output, StandardCharsets.ISO_8859_1);
         } finally {
             try {
-                if (process != null && process.isAlive()) {
-                    process.destroyForcibly();
-                    process.waitFor(5, TimeUnit.SECONDS);
+                if (process != null) {
+                    ProcessCleanup.terminate(process);
                 }
             } finally {
                 Files.deleteIfExists(output);

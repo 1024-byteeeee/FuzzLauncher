@@ -16,13 +16,20 @@ public final class InstallGame {
     private final GameFiles files;
     private final VersionResolver resolver;
     private final Map<LoaderType, LoaderInstaller> installers;
+    private final OperationJournal.Store recovery;
 
     public InstallGame(InstanceRepository instances, GameFiles files, VersionResolver resolver,
         Map<LoaderType, LoaderInstaller> installers) {
+        this(instances, files, resolver, installers, null);
+    }
+
+    public InstallGame(InstanceRepository instances, GameFiles files, VersionResolver resolver, Map<LoaderType, LoaderInstaller> installers,
+        OperationJournal.Store recovery) {
         this.instances = instances;
         this.files = files;
         this.resolver = resolver;
         this.installers = Map.copyOf(installers);
+        this.recovery = recovery;
     }
 
     public BaseVersions baseVersions() {
@@ -57,7 +64,12 @@ public final class InstallGame {
         Path staging = Files.createTempDirectory(stagingRoot, "install-");
         boolean published = false, createdDirectory = false, committed = false;
         Exception failure = null;
+        OperationJournal journal = null;
         try {
+            if (recovery != null) {
+                journal = recovery.begin("安装实例：" + instance.name(), root, files.baseVersions().directory(root));
+                journal.workspace(staging);
+            }
             task.checkCancelled();
             files.installVanilla(root, game, task);
             JsonObject profile;
@@ -86,7 +98,7 @@ public final class InstallGame {
                         if (Files.isDirectory(source)) {
                             Files.createDirectories(target);
                         } else {
-                            Files.copy(source, target);
+                            CancellableFiles.copy(source, target, task);
                         }
                     }
                 }
@@ -95,8 +107,14 @@ public final class InstallGame {
             InstanceDirectories.checkAvailable(root, instance, instances.findAll());
             createdDirectory = !Files.exists(pending);
             if (createdDirectory) {
+                if (journal != null) {
+                    journal.tree(pending, stagedVersion, false);
+                }
                 Files.move(stagedVersion, pending);
             } else if (content == null) {
+                if (journal != null) {
+                    journal.file(pending.resolve(InstanceDirectories.PROFILE), stagedVersion.resolve(InstanceDirectories.PROFILE));
+                }
                 Files.move(stagedVersion.resolve(InstanceDirectories.PROFILE), pending.resolve(InstanceDirectories.PROFILE));
             } else {
                 throw new IOException("整合包实例目录已存在，请使用不同名称");
@@ -104,7 +122,20 @@ public final class InstallGame {
             published = true;
             files.prepare(root, resolver.resolveInstance(root, instance), task);
             task.checkCancelled();
-            task.commit(() -> instances.save(instance));
+            OperationJournal operation = journal;
+            task.commit(() -> {
+                if (operation != null) {
+                    List<GameInstance> next = new ArrayList<>(instances.findAll());
+                    List<GameInstance> previous = List.copyOf(next);
+                    next.add(instance);
+                    operation.configuration(recovery.dataDirectory().resolve("instances.json"), Map.of("instances", next),
+                        Map.of("instances", previous));
+                }
+                instances.save(instance);
+                if (operation != null) {
+                    operation.commit();
+                }
+            });
             committed = true;
             task.report("安装完成: " + name, 1);
             return instance;
@@ -148,11 +179,21 @@ public final class InstallGame {
             } catch (IOException ex) {
                 LauncherLog.LOGGER.warning("清理安装临时目录失败：" + ex.getMessage());
             }
+            if (journal != null) {
+                try {
+                    journal.recover();
+                } catch (IOException ex) {
+                    if (failure != null) {
+                        failure.addSuppressed(ex);
+                    }
+                    LauncherLog.LOGGER.warning("安装恢复记录已保留，重启后处理：" + ex.getMessage());
+                }
+            }
         }
     }
 
     public GameInstance reinstallLoader(Path root, GameInstance instance, String version, TaskContext task) throws Exception {
-        return new ReinstallLoader(instances, files, resolver, installers).execute(root, instance, version, task);
+        return new ReinstallLoader(instances, files, resolver, installers, recovery).execute(root, instance, version, task);
     }
 
     public JsonObject prepareModpackProfile(Path root, GameInstance instance, GameVersion game, TaskContext task) throws Exception {

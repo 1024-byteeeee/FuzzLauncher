@@ -97,7 +97,7 @@ class LauncherConfigurationTest {
         assertEquals("forge", config.loaderArtifact(LoaderType.NEOFORGE, "1.20.1"));
         assertEquals("neoforge", config.loaderArtifact(LoaderType.NEOFORGE, "1.21.1"));
         assertTrue(config.loaderMaven(LoaderType.NEOFORGE, "1.20.1").endsWith("/forge/"));
-        JavaRuntimeManager manager = new JavaRuntimeManager(null, directory);
+        JavaRuntimeManager manager = new JavaRuntimeManager(directory);
         assertEquals(21, manager.requiredMajor(
             JsonFiles.GSON.fromJson("{\"id\":\"1.20.1\",\"javaVersion\":{\"majorVersion\":21}}", com.google.gson.JsonObject.class)));
     }

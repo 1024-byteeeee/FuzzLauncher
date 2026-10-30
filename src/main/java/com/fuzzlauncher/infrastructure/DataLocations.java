@@ -13,7 +13,8 @@ import java.util.*;
  */
 public final class DataLocations {
     private static final String LOCATION = "data-location.json";
-    private static final List<String> STATE = List.of("settings.json", "instances.json", "account.json", "credentials.dpapi");
+    private static final List<String> STATE = List.of("settings.json", "settings.json.bak", "instances.json", "instances.json.bak",
+        "account.json", "credentials.dpapi");
 
     private DataLocations() {
     }
@@ -38,10 +39,10 @@ public final class DataLocations {
             return resolve(bootstrap);
         }
         Path local = launcherDirectory.toAbsolutePath().normalize().resolve("data");
-        if (Files.exists(local.resolve("settings.json"))) {
+        if (Files.exists(local.resolve("settings.json")) || Files.exists(local.resolve("settings.json.bak"))) {
             return local;
         }
-        if (Files.exists(bootstrap.resolve("settings.json"))) {
+        if (Files.exists(bootstrap.resolve("settings.json")) || Files.exists(bootstrap.resolve("settings.json.bak"))) {
             return bootstrap.toAbsolutePath().normalize();
         }
         return local;
@@ -128,7 +129,7 @@ public final class DataLocations {
                 JsonFiles.atomicWrite(target.resolve(name), Files.readAllBytes(file));
             }
         }
-        for (String folder : List.of("logs", "skins")) {
+        for (String folder : List.of("logs", "skins", "config")) {
             Path logs = source.resolve(folder);
             if (Files.isDirectory(logs) && !Files.isSymbolicLink(logs)) {
                 try (var files = Files.walk(logs)) {

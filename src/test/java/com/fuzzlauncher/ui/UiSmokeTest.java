@@ -77,6 +77,7 @@ class UiSmokeTest {
                 verifyTaskProgressLayout(stage);
                 verifyModpackDialogs(stage);
                 verifyLoaderReinstallation(stage);
+                verifyStartupRecovery(stage);
                 result.complete(null);
             } catch (Throwable ex) {
                 result.completeExceptionally(ex);
@@ -91,6 +92,59 @@ class UiSmokeTest {
         } finally {
             System.clearProperty("fuzz.dataDir");
         }
+    }
+
+    private void verifyStartupRecovery(Stage owner) throws Exception {
+        Path data = Files.createDirectories(temp.resolve("recovery-ui"));
+        SettingsStore store = new SettingsStore(data);
+        LauncherSettings previous = new LauncherSettings(data.resolve("old-game").toString(), IsolationMode.ALL);
+        store.save(previous);
+        store.save(new LauncherSettings(data.resolve("new-game").toString(), IsolationMode.ALL));
+        Files.writeString(data.resolve("settings.json"), "{broken");
+        var error = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        chooseRecoveryButton("配置需要修复", ButtonBar.ButtonData.YES, error);
+        assertTrue(StartupRecovery.configurations(owner, data, store::load));
+        assertNull(error.get());
+        assertEquals(previous, store.load());
+        Path value = data.resolve("value"), records = data.resolve("operations");
+        Files.writeString(value, "before");
+        var operation = new OperationJournal.Store(records, data).begin("UI recovery fixture", data);
+        operation.file(value, "after".getBytes());
+        Files.writeString(value, "after");
+        chooseRecoveryButton("发现未完成操作", ButtonBar.ButtonData.CANCEL_CLOSE, error);
+        assertFalse(StartupRecovery.operations(owner, records));
+        assertEquals("after", Files.readString(value));
+        assertFalse(OperationJournal.pending(records).isEmpty());
+        chooseRecoveryButton("发现未完成操作", ButtonBar.ButtonData.OK_DONE, error);
+        assertTrue(StartupRecovery.operations(owner, records));
+        assertNull(error.get());
+        assertEquals("before", Files.readString(value));
+        assertTrue(OperationJournal.pending(records).isEmpty());
+    }
+
+    private static void chooseRecoveryButton(String title, ButtonBar.ButtonData choice,
+        java.util.concurrent.atomic.AtomicReference<Throwable> error) {
+        Platform.runLater(() -> {
+            Window window = null;
+            try {
+                window = java.util.List.copyOf(Window.getWindows()).stream()
+                    .filter(value -> value instanceof Stage stage && title.equals(stage.getTitle())).findFirst().orElseThrow();
+                DialogPane pane = (DialogPane) window.getScene().getRoot();
+                assertTrue(pane.getStyleClass().contains("retro-dialog"));
+                if (title.equals("发现未完成操作")) {
+                    javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(window.getScene().snapshot(null), null), "png",
+                        Path.of("build/ui-check/startup-recovery.png").toFile());
+                }
+                ButtonType type = pane.getButtonTypes().stream().filter(button -> button.getButtonData() == choice).findFirst()
+                    .orElseThrow();
+                ((Button) pane.lookupButton(type)).fire();
+            } catch (Throwable ex) {
+                error.set(ex);
+                if (window != null) {
+                    window.hide();
+                }
+            }
+        });
     }
 
     private void verifyAvatarLifecycle(Stage stage) throws Exception {

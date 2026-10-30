@@ -29,7 +29,7 @@ class LoaderReinstallIntegrationTest {
         VersionCatalog catalog = new VersionCatalog(http);
         var resolver = new VersionResolver();
         var files = new GameFiles(http);
-        var runtimes = new JavaRuntimeManager(http, directory.resolve("runtimes"));
+        var runtimes = new JavaRuntimeManager(directory.resolve("runtimes"));
         var repository = new JsonInstanceRepository(directory);
         TaskContext task = new TaskContext() {
             private String last = "";

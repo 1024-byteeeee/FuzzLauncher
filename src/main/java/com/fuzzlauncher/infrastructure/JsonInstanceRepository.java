@@ -17,18 +17,10 @@ public final class JsonInstanceRepository implements InstanceRepository {
 
     @Override
     public synchronized List<GameInstance> findAll() throws IOException {
-        if (!Files.exists(file)) {
+        if (!Files.exists(file) && !Files.exists(RecoverableJson.backup(file))) {
             return List.of();
         }
-        try {
-            GameInstance[] instances = JsonFiles.GSON.fromJson(JsonFiles.read(file).get("instances"), GameInstance[].class);
-            if (instances == null) {
-                throw new IOException("实例清单不完整");
-            }
-            return List.of(instances);
-        } catch (com.google.gson.JsonParseException ex) {
-            throw new IOException("实例配置损坏，请恢复备份", ex);
-        }
+        return RecoverableJson.read(file, JsonInstanceRepository::decode);
     }
 
     @Override
@@ -51,14 +43,14 @@ public final class JsonInstanceRepository implements InstanceRepository {
         } else {
             items.add(instance);
         }
-        JsonFiles.write(file, Map.of("instances", items));
+        RecoverableJson.write(file, Map.of("instances", items), JsonInstanceRepository::decode);
     }
 
     @Override
     public synchronized void remove(String id) throws IOException {
         List<GameInstance> items = new ArrayList<>(findAll());
         items.removeIf(item -> item.id().equals(id));
-        JsonFiles.write(file, Map.of("instances", items));
+        RecoverableJson.write(file, Map.of("instances", items), JsonInstanceRepository::decode);
     }
 
     @Override
@@ -69,6 +61,34 @@ public final class JsonInstanceRepository implements InstanceRepository {
                 throw new IOException("实例目录包含重复名称或标识：" + item.name());
             }
         }
-        JsonFiles.write(file, Map.of("instances", instances));
+        RecoverableJson.write(file, Map.of("instances", instances), JsonInstanceRepository::decode);
+    }
+
+    private static List<GameInstance> decode(com.google.gson.JsonObject json) {
+        if (json.has("instances") && json.get("instances").isJsonArray()) {
+            int index = 0;
+            for (var value : json.getAsJsonArray("instances")) {
+                if (!value.isJsonObject()) {
+                    throw new IllegalArgumentException("instances[" + index + "] 不是实例对象");
+                }
+                var item = value.getAsJsonObject();
+                String path = "instances[" + index++ + "].";
+                RecoverableJson.integer(item, "memoryMb", path);
+                RecoverableJson.integer(item, "minMemoryMb", path);
+                RecoverableJson.enumField(item, "loader", com.fuzzlauncher.domain.LoaderType.class, path);
+                RecoverableJson.enumField(item, "isolation", com.fuzzlauncher.domain.IsolationOverride.class, path);
+            }
+        }
+        GameInstance[] instances = JsonFiles.GSON.fromJson(json.get("instances"), GameInstance[].class);
+        if (instances == null) {
+            throw new IllegalArgumentException("instances 字段缺失或无效");
+        }
+        Set<String> ids = new HashSet<>(), names = new HashSet<>();
+        for (GameInstance instance : instances) {
+            if (instance == null || !ids.add(instance.id()) || !names.add(instance.name().toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException("instances 中存在空条目或重复名称、标识");
+            }
+        }
+        return List.of(instances);
     }
 }

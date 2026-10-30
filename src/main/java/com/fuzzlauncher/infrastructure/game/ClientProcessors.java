@@ -139,24 +139,7 @@ public final class ClientProcessors {
                             throw new IOException("安装处理器失败，退出码 " + process.exitValue() + "，日志: " + log);
                         }
                     } finally {
-                        if (process.isAlive()) {
-                            process.descendants().forEach(ProcessHandle::destroyForcibly);
-                            process.destroyForcibly();
-                            // Release installer output/JAR handles before the caller removes its
-                            // workspace.
-                            boolean interrupted = Thread.interrupted();
-                            try {
-                                if (!process.waitFor(5, TimeUnit.SECONDS)) {
-                                    LauncherLog.LOGGER.warning("安装处理器尚未退出，临时文件可能仍被占用");
-                                }
-                            } catch (InterruptedException ex) {
-                                interrupted = true;
-                            } finally {
-                                if (interrupted) {
-                                    Thread.currentThread().interrupt();
-                                }
-                            }
-                        }
+                        ProcessCleanup.terminate(process);
                     }
                 }
                 if (processor.has("outputs")) {

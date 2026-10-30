@@ -45,7 +45,7 @@ class AuthenticationGateTest {
         };
         HttpTransport http = new HttpTransport();
         LaunchGame launch = new LaunchGame(rejecting, new IsolationPolicy(), new VersionResolver(), new GameFiles(http),
-            new JavaRuntimeManager(http, temp.resolve("runtimes")), new LaunchArguments(), temp.resolve("logs"));
+            new JavaRuntimeManager(temp.resolve("runtimes")), new LaunchArguments(), temp.resolve("logs"));
         TaskContext task = new TaskContext() {
             public void report(String message, double value) {
             }

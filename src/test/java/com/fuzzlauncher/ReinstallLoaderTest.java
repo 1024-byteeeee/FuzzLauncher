@@ -104,6 +104,19 @@ class ReinstallLoaderTest {
     }
 
     @Test
+    void successfulReinstallationCompletesItsPersistentJournal() throws Exception {
+        Path records = temp.resolve("operations");
+        var operation = new ReinstallLoader(repository, new GameFiles(new HttpTransport()), new VersionResolver(),
+            Map.of(LoaderType.FABRIC, installer()), new OperationJournal.Store(records, temp.resolve("state")));
+        GameInstance updated = operation.execute(root, original, "2", task);
+        assertEquals("2", updated.loaderVersion());
+        assertEquals(updated, repository.findAll().getFirst());
+        assertTrue(OperationJournal.pending(records).isEmpty());
+        assertEquals("user data saves/world/level.dat",
+            Files.readString(InstanceDirectories.directory(root, updated).resolve("saves/world/level.dat")));
+    }
+
+    @Test
     void upgradeAndDowngradeAlwaysReinstallAndPreserveUserDataAndSettings() throws Exception {
         write(root.resolve("libraries/loader/2/main.jar"), "stale target cache");
         GameInstance upgraded = operation(repository, installer()).execute(root, original, "2", task);

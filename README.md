@@ -5,14 +5,14 @@ Windows x64 / JavaFX，Windows 95 风格 Minecraft Java 启动器。
 ## 已实现
 
 - 实例新建、重命名、永久删除及刷新；删除前提示无法恢复，刷新可重新扫描磁盘上的可用实例。每个实例可分别手动输入最小/最大内存或用按钮调整，也可指定独立 Java 路径（留空自动选择）；新实例默认最小/最大内存均为 4096 MB。
-- 实例详情页可打开“启动参数”窗口，按实例自定义 JVM 参数与游戏附加参数；窗口预填当前实例的默认 JVM 参数并支持逐区“恢复默认”，在窗口内修改 -Xms/-Xmx 会同步到详情页的内存设置。
+- 实例详情页可打开“启动参数”窗口，按实例自定义 JVM 参数与游戏附加参数；支持自动换行、统一“恢复默认”及自动 JVM 参数预览，在窗口内修改 -Xms/-Xmx 会同步到详情页的内存设置。
 - 全局“全部隔离 / 仅模组隔离 / 不隔离”；实例可继承或覆盖。隔离目录为 `versions/<实例名>/`，不同名称使用不同文件夹；已登记实例的旧 UUID 目录自动迁移，重命名同步移动实例数据。原版基础 JSON、JAR 统一放在启动器根目录的 `baseVerisons/<游戏版本>/`，资源和依赖库共享。
 - 官方版本清单：正式版、快照、历史版筛选及搜索。
 - 原版、Fabric、Forge、NeoForge 客户端自动安装；下载校验、取消、重试、安装失败不登记实例。
 - MCBBS、MultiMC、服务器自动更新、Modrinth 整合包导入导出；独立实例导入、导出内容选择、服务器更新文件校验与本地修改保留。
 - 依赖和资源按 CPU 自动并发（上限 64）；支持下载重试内的 HTTP Range 续传、快速切换备用源和下载速度显示。
 - 微软浏览器授权、Xbox / XSTS / Minecraft 权益校验与加密缓存；另提供显式离线登录，保存本地用户名和离线 UUID。
-- 游戏 Java 自动检测及缺失时下载，与启动器内置 Java 分开。
+- 游戏 Java 本地检测及实例手动指定路径；缺少对应版本时弹窗提示安装，不自动下载，与启动器内置 Java 分开。
 - 设置提供自动选择、官方源、镜像源三种模式，源地址参考 HMCL：BMCLAPI、腾讯 Maven，以及 NeoForge 备用 CDN。保存后生效并持久化，支持备用源及文件哈希校验，认证服务始终使用官方地址。
 - 游戏输出、启动器日志和异常退出提示；设置可打开日志目录、更改启动器数据目录，保存新路径后自动重启并迁移配置和账号。Windows 目录锁避免重复运行。
 - 窗口、任务栏及 Windows 可执行文件使用统一的像素草地方块图标，打包程序内嵌多尺寸图标供资源管理器和任务管理器显示。
@@ -46,7 +46,7 @@ Minecraft Services 准入申请已提交，当前登录曾返回 HTTP 403，尚�
 .\build.ps1                  # 同样执行 Gradle build
 .\build.ps1 -Preview         # 编译并导出实际 JavaFX 截图
 .\build.ps1 -Package         # jlink + jpackage，生成新时间目录，不覆盖旧包
-.\build.ps1 -Installer       # 额外生成中文管理员安装程序；需要 Inno Setup 6.5.4 的 ISCC 在 PATH 中
+.\build.ps1 -Installer       # 额外生成当前用户安装程序；需要 Inno Setup 的 ISCC 在 PATH 中
 .\build.ps1 -Integration     # 额外联网安装测试；需要较多下载流量
 
 # 单独执行完整安装和 UI 冒烟测试
@@ -72,7 +72,7 @@ $env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21'
 
 工作流检出该标签的源码，在 Windows x64 上使用 Zulu JDK 21 和经 SHA-256 校验的 Inno Setup 6.5.4，执行构建及核心测试，然后上传到同一个 Release：
 
-- `FuzzLauncher-<版本>-windows-x64-setup.exe`：简体中文安装程序，以管理员权限运行，发布者为 `1024_byteeeee`，内置 Java/JavaFX，支持选择安装目录、开始菜单和桌面快捷方式，默认安装到 Program Files。
+- `FuzzLauncher-<版本>-windows-x64-setup.exe`：简体中文当前用户安装程序，发布者为 `1024_byteeeee`，内置启动器所需的 Java/JavaFX，支持选择安装目录、开始菜单和桌面快捷方式，默认安装到 `%LOCALAPPDATA%\Programs\FuzzLauncher`，无需管理员权限。游戏和数据默认位于程序旁的 `game`、`data` 目录。已有安装的数据不会由安装器迁移或删除。
 - `FuzzLauncher-<版本>-windows-x64-portable.zip`：解压后运行的便携版，需保留完整目录。
 - `SHA256SUMS.txt`：以上文件的 SHA-256 校验值。
 

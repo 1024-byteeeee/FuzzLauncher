@@ -108,7 +108,7 @@ class OfflineAccountTest {
         };
         HttpTransport http = new HttpTransport();
         var launch = new LaunchGame(noMicrosoft, new IsolationPolicy(), new VersionResolver(), new GameFiles(http),
-            new JavaRuntimeManager(http, temp.resolve("runtimes")), new LaunchArguments(), temp.resolve("logs"));
+            new JavaRuntimeManager(temp.resolve("runtimes")), new LaunchArguments(), temp.resolve("logs"));
         var instance = new GameInstance("local-test", "Local fixture", "local-test", LoaderType.VANILLA, null, IsolationOverride.ISOLATED,
             5000, Path.of(System.getProperty("java.home"), "bin/java.exe").toString());
         Account account = Account.offline("Steve");

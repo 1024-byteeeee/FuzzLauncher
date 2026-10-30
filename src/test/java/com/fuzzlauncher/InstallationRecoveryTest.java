@@ -32,6 +32,18 @@ class InstallationRecoveryTest {
     };
     private HttpServer server;
 
+    @Test
+    void successfulInstallCompletesItsPersistentJournal() throws Exception {
+        Path data = temp.resolve("persistent-data"), root = temp.resolve("persistent-game"), records = temp.resolve("operations");
+        var repository = new JsonInstanceRepository(data);
+        var installer = new InstallGame(repository, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of(),
+            new OperationJournal.Store(records, data));
+        GameInstance instance = installer.execute(root, fixtureGame(), LoaderType.VANILLA, null, "Persistent", task);
+        assertEquals(List.of(instance), repository.findAll());
+        assertTrue(Files.isRegularFile(InstanceDirectories.profile(root, instance)));
+        assertTrue(OperationJournal.pending(records).isEmpty());
+    }
+
     @BeforeEach
     void start() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);

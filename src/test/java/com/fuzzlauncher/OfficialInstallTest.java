@@ -24,7 +24,7 @@ class OfficialInstallTest {
         VersionCatalog catalog = new VersionCatalog(http);
         VersionResolver resolver = new VersionResolver();
         GameFiles files = new GameFiles(http);
-        JavaRuntimeManager runtimes = new JavaRuntimeManager(http, directory.resolve("runtimes"));
+        JavaRuntimeManager runtimes = new JavaRuntimeManager(directory.resolve("runtimes"));
         var repo = new JsonInstanceRepository(directory);
         InstallGame install = new InstallGame(repo, files, resolver,
             Map.of(LoaderType.FABRIC, new FabricInstaller(http), LoaderType.FORGE,
