@@ -1,6 +1,5 @@
 package com.fuzzlauncher.domain;
 
 public enum AccountType {
-  MICROSOFT,
-  OFFLINE
+    MICROSOFT, OFFLINE
 }

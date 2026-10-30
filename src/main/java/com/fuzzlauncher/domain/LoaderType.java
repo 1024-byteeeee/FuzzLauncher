@@ -1,18 +1,16 @@
 package com.fuzzlauncher.domain;
 
 public enum LoaderType {
-  VANILLA("原版"),
-  FABRIC("Fabric"),
-  FORGE("Forge"),
-  NEOFORGE("NeoForge");
-  private final String label;
+    VANILLA("原版"), FABRIC("Fabric"), FORGE("Forge"), NEOFORGE("NeoForge");
 
-  LoaderType(String label) {
-    this.label = label;
-  }
+    private final String label;
 
-  @Override
-  public String toString() {
-    return label;
-  }
+    LoaderType(String label) {
+        this.label = label;
+    }
+
+    @Override
+    public String toString() {
+        return label;
+    }
 }

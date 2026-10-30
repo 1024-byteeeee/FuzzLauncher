@@ -1,17 +1,16 @@
 package com.fuzzlauncher.domain;
 
 public enum IsolationMode {
-  ALL("全部隔离"),
-  MODDED("仅模组版本隔离"),
-  SHARED("不隔离");
-  private final String label;
+    ALL("全部隔离"), MODDED("仅模组版本隔离"), SHARED("不隔离");
 
-  IsolationMode(String label) {
-    this.label = label;
-  }
+    private final String label;
 
-  @Override
-  public String toString() {
-    return label;
-  }
+    IsolationMode(String label) {
+        this.label = label;
+    }
+
+    @Override
+    public String toString() {
+        return label;
+    }
 }
