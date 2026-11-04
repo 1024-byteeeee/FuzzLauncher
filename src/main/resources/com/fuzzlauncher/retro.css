@@ -183,6 +183,36 @@
 .list-view {
     -fx-padding: 3;
 }
+.mod-entry {
+    -fx-padding: 6 8;
+    -fx-border-color: transparent transparent #c0c0c0 transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.mod-entry:empty {
+    -fx-border-width: 0;
+}
+.mod-entry-name {
+    -fx-font-size: 18px;
+    -fx-text-fill: black;
+}
+.mod-entry-version {
+    -fx-font-size: 13px;
+    -fx-text-fill: black;
+    -fx-background-color: #dedede;
+    -fx-border-color: #808080 white white #808080;
+    -fx-border-width: 1;
+    -fx-padding: 0 3;
+}
+.mod-entry-subtitle {
+    -fx-font-size: 14px;
+    -fx-text-fill: #404040;
+}
+.mod-entry:selected .mod-entry-name, .mod-entry:selected .mod-entry-subtitle {
+    -fx-text-fill: white;
+}
+.mod-entry-action {
+    -fx-padding: 2;
+}
 .tree-view {
     -fx-background-color: white;
     -fx-padding: 3;

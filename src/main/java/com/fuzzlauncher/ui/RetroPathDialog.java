@@ -33,6 +33,8 @@ final class RetroPathDialog extends Dialog<Path> {
     private final Map<Path, Boolean> directories = new HashMap<>();
     private Task<List<Entry>> listing;
     private long navigation;
+    private boolean multipleFiles;
+    private List<Path> chosenFiles = List.of();
 
     private record Entry(Path path, boolean directory) {
     }
@@ -165,6 +167,15 @@ final class RetroPathDialog extends Dialog<Path> {
                     event.consume();
                     return;
                 }
+                if (multipleFiles) {
+                    List<Path> selection = files.getSelectionModel().getSelectedItems();
+                    chosenFiles = selection.contains(selected) ? List.copyOf(selection) : List.of(selected);
+                    if (chosenFiles.stream().anyMatch(path -> !fileFilter.test(path))) {
+                        error.setText("请选择受支持的模组文件");
+                        event.consume();
+                        return;
+                    }
+                }
                 setResult(selected);
             }
             if (getResult() == null) {
@@ -194,6 +205,13 @@ final class RetroPathDialog extends Dialog<Path> {
         return new RetroPathDialog(owner, "选择整合包", initial, false,
             path -> Files.isRegularFile(path) && path.getFileName().toString().toLowerCase(Locale.ROOT).matches(".*\\.(zip|mrpack)"))
             .showAndWait();
+    }
+
+    static List<Path> mods(Window owner, Path initial) {
+        RetroPathDialog dialog = new RetroPathDialog(owner, "选择模组文件", initial, false,
+            path -> Files.isRegularFile(path) && com.fuzzlauncher.infrastructure.mod.ModFiles.supported(path));
+        dialog.multipleFiles = true;
+        return dialog.showAndWait().map(path -> dialog.chosenFiles.isEmpty() ? List.of(path) : dialog.chosenFiles).orElse(List.of());
     }
 
     private void navigate(Path path) {

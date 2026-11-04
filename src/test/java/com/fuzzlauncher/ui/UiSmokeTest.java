@@ -8,6 +8,7 @@ import com.fuzzlauncher.infrastructure.*;
 import javafx.application.Platform;
 import javafx.event.Event;
 import javafx.scene.Node;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.VBox;
 import javafx.scene.control.*;
 import javafx.scene.control.skin.ComboBoxListViewSkin;
@@ -60,7 +61,7 @@ class UiSmokeTest {
                 assertTrue(view.lookupAll(".text-field").stream().filter(TextField.class::isInstance).map(TextField.class::cast)
                     .anyMatch(field -> field.getText().equals("1.21.1")));
                 Files.createDirectories(Path.of("build/ui-check"));
-                for (int page = 0; page < 4; page++) {
+                for (int page = 0; page < 5; page++) {
                     view.showPage(page);
                     view.applyCss();
                     view.layout();
@@ -71,6 +72,7 @@ class UiSmokeTest {
                     javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(stage.getScene().snapshot(null), null), "png",
                         Path.of("build/ui-check/page-" + page + ".png").toFile());
                 }
+                verifyLocalMods(stage, view);
                 verifyDropdownHighlight(view);
                 verifyDisabledMenuHighlight(stage);
                 verifyLauncherVisibility(stage, view, app);
@@ -795,6 +797,147 @@ class UiSmokeTest {
         } finally {
             dialog.close();
         }
+    }
+
+    private void verifyLocalMods(Stage stage, LauncherView view) throws Exception {
+        LauncherViewModel vm = view.vm;
+        waitForFx(() -> !vm.busyProperty().get());
+        GameInstance first = vm.selectedProperty().get();
+        GameInstance second = vm.instances().stream().filter(instance -> !instance.equals(first)).findFirst().orElseThrow();
+        Path directory = vm.modDirectory(first);
+        com.fuzzlauncher.ModFixtures.fabricWithLogo(directory.resolve("alpha.jar"), "alpha", 0xff32aa68);
+        com.fuzzlauncher.ModFixtures.fabric(directory.resolve("beta.jar"), "beta");
+        com.fuzzlauncher.ModFixtures.fabric(vm.modDirectory(second).resolve("other.jar"), "other");
+        view.showPage(4);
+        view.applyCss();
+        view.layout();
+        @SuppressWarnings("unchecked")
+        ListView<ModFile> table = (ListView<ModFile>) view.lookup("#mod-list");
+        @SuppressWarnings("unchecked")
+        ComboBox<GameInstance> instance = (ComboBox<GameInstance>) view.lookup("#mod-instance");
+        waitForFx(() -> table.getItems().size() == 2 && !view.lookup("#import-mods").isDisabled());
+        table.getSelectionModel().clearAndSelect(0);
+        view.applyCss();
+        view.layout();
+        ListCell<?> firstRow = cell(table, 0);
+        ImageView logo = (ImageView) firstRow.lookup(".mod-logo");
+        assertEquals(0xff32aa68, logo.getImage().getPixelReader().getArgb(0, 0));
+        assertNotSame(RetroPage.image("forge-retro"), RetroPage.image("mods"));
+        Button modNavigation = view.lookupAll(".nav-button").stream().filter(Button.class::isInstance).map(Button.class::cast)
+            .filter(button -> button.getText().equals("模组")).findFirst().orElseThrow();
+        assertSame(RetroPage.image("mods"), ((ImageView) modNavigation.getGraphic()).getImage());
+        assertEquals(Color.TRANSPARENT, RetroPage.image("mods").getPixelReader().getColor(0, 0));
+        assertNotNull(firstRow.lookup(".mod-entry-name"));
+        assertNotNull(firstRow.lookup(".mod-entry-version"));
+        assertTrue(((Label) firstRow.lookup(".mod-entry-subtitle")).getText().contains("alpha.jar"));
+        var detailsError = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        Platform.runLater(() -> {
+            DialogPane pane = (DialogPane) Window.getWindows().stream()
+                .filter(window -> window.getScene() != null && window.getScene().lookup("#mod-details-dialog") != null).findFirst()
+                .orElseThrow().getScene().getRoot();
+            try {
+                assertTrue(((TextArea) pane.lookup("#mod-details")).getText().contains("alpha"));
+            } catch (Throwable ex) {
+                detailsError.set(ex);
+            } finally {
+                ((Button) pane.lookupButton(ButtonType.CLOSE)).fire();
+            }
+        });
+        ((Button) firstRow.lookup(".mod-info")).fire();
+        assertNull(detailsError.get());
+        CheckBox toggle = (CheckBox) firstRow.lookup(".mod-enabled");
+        assertTrue(toggle.isSelected());
+        toggle.fire();
+        assertTrue(toggle.isDisabled());
+        waitForFx(() -> !vm.busyProperty().get() && table.getItems().stream().anyMatch(mod -> !mod.enabled()));
+        assertTrue(Files.isRegularFile(directory.resolve("alpha.jar.disabled")));
+        waitForFx(() -> !view.lookup("#enable-mods").isDisabled());
+        ((Button) view.lookup("#enable-mods")).fire();
+        waitForFx(() -> !vm.busyProperty().get() && table.getItems().size() == 2 && table.getItems().stream().allMatch(ModFile::enabled));
+        TextField search = (TextField) view.lookup("#mod-search");
+        search.setText("no-match-fixture");
+        assertTrue(table.getItems().isEmpty());
+        assertTrue(view.lookup("#delete-mods").isDisabled());
+        search.setText("alpha");
+        assertEquals(1, table.getItems().size());
+        search.clear();
+        instance.setValue(second);
+        instance.setValue(first);
+        instance.setValue(second);
+        waitForFx(() -> table.getItems().size() == 1 && table.getItems().getFirst().name().equals("other")
+            && !view.lookup("#import-mods").isDisabled());
+        instance.setValue(first);
+        waitForFx(() -> table.getItems().size() == 2 && !view.lookup("#import-mods").isDisabled());
+        table.getSelectionModel().selectAll();
+        var runningField = LauncherViewModel.class.getDeclaredField("gameRunning");
+        runningField.setAccessible(true);
+        var running = (javafx.beans.property.BooleanProperty) runningField.get(vm);
+        running.set(true);
+        try {
+            for (String id : java.util.List.of("import-mods", "enable-mods", "disable-mods", "delete-mods")) {
+                assertTrue(view.lookup("#" + id).isDisabled());
+            }
+            assertTrue(table.lookupAll(".mod-enabled").stream().allMatch(Node::isDisabled));
+            vm.setModsEnabled(first, java.util.List.copyOf(table.getItems()), false, () -> {
+                throw new AssertionError();
+            });
+            assertFalse(vm.busyProperty().get());
+            assertTrue(Files.exists(directory.resolve("alpha.jar")));
+        } finally {
+            running.set(false);
+        }
+        Path sources = Files.createDirectories(temp.resolve("mod-picker-source")).toRealPath();
+        Path one = com.fuzzlauncher.ModFixtures.fabric(sources.resolve("one.jar"), "one");
+        Path two = com.fuzzlauncher.ModFixtures.fabric(sources.resolve("two.jar"), "two");
+        var pickerError = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        Platform.runLater(() -> {
+            DialogPane picker = (DialogPane) Window.getWindows().stream()
+                .filter(window -> window.getScene() != null && window.getScene().lookup("#path-dialog") != null).findFirst().orElseThrow()
+                .getScene().getRoot();
+            try {
+                TextField location = (TextField) picker.lookup("#path-location");
+                location.setText(sources.toString());
+                location.fireEvent(new javafx.event.ActionEvent());
+                waitForFx(() -> !picker.lookupButton(ButtonType.OK).isDisabled());
+                @SuppressWarnings("unchecked")
+                ListView<Path> entries = (ListView<Path>) picker.lookup("#path-entries");
+                assertTrue(entries.getItems().contains(one));
+                assertTrue(entries.getItems().contains(two));
+                entries.getSelectionModel().selectAll();
+                ((Button) picker.lookupButton(ButtonType.OK)).fire();
+            } catch (Throwable ex) {
+                pickerError.set(ex);
+                ((Button) picker.lookupButton(ButtonType.CANCEL)).fire();
+            }
+        });
+        ((Button) view.lookup("#import-mods")).fire();
+        if (pickerError.get() != null) {
+            throw new AssertionError(pickerError.get());
+        }
+        waitForFx(() -> !vm.busyProperty().get() && table.getItems().size() == 4 && !view.lookup("#import-mods").isDisabled());
+        assertTrue(Files.exists(one));
+        assertTrue(Files.exists(two));
+        com.fuzzlauncher.ModFixtures.jar(directory.resolve("long.jar"), java.util.Map.of("fabric.mod.json",
+            "{\"id\":\"long\",\"name\":\"" + "超长模组名称".repeat(40) + "\",\"version\":\"" + "1.0-long-version-".repeat(20) + "\"}"));
+        ((Button) view.lookup("#refresh-mods")).fire();
+        waitForFx(() -> table.getItems().size() == 5 && !view.lookup("#import-mods").isDisabled());
+        @SuppressWarnings("unchecked")
+        ComboBox<String> order = (ComboBox<String>) view.lookup("#mod-sort");
+        order.setValue("按文件名");
+        assertEquals("long.jar", table.getItems().get(2).path().getFileName().toString());
+        view.applyCss();
+        view.layout();
+        ListCell<?> longRow = cell(table, 2);
+        Node locate = longRow.lookup(".mod-locate"), info = longRow.lookup(".mod-info");
+        assertTrue(info.localToScene(info.getBoundsInLocal()).getMaxX() <= stage.getScene().getWidth());
+        assertTrue(longRow.lookup(".mod-entry-version").getBoundsInParent().getWidth() <= 161);
+        assertTrue(longRow.lookup(".mod-entry-version").getBoundsInParent().getWidth() >= 40);
+        assertTrue(locate.localToScene(locate.getBoundsInLocal()).getMaxX() < info.localToScene(info.getBoundsInLocal()).getMinX());
+        javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(stage.getScene().snapshot(null), null), "png",
+            Path.of("build/ui-check/mods.png").toFile());
+        view.showPage(3);
+        view.applyCss();
+        view.layout();
     }
 
     private static DialogPane loaderPane() {

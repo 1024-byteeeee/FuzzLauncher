@@ -40,6 +40,53 @@ public final class LauncherViewModel implements AutoCloseable {
     }
 
     private Modpacks modpacks;
+    private final ManageMods mods = new ManageMods();
+
+    public Path modDirectory(GameInstance instance) {
+        return mods.directory(settings.get(), instance);
+    }
+
+    public List<ModFile> scanMods(Path directory, TaskContext task) throws Exception {
+        return mods.scan(directory, task);
+    }
+
+    public void importMods(GameInstance instance, List<Path> sources, boolean renameCollisions, Runnable changed) {
+        if (instance == null || busy.get() || gameRunning.get() || sources.isEmpty()) {
+            return;
+        }
+        Path directory = modDirectory(instance);
+        List<Path> selectedFiles = List.copyOf(sources);
+        submit("导入模组", task -> mods.importFiles(directory, selectedFiles, renameCollisions, task),
+            report -> modsChanged("导入", report, changed));
+    }
+
+    public void setModsEnabled(GameInstance instance, List<ModFile> selected, boolean enabled, Runnable changed) {
+        if (instance == null || busy.get() || gameRunning.get() || selected.isEmpty()) {
+            return;
+        }
+        Path directory = modDirectory(instance);
+        List<ModFile> selectedFiles = List.copyOf(selected);
+        submit(enabled ? "启用模组" : "禁用模组", task -> mods.setEnabled(directory, selectedFiles, enabled, task),
+            report -> modsChanged(enabled ? "启用" : "禁用", report, changed));
+    }
+
+    public void deleteMods(GameInstance instance, List<ModFile> selected, Runnable changed) {
+        if (instance == null || busy.get() || gameRunning.get() || selected.isEmpty()) {
+            return;
+        }
+        Path directory = modDirectory(instance);
+        List<ModFile> selectedFiles = List.copyOf(selected);
+        submit("删除模组", task -> mods.delete(directory, selectedFiles, task), report -> modsChanged("删除", report, changed));
+    }
+
+    private void modsChanged(String action, com.fuzzlauncher.infrastructure.mod.ModFiles.Report report, Runnable changed) {
+        status.set(action + "完成：" + report.completed() + " 个模组文件");
+        changed.run();
+        if (!report.failures().isEmpty()) {
+            error.set("部分模组未能" + action + "：\n" + String.join("\n", report.failures()));
+        }
+    }
+
     private final AccountAvatars avatarLoader;
     private final ObjectProperty<javafx.scene.image.Image> accountAvatar = new SimpleObjectProperty<>();
     private final ExecutorService avatarExecutor = Executors.newSingleThreadExecutor(Thread.ofVirtual().name("account-avatar").factory());

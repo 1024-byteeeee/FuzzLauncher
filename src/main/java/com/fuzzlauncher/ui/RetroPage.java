@@ -65,6 +65,9 @@ public class RetroPage extends BorderPane {
 
     protected static Image image(String name) {
         return IMAGES.computeIfAbsent(name, key -> {
+            if (key.equals("mods")) {
+                return ModIcon.create();
+            }
             try (var input = Objects.requireNonNull(LauncherView.class.getResourceAsStream("/com/fuzzlauncher/" + key + ".png"))) {
                 return new Image(input);
             } catch (java.io.IOException ex) {

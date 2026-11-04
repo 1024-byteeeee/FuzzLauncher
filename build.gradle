@@ -30,6 +30,7 @@ dependencies {
         }
     }
     implementation("com.google.code.gson:gson:${gson_version}")
+    implementation("org.tomlj:tomlj:${tomlj_version}")
     implementation("com.microsoft.azure:msal4j:${msal_version}")
     implementation("net.java.dev.jna:jna-platform:${jna_version}")
     runtimeOnly("org.slf4j:slf4j-nop:${slf4j_version}")

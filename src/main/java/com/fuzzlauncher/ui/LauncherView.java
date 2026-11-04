@@ -116,10 +116,12 @@ public final class LauncherView extends RetroPage {
         box.setPrefWidth(215);
         box.setMinWidth(215);
         box.setPadding(new Insets(15, 10, 0, 5));
-        String[] names = { "游戏实例", "下载", "账号", "设置" }, icons = { "grass", "globe", "player", "wrench" };
+        String[] names = { "游戏实例", "下载", "模组", "账号", "设置" }, icons = { "grass", "globe", "mods", "player", "wrench" };
+        int[] pages = { 0, 1, 4, 2, 3 };
         for (int i = 0; i < names.length; i++) {
-            int page = i;
+            int page = pages[i];
             Button b = button(names[i], () -> showPage(page));
+            b.setUserData(page);
             b.setGraphic(icon(icons[i], 36));
             b.setGraphicTextGap(12);
             b.setAlignment(Pos.CENTER_LEFT);
@@ -135,15 +137,16 @@ public final class LauncherView extends RetroPage {
     protected void showPage(int page) {
         for (int i = 0; i < navigation.size(); i++) {
             navigation.get(i).getStyleClass().remove("selected-nav");
-            if (i == page) {
+            if (Objects.equals(navigation.get(i).getUserData(), page)) {
                 navigation.get(i).getStyleClass().add("selected-nav");
             }
         }
-        title.setText(new String[] { "游戏实例", "下载游戏", "微软账号", "启动器设置" }[page]);
+        title.setText(new String[] { "游戏实例", "下载游戏", "微软账号", "启动器设置", "模组管理" }[page]);
         workspace.setCenter(switch (page) {
             case 1 -> new DownloadsPage(stage, vm, this::showPage);
             case 2 -> new AccountsPage(stage, vm, this::showPage);
             case 3 -> new SettingsPage(stage, vm, this::showPage);
+            case 4 -> new ModsPage(stage, vm, this::showPage);
             default -> new InstancesPage(stage, vm, this::showPage);
         });
     }
