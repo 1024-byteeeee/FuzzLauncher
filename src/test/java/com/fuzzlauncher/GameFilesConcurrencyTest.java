@@ -1,8 +1,8 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.TaskContext;
-import com.fuzzlauncher.infrastructure.HttpTransport;
-import com.fuzzlauncher.infrastructure.game.GameFiles;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.infrastructure.game.install.GameFiles;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
 
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpServer;

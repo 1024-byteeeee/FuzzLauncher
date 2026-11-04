@@ -1,52 +1,95 @@
-# Fuzz Launcher 架构
+# 架构与包边界
 
-## 分层与依赖
+项目采用单个 Gradle 模块，使用 Java 21、JavaFX 和 Groovy 构建脚本。`com.fuzzlauncher.Launcher` 继续作为 JAR 和 jpackage 的入口，资源仍放在 `/com/fuzzlauncher/`，包迁移不改变持久化文件的位置和格式。
 
-- `domain`：实例、账号、会话、隔离策略。没有 JavaFX、HTTP 或文件存储依赖。
-- `application`：安装、启动用例，以及实例仓库、认证、加载器安装接口。
-- `infrastructure`：原子 JSON 文件、HTTP、DPAPI、微软认证、版本描述解析、资源下载、Java 管理和安装处理器。
-- `ui`：MVVM。窗口外壳和四个页面独立；ViewModel 只暴露只读状态与操作方法。界面线程不下载游戏或执行安装器。
-- `FuzzApplication`：组合根，通过构造器组装依赖，不使用全局服务定位器。
+## 依赖方向
 
-隔离采用 Strategy；加载器采用 Adapter；实例采用 Repository。避免为每个简单数据对象创建无用途接口。
-Java 源码使用 google-java-format 1.24.0 格式，2 空格缩进。
+```mermaid
+flowchart TD
+    Bootstrap[bootstrap：组装与生命周期] --> UI[ui：页面、ViewModel、任务调度]
+    Bootstrap --> Infrastructure[infrastructure：协议与系统适配器]
+    UI --> Application[application：端口、用例、传输模型]
+    Infrastructure --> Application
+    Application --> Domain[domain：领域值与策略]
+    UI --> Domain
+    Infrastructure --> Domain
+```
 
-## 游戏目录
+`domain` 只依赖本层和 JDK；`application` 只依赖领域层、本层和 JDK。两层均不依赖 JavaFX、Gson、网络客户端或平台接口。`ui` 通过应用端口调用操作，不引用基础设施实现；`infrastructure` 不引用 UI、组合根和启动入口。只有 `bootstrap` 同时认识实现和界面，负责明确地通过构造器装配依赖，不使用依赖注入框架或服务定位器。
 
-默认启动器数据在 `%LOCALAPPDATA%/FuzzLauncher`，可在首次安装前修改游戏根目录。
+`ArchitectureTest` 从实际生产类输出目录加载字节码，检查上述方向及所有生产包之间的循环依赖。测试类不参与架构检查，测试替身可以实现应用端口。
 
-游戏根目录包含共享 `assets`、`libraries` 和 `versions`。
-每个实例在登记文件中仍有稳定的内部 ID，文件夹按显示名称命名为 `versions/<实例名>/`，实例描述为该文件夹内的 `.fuzz-instance.json`，继承官方基础版本。基础版本的 JSON/JAR 继续共享，允许实例名与基础版本号相同。
-隔离时 `--gameDir` 和 `ProcessBuilder.directory` 使用同一个解析结果：`versions/<实例名>/`；不隔离时都使用游戏根目录。
-`InstanceDirectories` 负责旧 UUID 目录迁移和重命名，连同存档、模组和设置一起移动；共享基础 JSON/JAR 留在原处。移动不覆盖同名数据，登记保存失败时回滚目录移动。名称拒绝 Windows 禁用字符和保留名，登记层防止不区分大小写的重名。未登记的旧目录不自动推测归属。
-全局支持全部隔离、仅模组隔离、共享；实例支持继承、强制隔离、强制共享。
-切换模式不会迁移文件，界面会要求确认。删除实例前提示无法恢复，确认后删除归属该实例的目录内容及登记；共享目录与基础版本缓存保留。刷新扫描实例描述和客户端文件，移除磁盘上已不存在或不完整的实例登记，不清理残留文件。
+## 包的职责
 
-## 安装事务
+| 包 | 职责 |
+| --- | --- |
+| `bootstrap` | JavaFX 启动、实例锁、启动恢复、对象装配、重启与退出 |
+| `domain.account` | 账号类型、身份与游戏会话 |
+| `domain.instance` | 实例、隔离选项、隔离目录策略与路径规则 |
+| `domain.game` | 游戏版本与加载器类型 |
+| `domain.mod` / `domain.modpack` | 模组元数据、文件名规则与整合包格式 |
+| `domain.settings` | 已校验的启动器设置、下载源标识和可见性策略 |
+| `application.port` | 认证、仓储、版本目录、游戏安装与启动、设置、文件浏览等操作契约 |
+| `application.model` | 不含协议 JSON 的界面读模型、操作结果和产品版本信息 |
+| `application.task` | 与 JavaFX 无关的取消、进度与提交契约 |
+| `application.usecase` | 模组目录解析与管理、启动参数解析等应用规则 |
+| `infrastructure.auth` | MSAL、Xbox/Minecraft 认证与皮肤头像缓存 |
+| `infrastructure.network` | HTTP、下载、并行调度、校验与镜像回退 |
+| `infrastructure.game.catalog` | 游戏/加载器目录缓存与版本描述解析 |
+| `infrastructure.game.install` | 原版安装、加载器适配、处理器执行与完整重装事务 |
+| `infrastructure.game.runtime` / `game.launch` | 本地 Java 检测、JVM 兼容参数、命令构建和游戏进程 |
+| `infrastructure.instance` | 磁盘实例扫描、实例文件操作与登记协调 |
+| `infrastructure.mod` / `modpack` | 本地模组文件、元数据解析与整合包协议适配 |
+| `infrastructure.config` | 发布配置、配置默认值和旧设置补全 |
+| `infrastructure.persistence` | 原子 JSON、配置备份和 JSON 实例仓储 |
+| `infrastructure.filesystem` | 可取消的文件复制、ZIP、物理路径、实例目录与有边界的工作区清理 |
+| `infrastructure.settings` | 数据目录引导、设置保存与游戏目录迁移事务 |
+| `infrastructure.recovery` | 持久化操作日志、快照及异常退出恢复 |
+| `infrastructure.platform` / `platform.windows` | 可执行文件位置、日志、重启、子进程和 Windows 凭据/剪贴板 |
+| `infrastructure.browser` | 文件浏览端口的本地实现 |
+| `ui.shell` | 主窗口、可见性与登录/下载进度弹窗 |
+| `ui.instances` / `downloads` / `accounts` / `settings` / `mods` / `modpack` / `about` | 各业务页面及其弹窗 |
+| `ui.common` | Win95 控件、窗口装饰、选择器、图标与图片缓存 |
+| `ui.viewmodel` | 共享只读状态、各业务 ViewModel 与展示依赖集合 |
+| `ui.task` | JavaFX Task 调度、进度绑定、任务所有者与提交门禁 |
 
-1. 获取官方版本描述、客户端、资源、原生库和日志配置。
-2. 在 `.fuzz-staging` 下载、校验加载器安装器。
-3. Fabric 使用官方 profile JSON；Forge/NeoForge 使用官方 install-profile 的库和客户端处理器。
-4. 映射下载统一通过启动器 HttpClient 和官方版本描述，避免旧版处理器的硬编码网络地址。Forge 的 sanitize/format 保留其对应 srgutils 版本的语义。
-5. 执行官方补丁处理器，校验声明的输出 SHA-1，导入共享库。
-6. 发布实例描述，解析最终依赖并校验资源，最后原子登记实例；失败描述回收到暂存目录。
+## 展示层与后台任务
 
-取消会中断下载、终止安装处理器子进程。已完成的缓存和诊断文件保留，可重新安装复用缓存。
-启动器只使用官方 HTTPS 地址，不关闭证书校验。
+`LauncherViewModel` 保留共享状态、业务 ViewModel 的组合与关闭流程，业务命令分别放在 `AccountsViewModel`、`CatalogViewModel`、`InstancesViewModel`、`SettingsViewModel`、`GamesViewModel`、`ModsViewModel` 和 `ModpacksViewModel` 中。页面显式调用对应的业务对象，不再由一个类同时承担所有操作。
 
-## 账号与启动
+各业务对象共享同一个 `PresentationState` 和 `FxTaskCoordinator`，因此拆分后仍只有一个全局操作门禁。页面切换仅取消属于该页面的目录请求；旧任务的完成回调不能清理新任务状态。提交阶段与取消操作通过同一把锁协调，退出时等待事务和头像任务释放资源。文件浏览、模组扫描和参数预览继续保留各自的后台读取及过期结果检查。
 
-系统浏览器 + MSAL4J，随后 Xbox Live、XSTS、Minecraft 登录、权益与 profile 验证。
-微软会话要求有效 Java 版权益。另提供显式离线账号：按 `OfflinePlayer:<用户名>` 生成标准离线 UUID，使用独立的 OFFLINE 类型，启动参数采用本地会话。微软认证失败不会自动转为离线账号。
-账号文件只存身份资料；MSAL 缓存通过 Windows DPAPI 加密绑定当前 Windows 用户。
-微软账号每次启动在线验证；资源准备较久时会在启动前重新检查令牌时效。离线账号跳过认证和刷新，切换到离线账号时清理微软凭据缓存。旧账号文件缺少类型字段时仍按微软账号处理。启动命令不写入日志，微软会话访问令牌从游戏输出中脱敏，离线占位参数不会参与日志替换。
+设置保存、实例扫描/修改和整合包解析的文件操作放在端口实现中。UI 接收 `ModpackInfo`、`ModpackContent`、`SettingsSaved` 等类型，不处理安装协议中的 `JsonObject`。启动参数文本解析位于应用层；Java 能力探测和具体 JVM 标志筛选位于运行环境适配器。
 
-游戏 Java 与启动器 Java 分开。实例指定 Java 路径时优先使用指定的 `java.exe`（也接受 Java 主目录、bin 目录或 javaw.exe，最终使用同目录 java.exe），验证路径和版本，不会静默替换无效的手动路径。留空时查找对应主版本的本地 Java，找不到时停止操作并弹窗提示所需版本和手动指定路径的方法，不访问 Java 下载服务。游戏启动在补齐游戏文件之前检查 Java。Forge/NeoForge 安装处理器同样只使用本地 Java。已有运行环境缓存继续可用，不会自动删除。
-实例内存可手动输入 512–65536 MB，也保留 512 MB 步进按钮；Java 路径与内存均在点击“保存设置”后写入该实例。旧实例缺少 Java 路径时自动兼容为空值。
-`jpackage` 应用包保留独立的 Java 21 + JavaFX 运行环境。
+## 策略、适配与扩展
 
-## 当前边界
+- `IsolationPolicy` 统一决定启动和模组管理使用的游戏目录。
+- `InstanceRepository` 隔离登记存储；JSON、备份和原子写入属于持久化实现。
+- 加载器安装器通过 `Map<LoaderType, LoaderInstaller>` 明确注册，Fabric 与 Forge/NeoForge 分别适配各自协议。协议 JSON 留在基础设施层。
+- 模组元数据按 `ModMetadataParser` 注册。Fabric、Quilt、Forge/NeoForge TOML 和旧 Forge 各有解析器；总读取器统一负责 ZIP 读取上限、取消、合并、图标边界和缩略图生成。重复条目注册会直接拒绝，增加格式无需修改入口分支。
+- `LauncherOptions` 把展示所需的默认值和下载源标签作为只读数据传入 UI。领域枚举保存稳定标识，不读取全局配置或显示标签。
 
-首版面向 Windows x64。配置根目录迁移、镜像源、模组市场、整合包导入和旧实例扫描不在本次范围。
-目录锁避免同一配置目录同时运行多个启动器。
-安装协议覆盖旧版 Forge 和现代处理器，但实际兼容性以测试记录为准；未逐一运行所有历史游戏和加载器组合。
+避免为简单值对象增加没有用途的接口；文件系统、HTTP、Windows 和安装协议的具体工作继续由明确的适配器实现。
+
+## 数据与兼容性
+
+默认游戏目录为程序旁的 `game`，默认数据目录为程序旁的 `data`。不可写安装目录仍沿用现有的目录选择/权限处理。切换游戏目录或数据目录后按原有流程重启，迁移前保留确认和恢复记录。
+
+游戏目录共享 `assets`、`libraries`。每个实例拥有稳定 ID，实际目录按实例名保存为 `versions/<实例名>/`，实例描述是 `.fuzz-instance.json`。启动工作目录和 `--gameDir` 使用同一隔离策略；共享模式下使用游戏根目录。旧 UUID 实例目录继续通过身份校验后迁移，拒绝覆盖、名称冲突和目录链接。共享基础版本仍保存在程序旁的 `baseVerisons`，本次不更改这个既有目录名。
+
+原有设置、账号、实例、MSAL 缓存、操作日志及整合包描述不因 Java 包变化而迁移。JSON 序列化不包含 Java 类名。旧设置缺少的字段在反序列化适配器中补全，再构造已校验的领域对象；旧下载源 `BMCLAPI`、`NJU` 继续映射为 `MIRROR`。新设置写入稳定枚举标识。
+
+游戏安装、完整重装加载器和目录迁移保留原有暂存、快照、提交、回滚及异常退出恢复顺序。删除实例仍要求用户确认，并只清理所属实例目录；共享目录和公共缓存保留。模块拆分不新增模组下载或 Java 自动下载。
+
+## 验证与编码规范
+
+```powershell
+$env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21'
+.\gradlew.bat test --tests '*ArchitectureTest'
+.\gradlew.bat test '-Dfuzz.uiTests=true'
+.\gradlew.bat preparePackage prepareJavafx
+```
+
+核心与 UI 回归覆盖旧配置、账号互斥、头像、取消、加载器重装、目录迁移/恢复、参数与内存、模组及整合包操作。真实联网安装仍需显式开启 `fuzz.integration`，本地回归不代表所有历史加载器已完成实际安装验收。
+
+Java 代码遵循仓库 `.editorconfig` 与 `packaging/java-format.properties`：4 空格缩进、同行大括号、完整控制块，导入按项目、第三方、JDK、静态成员分组；不改为 Kotlin，也不引入新的运行时框架。

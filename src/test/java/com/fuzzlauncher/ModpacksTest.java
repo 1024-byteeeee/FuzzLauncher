@@ -1,9 +1,22 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.*;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.*;
+import com.fuzzlauncher.application.port.InstanceRepository;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.game.GameVersion;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.domain.modpack.ModpackFormat;
+import com.fuzzlauncher.infrastructure.filesystem.InstanceDirectories;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
+import com.fuzzlauncher.infrastructure.game.install.GameFiles;
+import com.fuzzlauncher.infrastructure.game.install.LoaderInstaller;
+import com.fuzzlauncher.infrastructure.game.install.LocalGameInstallation;
+import com.fuzzlauncher.infrastructure.modpack.LocalModpacks;
+import com.fuzzlauncher.infrastructure.modpack.ModpackArchive;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
 
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpServer;
@@ -15,7 +28,6 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
-import java.util.concurrent.atomic.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -65,12 +77,13 @@ class ModpacksTest {
         return new GameVersion(id, "release", base + "/" + id + ".json", "");
     }
 
-    private InstallGame installer(InstanceRepository repo, boolean broken) {
+    private LocalGameInstallation installer(InstanceRepository repo, boolean broken) {
         LoaderInstaller loader = (root, staging, game, version, context) -> JsonParser
             .parseString(broken ? "{\"inheritsFrom\":\"base\",\"libraries\":[{\"name\":\"missing:generated:1\",\"url\":\"\"}]}"
                 : "{\"inheritsFrom\":\"" + game.id() + "\"}")
             .getAsJsonObject();
-        return new InstallGame(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of(LoaderType.FABRIC, loader));
+        return new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(),
+            Map.of(LoaderType.FABRIC, loader));
     }
 
     @Test
@@ -82,7 +95,7 @@ class ModpacksTest {
         Files.createDirectories(root.resolve("mods"));
         Files.writeString(root.resolve("mods/user.jar"), "shared mods");
         var repo = new JsonInstanceRepository(temp.resolve("data"));
-        var service = new Modpacks(new HttpTransport(), () -> List.of(game), installer(repo, false), repo);
+        var service = new LocalModpacks(new HttpTransport(), () -> List.of(game), installer(repo, false), repo);
         GameInstance original = new GameInstance("export", "pack", "base", LoaderType.FABRIC, "0.16.0", IsolationOverride.INHERIT, 4096);
         for (ModpackFormat format : ModpackFormat.values()) {
             Path zip = temp.resolve(format.name() + format.extension());
@@ -108,7 +121,7 @@ class ModpacksTest {
         Path zip = temp.resolve("broken.zip");
         ModpackArchive.export(source, original, ModpackFormat.MCBBS, "pack", "1", "", "", "", Set.of("config"), zip, false, task);
         var repo = new JsonInstanceRepository(temp.resolve("data"));
-        var service = new Modpacks(new HttpTransport(), () -> List.of(game), installer(repo, true), repo);
+        var service = new LocalModpacks(new HttpTransport(), () -> List.of(game), installer(repo, true), repo);
         Path root = temp.resolve("game");
         Files.createDirectories(root);
         Files.writeString(root.resolve("user.txt"), "keep");
@@ -176,7 +189,7 @@ class ModpacksTest {
         JsonObject remote = manifest("2", "base", Map.of("mods/update.jar", "new", "mods/added.jar", "added", "mods/disabled.jar",
             "server changed disabled mod", "config/local.txt", "server changed", "mods/collision.jar", "server mod"));
         responses.put("/server-manifest.json", remote.toString().getBytes(StandardCharsets.UTF_8));
-        var service = new Modpacks(new HttpTransport(), List::<GameVersion>of, installer(repo, false), repo);
+        var service = new LocalModpacks(new HttpTransport(), List::<GameVersion>of, installer(repo, false), repo);
         service.update(root, instance, task);
         assertEquals("new", Files.readString(folder.resolve("mods/update.jar")));
         assertEquals("added", Files.readString(folder.resolve("mods/added.jar")));
@@ -211,7 +224,7 @@ class ModpacksTest {
         Path root = temp.resolve("game"), folder = installState(root, instance, old, Map.of("mods/old.jar", "old"));
         JsonObject remote = manifest("2", "base", Map.of("mods/new.jar", "new"));
         responses.put("/server-manifest.json", remote.toString().getBytes(StandardCharsets.UTF_8));
-        var service = new Modpacks(new HttpTransport(), List::<GameVersion>of, installer(failing, false), failing);
+        var service = new LocalModpacks(new HttpTransport(), List::<GameVersion>of, installer(failing, false), failing);
         assertThrows(IOException.class, () -> service.update(root, instance, task));
         assertEquals("old", Files.readString(folder.resolve("mods/old.jar")));
         assertFalse(Files.exists(folder.resolve("mods/new.jar")));
@@ -232,7 +245,7 @@ class ModpacksTest {
         fabric.addProperty("version", "0.16.0");
         remote.getAsJsonArray("addons").add(fabric);
         responses.put("/server-manifest.json", remote.toString().getBytes(StandardCharsets.UTF_8));
-        var service = new Modpacks(new HttpTransport(), () -> List.of(next), installer(repo, false), repo);
+        var service = new LocalModpacks(new HttpTransport(), () -> List.of(next), installer(repo, false), repo);
         GameInstance updated = service.update(root, instance, task);
         assertEquals(instance.id(), updated.id());
         assertEquals(instance.name(), updated.name());

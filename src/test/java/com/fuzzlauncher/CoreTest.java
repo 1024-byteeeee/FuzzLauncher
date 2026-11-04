@@ -1,10 +1,24 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.TaskContext;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.account.Account;
+import com.fuzzlauncher.domain.account.GameSession;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationMode;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.domain.instance.IsolationPolicy;
+import com.fuzzlauncher.domain.settings.LauncherSettings;
+import com.fuzzlauncher.domain.settings.LauncherVisibility;
 import com.fuzzlauncher.infrastructure.auth.MicrosoftAuthentication;
-import com.fuzzlauncher.infrastructure.game.*;
+import com.fuzzlauncher.infrastructure.filesystem.ZipFiles;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
+import com.fuzzlauncher.infrastructure.game.launch.LaunchArguments;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
+import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
+import com.fuzzlauncher.infrastructure.platform.windows.WindowsSecretStore;
 
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpServer;

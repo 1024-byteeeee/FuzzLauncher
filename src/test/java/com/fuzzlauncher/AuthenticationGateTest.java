@@ -1,9 +1,22 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.*;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.*;
+import com.fuzzlauncher.application.port.AccountAuthenticator;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.account.Account;
+import com.fuzzlauncher.domain.account.GameSession;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationMode;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.domain.instance.IsolationPolicy;
+import com.fuzzlauncher.domain.settings.LauncherSettings;
+import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
+import com.fuzzlauncher.infrastructure.game.install.GameFiles;
+import com.fuzzlauncher.infrastructure.game.launch.LaunchArguments;
+import com.fuzzlauncher.infrastructure.game.launch.LocalGameLauncher;
+import com.fuzzlauncher.infrastructure.game.runtime.JavaRuntimeManager;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
 
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.io.TempDir;
@@ -44,7 +57,7 @@ class AuthenticationGateTest {
             }
         };
         HttpTransport http = new HttpTransport();
-        LaunchGame launch = new LaunchGame(rejecting, new IsolationPolicy(), new VersionResolver(), new GameFiles(http),
+        LocalGameLauncher launch = new LocalGameLauncher(rejecting, new IsolationPolicy(), new VersionResolver(), new GameFiles(http),
             new JavaRuntimeManager(temp.resolve("runtimes")), new LaunchArguments(), temp.resolve("logs"));
         TaskContext task = new TaskContext() {
             public void report(String message, double value) {
@@ -55,7 +68,7 @@ class AuthenticationGateTest {
             }
         };
         GameInstance instance = new GameInstance("test", "test", "1.20.4", LoaderType.VANILLA, null, IsolationOverride.ISOLATED, 4096);
-        LauncherSettings settings = new LauncherSettings(temp.resolve("game").toString(), IsolationMode.ALL);
+        LauncherSettings settings = SettingsDefaults.create(temp.resolve("game").toString(), IsolationMode.ALL);
         assertThrows(IOException.class, () -> launch.execute(settings, instance, null, task));
         assertEquals(0, refreshes.get());
         assertThrows(IOException.class, () -> launch.execute(settings, instance, new Account("test", "test", "test"), task));

@@ -1,6 +1,6 @@
 package com.fuzzlauncher.infrastructure.auth;
 
-import com.fuzzlauncher.application.TaskContext;
+import com.fuzzlauncher.application.task.TaskContext;
 
 import com.microsoft.aad.msal4j.*;
 import org.junit.jupiter.api.*;

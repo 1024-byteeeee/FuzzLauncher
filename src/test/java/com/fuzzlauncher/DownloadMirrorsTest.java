@@ -1,7 +1,11 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
+import com.fuzzlauncher.domain.settings.DownloadSource;
+import com.fuzzlauncher.domain.settings.LauncherSettings;
+import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
+import com.fuzzlauncher.infrastructure.network.DownloadMirrors;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -90,7 +94,7 @@ class DownloadMirrorsTest {
             assertEquals(old.gameRoot(), store.load().gameRoot());
         }
         for (DownloadSource source : DownloadSource.values()) {
-            store.save(new LauncherSettings(old.gameRoot(), old.isolation(), source));
+            store.save(SettingsDefaults.create(old.gameRoot(), old.isolation(), source));
             assertEquals(source, new SettingsStore(temp).load().downloadSource());
         }
     }

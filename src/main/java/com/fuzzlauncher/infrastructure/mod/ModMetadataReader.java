@@ -1,10 +1,7 @@
 package com.fuzzlauncher.infrastructure.mod;
 
-import com.fuzzlauncher.application.TaskContext;
-import com.fuzzlauncher.domain.ModFile;
-
-import com.google.gson.*;
-import org.tomlj.*;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.mod.ModFile;
 
 import java.awt.image.BufferedImage;
 import java.io.*;
@@ -23,26 +20,38 @@ public final class ModMetadataReader {
     public record Result(boolean readable, List<ModFile.Metadata> metadata, String problem, byte[] icon) {
     }
 
+    private final List<ModMetadataParser> parsers;
+
+    public ModMetadataReader() {
+        this(List.of(new FabricMetadataParser(), new QuiltMetadataParser(), new ForgeMetadataParser("Forge", "META-INF/mods.toml"),
+            new ForgeMetadataParser("NeoForge", "META-INF/neoforge.mods.toml"), new LegacyForgeMetadataParser()));
+    }
+
+    ModMetadataReader(List<ModMetadataParser> parsers) {
+        this.parsers = List.copyOf(parsers);
+        Set<String> entries = new HashSet<>();
+        for (ModMetadataParser parser : this.parsers) {
+            if (!entries.add(parser.entry())) {
+                throw new IllegalArgumentException("Duplicate metadata parser: " + parser.entry());
+            }
+        }
+    }
+
     public Result read(Path path, TaskContext task) throws IOException {
         task.checkCancelled();
         List<ModFile.Metadata> metadata = new ArrayList<>();
         List<String> problems = new ArrayList<>(), icons = new ArrayList<>();
         try (ZipFile archive = new ZipFile(path.toFile())) {
             String jarVersion = manifestVersion(archive, task, problems);
-            for (String entry : List.of("fabric.mod.json", "quilt.mod.json", "META-INF/mods.toml", "META-INF/neoforge.mods.toml",
-                "mcmod.info")) {
+            for (ModMetadataParser parser : parsers) {
+                String entry = parser.entry();
                 task.checkCancelled();
                 if (archive.getEntry(entry) == null) {
                     continue;
                 }
                 try {
                     String text = new String(bytes(archive, entry, METADATA_LIMIT, task), StandardCharsets.UTF_8);
-                    switch (entry) {
-                        case "fabric.mod.json" -> fabric(JsonParser.parseString(text).getAsJsonObject(), metadata, icons);
-                        case "quilt.mod.json" -> quilt(JsonParser.parseString(text).getAsJsonObject(), metadata, icons);
-                        case "mcmod.info" -> legacy(JsonParser.parseString(text), metadata, icons);
-                        default -> forge(text, entry.contains("neoforge") ? "NeoForge" : "Forge", jarVersion, metadata, icons);
-                    }
+                    parser.parse(text, jarVersion, metadata, icons);
                 } catch (IOException | RuntimeException ex) {
                     if (ex instanceof java.util.concurrent.CancellationException cancelled) {
                         throw cancelled;
@@ -88,63 +97,6 @@ public final class ModMetadataReader {
             return new Result(true, merge(metadata), String.join("\n", problems), icon);
         } catch (ZipException ex) {
             return new Result(false, List.of(), "压缩文件损坏：" + ex.getMessage(), null);
-        }
-    }
-
-    private static void fabric(JsonObject json, List<ModFile.Metadata> output, List<String> icons) {
-        String id = required(json, "id");
-        output.add(new ModFile.Metadata(id, string(json, "name", id), string(json, "version", "未知"), people(json.get("authors")),
-            string(json, "description", ""), Set.of("Fabric")));
-        icon(json.get("icon"), icons);
-    }
-
-    private static void quilt(JsonObject json, List<ModFile.Metadata> output, List<String> icons) {
-        JsonObject loader = json.getAsJsonObject("quilt_loader");
-        String id = required(loader, "id");
-        JsonObject metadata = loader.has("metadata") ? loader.getAsJsonObject("metadata") : new JsonObject();
-        String authors = metadata.has("contributors") ? String.join(", ", metadata.getAsJsonObject("contributors").keySet()) : "";
-        output.add(new ModFile.Metadata(id, string(metadata, "name", id), string(loader, "version", "未知"), authors,
-            string(metadata, "description", ""), Set.of("Quilt")));
-        icon(metadata.get("icon"), icons);
-    }
-
-    private static void legacy(JsonElement json, List<ModFile.Metadata> output, List<String> icons) {
-        JsonArray mods = json.isJsonArray() ? json.getAsJsonArray() : json.getAsJsonObject().getAsJsonArray("modList");
-        if (mods == null || mods.isEmpty()) {
-            throw new IllegalArgumentException("缺少 modList");
-        }
-        for (JsonElement value : mods) {
-            JsonObject mod = value.getAsJsonObject();
-            String id = required(mod, "modid");
-            output.add(new ModFile.Metadata(id, string(mod, "name", id), string(mod, "version", "未知"), people(mod.get("authorList")),
-                string(mod, "description", ""), Set.of("Forge")));
-            icon(mod.get("logoFile"), icons);
-        }
-    }
-
-    private static void forge(String text, String loader, String jarVersion, List<ModFile.Metadata> output, List<String> icons)
-        throws IOException {
-        TomlParseResult result = Toml.parse(text);
-        if (result.hasErrors()) {
-            throw new IOException(result.errors().getFirst().toString());
-        }
-        TomlArray mods = result.getArray("mods");
-        if (mods == null || mods.isEmpty()) {
-            throw new IOException("缺少 [[mods]]");
-        }
-        for (int i = 0; i < mods.size(); i++) {
-            TomlTable mod = mods.getTable(i);
-            String id = mod.getString("modId");
-            if (id == null || id.isBlank()) {
-                throw new IOException("缺少 modId");
-            }
-            String version = mod.getString("version", () -> "未知").replace("${file.jarVersion}", jarVersion);
-            output.add(new ModFile.Metadata(id, mod.getString("displayName", () -> id), version, mod.getString("authors", () -> ""),
-                mod.getString("description", () -> ""), Set.of(loader)));
-            String logo = mod.getString("logoFile", () -> result.getString("logoFile", () -> ""));
-            if (!logo.isBlank()) {
-                icons.add(logo);
-            }
         }
     }
 
@@ -231,58 +183,4 @@ public final class ModMetadataReader {
         }
     }
 
-    private static String required(JsonObject json, String key) {
-        String value = string(json, key, "");
-        if (value.isBlank()) {
-            throw new IllegalArgumentException("缺少 " + key);
-        }
-        return value;
-    }
-
-    private static String string(JsonObject json, String key, String fallback) {
-        JsonElement value = json.get(key);
-        return value == null || value.isJsonNull() ? fallback : value.getAsString();
-    }
-
-    private static String people(JsonElement value) {
-        if (value == null || value.isJsonNull()) {
-            return "";
-        }
-        if (!value.isJsonArray()) {
-            return value.isJsonObject() ? string(value.getAsJsonObject(), "name", "") : value.getAsString();
-        }
-        List<String> names = new ArrayList<>();
-        for (JsonElement person : value.getAsJsonArray()) {
-            if (person.isJsonObject()) {
-                names.add(string(person.getAsJsonObject(), "name", ""));
-            } else if (person.isJsonPrimitive()) {
-                names.add(person.getAsString());
-            }
-        }
-        return String.join(", ", names);
-    }
-
-    private static void icon(JsonElement value, List<String> output) {
-        if (value == null || value.isJsonNull()) {
-            return;
-        }
-        if (value.isJsonObject()) {
-            value.getAsJsonObject().entrySet().stream().sorted(Comparator.comparingInt(entry -> iconSizeOrder(entry.getKey())))
-                .map(Map.Entry::getValue).filter(JsonElement::isJsonPrimitive).forEach(item -> output.add(item.getAsString()));
-        } else if (value.isJsonPrimitive() && !value.getAsString().isBlank()) {
-            output.add(value.getAsString());
-        }
-    }
-
-    private static int iconSizeOrder(String size) {
-        try {
-            int pixels = Integer.parseInt(size);
-            if (pixels <= 0) {
-                return Integer.MAX_VALUE;
-            }
-            return pixels >= 64 ? pixels - 64 : Integer.MAX_VALUE - pixels;
-        } catch (NumberFormatException ex) {
-            return Integer.MAX_VALUE;
-        }
-    }
 }

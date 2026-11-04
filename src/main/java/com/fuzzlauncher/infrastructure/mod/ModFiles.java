@@ -1,8 +1,12 @@
 package com.fuzzlauncher.infrastructure.mod;
 
-import com.fuzzlauncher.application.TaskContext;
-import com.fuzzlauncher.domain.ModFile;
-import com.fuzzlauncher.infrastructure.*;
+import com.fuzzlauncher.application.model.FileOperationResult;
+import com.fuzzlauncher.application.port.ModRepository;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.mod.ModFile;
+import com.fuzzlauncher.domain.mod.ModFileNames;
+import com.fuzzlauncher.infrastructure.filesystem.BrowserFiles;
+import com.fuzzlauncher.infrastructure.filesystem.CancellableFiles;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -10,7 +14,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
 /** Local archive operations. Every publication refuses to overwrite an existing file. */
-public final class ModFiles {
+public final class ModFiles implements ModRepository {
     private static final String DISABLED = ".disabled";
     private static final int CACHE_CAPACITY = 1024;
     private final ModMetadataReader reader = new ModMetadataReader();
@@ -30,26 +34,15 @@ public final class ModFiles {
         this.recycler = Objects.requireNonNull(recycler);
     }
 
-    public record Report(int completed, List<String> failures) {
-        public Report {
-            failures = List.copyOf(failures);
-        }
-    }
-
     private record Prepared(Path temporary, Path target) {
     }
 
     public static boolean supported(Path path) {
-        if (path == null || path.getFileName() == null) {
-            return false;
-        }
-        String name = logicalName(path.getFileName().toString());
-        return name.endsWith(".jar") || name.endsWith(".zip") || name.endsWith(".litemod");
+        return ModFileNames.supported(path);
     }
 
     public static String logicalName(String name) {
-        name = name.toLowerCase(Locale.ROOT);
-        return name.endsWith(DISABLED) ? name.substring(0, name.length() - DISABLED.length()) : name;
+        return ModFileNames.logicalName(name);
     }
 
     public List<ModFile> scan(Path directory, TaskContext task) throws IOException {
@@ -102,7 +95,7 @@ public final class ModFiles {
         return result;
     }
 
-    public Report setEnabled(Path directory, List<ModFile> selected, boolean enabled, TaskContext task) throws Exception {
+    public FileOperationResult setEnabled(Path directory, List<ModFile> selected, boolean enabled, TaskContext task) throws Exception {
         return change(directory, selected, task, mod -> {
             if (mod.enabled() == enabled) {
                 return;
@@ -113,7 +106,7 @@ public final class ModFiles {
         });
     }
 
-    public Report delete(Path directory, List<ModFile> selected, TaskContext task) throws Exception {
+    public FileOperationResult delete(Path directory, List<ModFile> selected, TaskContext task) throws Exception {
         return change(directory, selected, task, mod -> recycler.recycle(mod.path()));
     }
 
@@ -122,7 +115,7 @@ public final class ModFiles {
         void apply(ModFile mod) throws IOException;
     }
 
-    private Report change(Path directory, List<ModFile> selected, TaskContext task, FileChange action) throws Exception {
+    private FileOperationResult change(Path directory, List<ModFile> selected, TaskContext task, FileChange action) throws Exception {
         task.checkCancelled();
         checkAncestors(directory);
         Path real = directory.toRealPath();
@@ -143,10 +136,11 @@ public final class ModFiles {
                 }
             }
         });
-        return new Report(completed[0], failures);
+        return new FileOperationResult(completed[0], failures);
     }
 
-    public Report importFiles(Path directory, List<Path> sources, boolean renameCollisions, TaskContext task) throws Exception {
+    public FileOperationResult importFiles(Path directory, List<Path> sources, boolean renameCollisions, TaskContext task)
+        throws Exception {
         task.checkCancelled();
         checkAncestors(directory);
         Files.createDirectories(directory);
@@ -203,7 +197,7 @@ public final class ModFiles {
                     }
                 }
             });
-            return new Report(completed[0], failures);
+            return new FileOperationResult(completed[0], failures);
         } catch (Exception | Error ex) {
             primaryFailure = ex;
             throw ex;

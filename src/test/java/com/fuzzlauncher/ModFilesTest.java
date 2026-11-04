@@ -1,7 +1,14 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.*;
-import com.fuzzlauncher.domain.*;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.application.usecase.mod.ManageMods;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationMode;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.domain.mod.ModFile;
+import com.fuzzlauncher.domain.settings.LauncherSettings;
+import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
 import com.fuzzlauncher.infrastructure.mod.ModFiles;
 
 import org.junit.jupiter.api.Test;
@@ -168,10 +175,10 @@ class ModFilesTest {
     @Test
     void modDirectoryUsesTheLaunchIsolationPolicy() {
         Path root = temp.resolve("game");
-        LauncherSettings settings = new LauncherSettings(root.toString(), IsolationMode.ALL);
+        LauncherSettings settings = SettingsDefaults.create(root.toString(), IsolationMode.ALL);
         var isolated = new GameInstance("isolated", "My Instance", "1.21", LoaderType.FABRIC, "0.16.0", IsolationOverride.INHERIT, 4096);
         var shared = new GameInstance("shared", "Shared", "1.21", LoaderType.FABRIC, "0.16.0", IsolationOverride.SHARED, 4096);
-        ManageMods service = new ManageMods();
+        ManageMods service = new ManageMods(new ModFiles());
         assertEquals(root.resolve("versions/My Instance/mods").toAbsolutePath(), service.directory(settings, isolated));
         assertEquals(root.resolve("mods").toAbsolutePath(), service.directory(settings, shared));
         assertFalse(ModFiles.supported(root.getRoot()));

@@ -1,9 +1,18 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.*;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.*;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.game.GameVersion;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionCatalog;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
+import com.fuzzlauncher.infrastructure.game.install.FabricInstaller;
+import com.fuzzlauncher.infrastructure.game.install.GameFiles;
+import com.fuzzlauncher.infrastructure.game.install.LocalGameInstallation;
+import com.fuzzlauncher.infrastructure.game.install.OfficialLoaderInstaller;
+import com.fuzzlauncher.infrastructure.game.runtime.JavaRuntimeManager;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
+import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
 
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
@@ -26,7 +35,7 @@ class OfficialInstallTest {
         GameFiles files = new GameFiles(http);
         JavaRuntimeManager runtimes = new JavaRuntimeManager(directory.resolve("runtimes"));
         var repo = new JsonInstanceRepository(directory);
-        InstallGame install = new InstallGame(repo, files, resolver,
+        LocalGameInstallation install = new LocalGameInstallation(repo, files, resolver,
             Map.of(LoaderType.FABRIC, new FabricInstaller(http), LoaderType.FORGE,
                 new OfficialLoaderInstaller(LoaderType.FORGE, http, runtimes, resolver), LoaderType.NEOFORGE,
                 new OfficialLoaderInstaller(LoaderType.NEOFORGE, http, runtimes, resolver)));

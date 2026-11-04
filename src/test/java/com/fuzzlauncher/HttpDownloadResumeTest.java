@@ -1,7 +1,7 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.TaskContext;
-import com.fuzzlauncher.infrastructure.HttpTransport;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
 
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;

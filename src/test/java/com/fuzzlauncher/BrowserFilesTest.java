@@ -1,6 +1,6 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.infrastructure.BrowserFiles;
+import com.fuzzlauncher.infrastructure.filesystem.BrowserFiles;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

@@ -59,7 +59,8 @@
     -fx-padding: 15 5 15 5;
 }
 .navigation {
-    -fx-padding: 4 10 0 0;
+    /* Balance visible gray gutters: the window adds 4px on the left; the separator is excluded. */
+    -fx-padding: 4 7 0 3;
     -fx-border-color: transparent white transparent transparent;
     -fx-border-width: 0 2 0 0;
 }
@@ -468,4 +469,19 @@
 }
 .scroll-pane > .corner, .virtual-flow > .corner {
     -fx-background-color: #c0c0c0;
+}
+
+.tooltip {
+    -fx-font-family: "System";
+    -fx-font-size: 14px;
+    -fx-text-fill: black;
+    -fx-background-color: #ffffe1;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+    -fx-border-color: black;
+    -fx-border-width: 1;
+    -fx-border-radius: 0;
+    -fx-padding: 3 5;
+    -fx-effect: null;
+    -fx-opacity: 1;
 }

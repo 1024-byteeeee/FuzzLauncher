@@ -1,0 +1,132 @@
+package com.fuzzlauncher.infrastructure.game.launch;
+
+import com.fuzzlauncher.application.model.RunningGame;
+import com.fuzzlauncher.application.port.AccountAuthenticator;
+import com.fuzzlauncher.application.port.GameLauncher;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.account.Account;
+import com.fuzzlauncher.domain.account.GameSession;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationPolicy;
+import com.fuzzlauncher.domain.settings.LauncherSettings;
+import com.fuzzlauncher.domain.settings.LauncherVisibility;
+import com.fuzzlauncher.infrastructure.filesystem.ZipFiles;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
+import com.fuzzlauncher.infrastructure.game.install.GameFiles;
+import com.fuzzlauncher.infrastructure.game.runtime.JavaRuntimeManager;
+import com.fuzzlauncher.infrastructure.game.runtime.JvmDefaults;
+import com.fuzzlauncher.infrastructure.game.runtime.JvmEnvironment;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+
+import com.google.gson.*;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.time.Instant;
+import java.util.*;
+
+public final class LocalGameLauncher implements GameLauncher {
+    private final AccountAuthenticator authentication;
+    private final IsolationPolicy isolation;
+    private final VersionResolver resolver;
+    private final GameFiles files;
+    private final JavaRuntimeManager runtimes;
+    private final LaunchArguments arguments;
+    private final Path logs;
+
+    public LocalGameLauncher(AccountAuthenticator authentication, IsolationPolicy isolation, VersionResolver resolver, GameFiles files,
+        JavaRuntimeManager runtimes, LaunchArguments arguments, Path logs) {
+        this.authentication = authentication;
+        this.isolation = isolation;
+        this.resolver = resolver;
+        this.files = files;
+        this.runtimes = runtimes;
+        this.arguments = arguments;
+        this.logs = logs;
+    }
+
+    public RunningGame execute(LauncherSettings settings, GameInstance instance, Account account, TaskContext task) throws Exception {
+        if (account == null) {
+            throw new IOException("请先在账号页登录微软账号或创建离线账号");
+        }
+        GameSession session = account.isOffline() ? GameSession.offline(account) : authentication.refresh(account, task);
+        Path root = Path.of(settings.gameRoot()).toAbsolutePath().normalize();
+        JsonObject version = resolver.resolveInstance(root, instance);
+        Path java = runtimes.resolve(runtimes.requiredMajor(version), instance.javaPath(), task);
+        files.prepare(root, version, task);
+        Path gameDir = isolation.gameDirectory(root, instance, settings.isolation());
+        Files.createDirectories(gameDir);
+        Path natives = Files.createTempDirectory(Files.createDirectories(root.resolve(".fuzz-natives")), "launch-");
+        List<Path> classpath = new ArrayList<>();
+        for (GameFiles.Artifact artifact : files.libraries(root, version)) {
+            if (artifact.nativeJar()) {
+                ZipFiles.extract(artifact.path(), natives, true, task);
+            }
+        }
+        for (JsonElement item : version.getAsJsonArray("libraries")) {
+            JsonObject library = item.getAsJsonObject();
+            if (!VersionResolver.allowed(library)) {
+                continue;
+            }
+            if (library.has("downloads")) {
+                JsonObject downloads = library.getAsJsonObject("downloads");
+                if (downloads.has("artifact")) {
+                    classpath.add(
+                        JsonFiles.safeResolve(root.resolve("libraries"), downloads.getAsJsonObject("artifact").get("path").getAsString()));
+                }
+            } else {
+                classpath
+                    .add(JsonFiles.safeResolve(root.resolve("libraries"), VersionResolver.mavenPath(library.get("name").getAsString())));
+            }
+        }
+        files.legacyResources(root, gameDir, version, task);
+        if (!account.isOffline() && !session.expiresAt().isAfter(Instant.now().plusSeconds(60))) {
+            session = authentication.refresh(account, task);
+        }
+        List<String> command = new ArrayList<>();
+        command.add(java.toString());
+        task.report("检测游戏 Java 参数", -1);
+        JvmEnvironment environment = JvmEnvironment.inspect(java);
+        task.checkCancelled();
+        command.addAll(arguments.build(root, gameDir, natives, instance, session, version, classpath, environment));
+        var outputEncoding = JvmDefaults.outputEncoding(environment,
+            command.stream().takeWhile(argument -> !argument.equals(version.get("mainClass").getAsString())).toList());
+        task.checkCancelled();
+        Files.createDirectories(logs);
+        Path log = logs.resolve(instance.id() + "-" + System.currentTimeMillis() + ".log");
+        task.report("正在启动 " + instance.name(), -1);
+        if (settings.launcherVisibility() == LauncherVisibility.EXIT) {
+            Process detached = DetachedGame.start(command, gameDir, log, account.isOffline() ? "" : session.accessToken(), outputEncoding);
+            task.report("游戏已启动", 1);
+            return new RunningGame(detached, log);
+        }
+        Process process = new ProcessBuilder(command).directory(gameDir.toFile()).redirectErrorStream(true).start();
+        String token = session.accessToken();
+        boolean redactToken = !account.isOffline();
+        Thread.ofVirtual().name("game-log-" + process.pid()).start(() -> {
+            try (BufferedReader input = process.inputReader(outputEncoding);
+                BufferedWriter output = Files.newBufferedWriter(log, StandardCharsets.UTF_8)) {
+                String line;
+                while ((line = input.readLine()) != null) {
+                    output.write(redactToken ? line.replace(token, "[REDACTED]") : line);
+                    output.newLine();
+                    output.flush();
+                }
+            } catch (IOException ex) {
+                System.err.println("游戏日志写入失败: " + ex.getClass().getSimpleName());
+            }
+        });
+        task.report("游戏已启动", 1);
+        return new RunningGame(process, log);
+    }
+
+    public LaunchArguments.Preview previewJvm(Path root, GameInstance instance) throws Exception {
+        JsonObject version = resolver.resolveInstance(root, instance);
+        Path executable = instance.javaPath().isBlank() ? runtimes.findInstalled(runtimes.requiredMajor(version))
+            : JavaRuntimeManager.configuredExecutable(instance.javaPath());
+        JsonObject arguments = version.has("arguments") ? version.getAsJsonObject("arguments") : new JsonObject();
+        List<String> jvm = arguments.has("jvm") ? VersionResolver.argumentValues(arguments.getAsJsonArray("jvm")) : List.of();
+        return new LaunchArguments.Preview(executable == null ? null : JvmEnvironment.inspect(executable), jvm);
+    }
+}

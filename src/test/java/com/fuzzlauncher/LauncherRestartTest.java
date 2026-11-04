@@ -1,6 +1,6 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.infrastructure.LauncherRestart;
+import com.fuzzlauncher.infrastructure.platform.LauncherRestart;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

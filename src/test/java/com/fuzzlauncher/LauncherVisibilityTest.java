@@ -1,8 +1,13 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.DetachedGame;
+import com.fuzzlauncher.domain.instance.IsolationMode;
+import com.fuzzlauncher.domain.settings.DownloadSource;
+import com.fuzzlauncher.domain.settings.LauncherSettings;
+import com.fuzzlauncher.domain.settings.LauncherVisibility;
+import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
+import com.fuzzlauncher.infrastructure.game.launch.DetachedGame;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -22,7 +27,7 @@ class LauncherVisibilityTest {
         SettingsStore store = new SettingsStore(temp);
         assertEquals(LauncherVisibility.KEEP, store.load().launcherVisibility());
         for (LauncherVisibility policy : LauncherVisibility.values()) {
-            var settings = new LauncherSettings(temp.toString(), IsolationMode.ALL, DownloadSource.AUTO, "", policy);
+            var settings = SettingsDefaults.create(temp.toString(), IsolationMode.ALL, DownloadSource.AUTO, "", policy);
             store.save(settings);
             assertEquals(settings, store.load());
         }

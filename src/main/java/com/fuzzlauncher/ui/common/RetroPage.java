@@ -1,0 +1,109 @@
+package com.fuzzlauncher.ui.common;
+
+import javafx.scene.Node;
+import javafx.scene.control.*;
+import javafx.scene.image.*;
+import javafx.scene.layout.*;
+import javafx.stage.Stage;
+
+import java.awt.Desktop;
+import java.nio.file.*;
+import java.util.*;
+import java.util.function.Consumer;
+
+/** Shared retro controls and dialogs. Contains no application logic. */
+public class RetroPage extends BorderPane {
+    private static final Map<String, Image> IMAGES = new java.util.concurrent.ConcurrentHashMap<>();
+    protected final Stage stage;
+    private final Consumer<Integer> navigate;
+
+    protected RetroPage(Stage stage, Consumer<Integer> navigate) {
+        this.stage = stage;
+        this.navigate = navigate;
+    }
+
+    protected void showPage(int page) {
+        navigate.accept(page);
+    }
+
+    protected GridPane form(String[] labels, Node[] values) {
+        GridPane grid = new GridPane();
+        grid.setHgap(14);
+        grid.setVgap(12);
+        ColumnConstraints a = new ColumnConstraints();
+        a.setPercentWidth(28);
+        ColumnConstraints b = new ColumnConstraints();
+        b.setPercentWidth(72);
+        grid.getColumnConstraints().addAll(a, b);
+        for (int i = 0; i < labels.length; i++) {
+            grid.add(new Label(labels[i]), 0, i);
+            grid.add(values[i], 1, i);
+            if (values[i] instanceof Region r) {
+                r.setMaxWidth(Double.MAX_VALUE);
+            }
+        }
+        return grid;
+    }
+
+    protected Button button(String text, Runnable action) {
+        Button b = new Button(text);
+        b.setOnAction(e -> action.run());
+        b.setFocusTraversable(false);
+        return b;
+    }
+
+    public static Label label(String text, String style) {
+        Label l = new Label(text);
+        l.getStyleClass().add(style);
+        return l;
+    }
+
+    public static Image image(String name) {
+        return IMAGES.computeIfAbsent(name, key -> {
+            if (key.equals("mods")) {
+                return ModIcon.create();
+            }
+            if (key.equals("about")) {
+                return AboutIcon.create();
+            }
+            try (var input = Objects.requireNonNull(RetroPage.class.getResourceAsStream("/com/fuzzlauncher/" + key + ".png"))) {
+                return new Image(input);
+            } catch (java.io.IOException ex) {
+                throw new java.io.UncheckedIOException(ex);
+            }
+        });
+    }
+
+    public static ImageView icon(String name, int size) {
+        ImageView view = new ImageView(image(name));
+        view.setFitWidth(size);
+        view.setFitHeight(size);
+        view.setPreserveRatio(true);
+        view.setSmooth(false);
+        return view;
+    }
+
+    protected void message(Alert.AlertType type, String title, String text) {
+        RetroDialogs.alert(stage, type, title, text).showAndWait();
+    }
+
+    protected boolean confirm(String title, String text) {
+        Alert alert = RetroDialogs.alert(stage, Alert.AlertType.CONFIRMATION, title, text);
+        return alert.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
+    }
+
+    protected void openFolder(Path directory) {
+        try {
+            Files.createDirectories(directory);
+            Desktop.getDesktop().open(directory.toFile());
+        } catch (Exception ex) {
+            message(Alert.AlertType.ERROR, "无法打开目录", ex.getMessage());
+        }
+    }
+
+    protected static final class Spacer extends Region {
+        Spacer() {
+            HBox.setHgrow(this, Priority.ALWAYS);
+        }
+    }
+}

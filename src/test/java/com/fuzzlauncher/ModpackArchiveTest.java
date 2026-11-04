@@ -1,8 +1,12 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.*;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.domain.modpack.ModpackFormat;
+import com.fuzzlauncher.infrastructure.modpack.ModpackArchive;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
 
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpServer;

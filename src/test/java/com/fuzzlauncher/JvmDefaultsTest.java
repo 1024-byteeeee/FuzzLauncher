@@ -1,9 +1,14 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.config.LauncherConfig;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.JsonFiles;
-import com.fuzzlauncher.infrastructure.game.*;
+import com.fuzzlauncher.domain.instance.IsolationMode;
+import com.fuzzlauncher.domain.settings.DownloadSource;
+import com.fuzzlauncher.domain.settings.LauncherSettings;
+import com.fuzzlauncher.domain.settings.LauncherVisibility;
+import com.fuzzlauncher.infrastructure.config.LauncherConfig;
+import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
+import com.fuzzlauncher.infrastructure.game.runtime.JvmDefaults;
+import com.fuzzlauncher.infrastructure.game.runtime.JvmEnvironment;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 
 import org.junit.jupiter.api.Test;
 
@@ -21,13 +26,14 @@ class JvmDefaultsTest {
         LauncherSettings old = JsonFiles.GSON.fromJson("{\"gameRoot\":\"game\",\"isolation\":\"ALL\"}", LauncherSettings.class);
         assertTrue(old.autoDownloadThreads());
         assertEquals(64, old.downloadThreads());
-        assertEquals(Math.min(Runtime.getRuntime().availableProcessors() * 4, 64), old.effectiveDownloadThreads());
-        LauncherSettings manual = new LauncherSettings("game", IsolationMode.ALL, DownloadSource.AUTO, "", LauncherVisibility.KEEP, false,
-            5);
-        assertEquals(5, manual.effectiveDownloadThreads());
+        assertEquals(Math.min(Runtime.getRuntime().availableProcessors() * 4, 64),
+            old.effectiveDownloadThreads(LauncherConfig.get().network().concurrency()));
+        LauncherSettings manual = SettingsDefaults.create("game", IsolationMode.ALL, DownloadSource.AUTO, "", LauncherVisibility.KEEP,
+            false, 5);
+        assertEquals(5, manual.effectiveDownloadThreads(LauncherConfig.get().network().concurrency()));
         assertEquals(manual, JsonFiles.GSON.fromJson(JsonFiles.GSON.toJson(manual), LauncherSettings.class));
         assertThrows(IllegalArgumentException.class,
-            () -> new LauncherSettings("game", IsolationMode.ALL, DownloadSource.AUTO, "", LauncherVisibility.KEEP, false, 0));
+            () -> SettingsDefaults.create("game", IsolationMode.ALL, DownloadSource.AUTO, "", LauncherVisibility.KEEP, false, 0));
     }
 
     @Test

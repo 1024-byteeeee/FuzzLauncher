@@ -1,8 +1,10 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.TaskContext;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.instance.IsolationMode;
+import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
+import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
+import com.fuzzlauncher.infrastructure.settings.GameRootMigration;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -46,7 +48,7 @@ class GameRootMigrationTest {
             System.setProperty("jpackage.app-path", launcher.resolve("FuzzLauncher.exe").toString());
             SettingsStore store = new SettingsStore(temp.resolve("config"));
             assertEquals(launcher.resolve("game").toString(), store.load().gameRoot());
-            var existing = new LauncherSettings(temp.resolve("existing").toString(), IsolationMode.ALL);
+            var existing = SettingsDefaults.create(temp.resolve("existing").toString(), IsolationMode.ALL);
             store.save(existing);
             assertEquals(existing, store.load());
         } finally {

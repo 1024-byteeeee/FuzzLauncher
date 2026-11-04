@@ -1,9 +1,22 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.*;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.*;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.game.GameVersion;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.infrastructure.filesystem.InstanceDirectories;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionCatalog;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
+import com.fuzzlauncher.infrastructure.game.install.FabricInstaller;
+import com.fuzzlauncher.infrastructure.game.install.GameFiles;
+import com.fuzzlauncher.infrastructure.game.install.LoaderInstaller;
+import com.fuzzlauncher.infrastructure.game.install.LocalLoaderReinstallation;
+import com.fuzzlauncher.infrastructure.game.install.OfficialLoaderInstaller;
+import com.fuzzlauncher.infrastructure.game.runtime.JavaRuntimeManager;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
 
 import com.google.gson.*;
 import org.junit.jupiter.api.Test;
@@ -72,7 +85,7 @@ class LoaderReinstallIntegrationTest {
             Files.writeString(world, "preserved world");
             LoaderInstaller installer = type == LoaderType.FABRIC ? new FabricInstaller(http)
                 : new OfficialLoaderInstaller(type, http, runtimes, resolver);
-            var operation = new ReinstallLoader(repository, files, resolver, Map.of(type, installer));
+            var operation = new LocalLoaderReinstallation(repository, files, resolver, Map.of(type, installer));
             for (String version : candidates.subList(0, 2)) {
                 System.out.println("Clean reinstallation: " + type + " " + version);
                 instance = operation.execute(root, instance, version, task);

@@ -1,9 +1,15 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.InstanceRepository;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.VersionResolver;
+import com.fuzzlauncher.application.port.InstanceRepository;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationMode;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.domain.instance.IsolationPolicy;
+import com.fuzzlauncher.infrastructure.filesystem.InstanceDirectories;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
 
 import com.google.gson.*;
 import org.junit.jupiter.api.Test;

@@ -1,6 +1,6 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.TaskContext;
+import com.fuzzlauncher.application.task.TaskContext;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;

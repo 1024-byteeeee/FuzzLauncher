@@ -1,6 +1,6 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.infrastructure.HttpTransport;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
 
 import com.google.gson.JsonObject;
 import com.sun.net.httpserver.HttpServer;

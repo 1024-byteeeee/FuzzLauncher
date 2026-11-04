@@ -1,8 +1,13 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.LaunchArguments;
+import com.fuzzlauncher.domain.account.Account;
+import com.fuzzlauncher.domain.account.GameSession;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.infrastructure.game.launch.LaunchArguments;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
 
 import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;

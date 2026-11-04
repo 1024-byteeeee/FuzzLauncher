@@ -1,9 +1,15 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.TaskContext;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.*;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.account.Account;
+import com.fuzzlauncher.domain.account.GameSession;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.infrastructure.game.launch.LaunchArguments;
+import com.fuzzlauncher.infrastructure.game.runtime.JavaRuntimeManager;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;

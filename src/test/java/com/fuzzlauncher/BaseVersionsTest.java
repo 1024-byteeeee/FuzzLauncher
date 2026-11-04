@@ -1,9 +1,23 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.*;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.*;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.account.Account;
+import com.fuzzlauncher.domain.account.GameSession;
+import com.fuzzlauncher.domain.game.GameVersion;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.infrastructure.filesystem.BaseVersions;
+import com.fuzzlauncher.infrastructure.filesystem.InstanceDirectories;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
+import com.fuzzlauncher.infrastructure.game.install.GameFiles;
+import com.fuzzlauncher.infrastructure.game.install.LoaderInstaller;
+import com.fuzzlauncher.infrastructure.game.install.LocalGameInstallation;
+import com.fuzzlauncher.infrastructure.game.launch.LaunchArguments;
+import com.fuzzlauncher.infrastructure.instance.InstanceCatalog;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
 
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpServer;
@@ -53,7 +67,7 @@ class BaseVersionsTest {
             LoaderInstaller loader = (gameRoot, workspace, game, version, context) -> JsonParser
                 .parseString("{\"mainClass\":\"LoaderMain\",\"libraries\":[]}").getAsJsonObject();
             var adapters = Map.of(LoaderType.FABRIC, loader, LoaderType.FORGE, loader, LoaderType.NEOFORGE, loader);
-            var install = new InstallGame(repository, files, resolver, adapters);
+            var install = new LocalGameInstallation(repository, files, resolver, adapters);
             var game = new GameVersion("1.21.8", "release", baseUrl + "/metadata", "");
             for (var type : LoaderType.values()) {
                 var instance = install.execute(root, game, type, type == LoaderType.VANILLA ? null : "1", type.name(), task);

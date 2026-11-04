@@ -1,9 +1,14 @@
 package com.fuzzlauncher.infrastructure.auth;
 
-import com.fuzzlauncher.config.LauncherConfig;
-import com.fuzzlauncher.application.TaskContext;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
+import com.fuzzlauncher.application.port.AccountAuthenticator;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.account.Account;
+import com.fuzzlauncher.domain.account.AccountType;
+import com.fuzzlauncher.domain.account.GameSession;
+import com.fuzzlauncher.infrastructure.config.LauncherConfig;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.platform.windows.WindowsSecretStore;
 
 import com.google.gson.*;
 import com.microsoft.aad.msal4j.*;
@@ -15,7 +20,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /** Microsoft browser authorization followed by Xbox and Minecraft entitlement checks. */
-public final class MicrosoftAuthentication implements com.fuzzlauncher.application.AccountAuthenticator {
+public final class MicrosoftAuthentication implements AccountAuthenticator {
     private static final Set<String> SCOPES = LauncherConfig.get().authentication().scopes();
     private static final String CLIENT_ID = LauncherConfig.get().authentication().clientId();
     private final HttpTransport http;

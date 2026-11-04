@@ -1,6 +1,6 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.TaskContext;
+import com.fuzzlauncher.application.task.TaskContext;
 import com.fuzzlauncher.infrastructure.mod.ModMetadataReader;
 
 import org.junit.jupiter.api.Test;

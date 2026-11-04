@@ -1,10 +1,25 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.*;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
+import com.fuzzlauncher.application.port.AccountAuthenticator;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.account.Account;
+import com.fuzzlauncher.domain.account.GameSession;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationMode;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.domain.instance.IsolationPolicy;
+import com.fuzzlauncher.domain.settings.DownloadSource;
+import com.fuzzlauncher.domain.settings.LauncherVisibility;
 import com.fuzzlauncher.infrastructure.auth.MicrosoftAuthentication;
-import com.fuzzlauncher.infrastructure.game.*;
+import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
+import com.fuzzlauncher.infrastructure.game.install.GameFiles;
+import com.fuzzlauncher.infrastructure.game.launch.LaunchArguments;
+import com.fuzzlauncher.infrastructure.game.launch.LocalGameLauncher;
+import com.fuzzlauncher.infrastructure.game.runtime.JavaRuntimeManager;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 
 import com.google.gson.*;
 import org.junit.jupiter.api.Test;
@@ -107,12 +122,12 @@ class OfflineAccountTest {
             }
         };
         HttpTransport http = new HttpTransport();
-        var launch = new LaunchGame(noMicrosoft, new IsolationPolicy(), new VersionResolver(), new GameFiles(http),
+        var launch = new LocalGameLauncher(noMicrosoft, new IsolationPolicy(), new VersionResolver(), new GameFiles(http),
             new JavaRuntimeManager(temp.resolve("runtimes")), new LaunchArguments(), temp.resolve("logs"));
         var instance = new GameInstance("local-test", "Local fixture", "local-test", LoaderType.VANILLA, null, IsolationOverride.ISOLATED,
             5000, Path.of(System.getProperty("java.home"), "bin/java.exe").toString());
         Account account = Account.offline("Steve");
-        var running = launch.execute(new LauncherSettings(root.toString(), IsolationMode.ALL, DownloadSource.AUTO, "", visibility),
+        var running = launch.execute(SettingsDefaults.create(root.toString(), IsolationMode.ALL, DownloadSource.AUTO, "", visibility),
             instance, account, task);
         try {
             assertTrue(running.process().waitFor(15, TimeUnit.SECONDS));

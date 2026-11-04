@@ -1,9 +1,21 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.*;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.*;
+import com.fuzzlauncher.application.port.InstanceRepository;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.game.GameVersion;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationMode;
+import com.fuzzlauncher.domain.instance.IsolationPolicy;
+import com.fuzzlauncher.infrastructure.filesystem.InstanceDirectories;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
+import com.fuzzlauncher.infrastructure.game.install.ClientProcessors;
+import com.fuzzlauncher.infrastructure.game.install.GameFiles;
+import com.fuzzlauncher.infrastructure.game.install.LoaderInstaller;
+import com.fuzzlauncher.infrastructure.game.install.LocalGameInstallation;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
+import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
+import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
 
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpServer;
@@ -36,7 +48,7 @@ class InstallationRecoveryTest {
     void successfulInstallCompletesItsPersistentJournal() throws Exception {
         Path data = temp.resolve("persistent-data"), root = temp.resolve("persistent-game"), records = temp.resolve("operations");
         var repository = new JsonInstanceRepository(data);
-        var installer = new InstallGame(repository, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of(),
+        var installer = new LocalGameInstallation(repository, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of(),
             new OperationJournal.Store(records, data));
         GameInstance instance = installer.execute(root, fixtureGame(), LoaderType.VANILLA, null, "Persistent", task);
         assertEquals(List.of(instance), repository.findAll());
@@ -117,7 +129,7 @@ class InstallationRecoveryTest {
             """).getAsJsonObject();
         JsonInstanceRepository repo = new JsonInstanceRepository(temp.resolve("state"));
         Path root = temp.resolve("game");
-        InstallGame install = new InstallGame(repo, new GameFiles(new HttpTransport()), new VersionResolver(),
+        LocalGameInstallation install = new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(),
             Map.of(LoaderType.FORGE, broken));
         assertThrows(IOException.class,
             () -> install.execute(root, new GameVersion("base", "release", metadata, ""), LoaderType.FORGE, "1", "失败测试", task));
@@ -139,7 +151,7 @@ class InstallationRecoveryTest {
     void cancellationAfterPublicationDeletesNestedBaseNamedInstance() throws Exception {
         Path root = temp.resolve("published-cancel");
         var repo = new JsonInstanceRepository(temp.resolve("published-state"));
-        var installer = new InstallGame(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
+        var installer = new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
         TaskContext cancelled = new TaskContext() {
             public void report(String message, double value) {
             }
@@ -174,7 +186,7 @@ class InstallationRecoveryTest {
             Files.writeString(staging.resolve("libraries/nested/partial/download.part"), "partial");
             throw new java.util.concurrent.CancellationException("cancel fixture");
         };
-        var installer = new InstallGame(repo, new GameFiles(new HttpTransport()), new VersionResolver(),
+        var installer = new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(),
             Map.of(LoaderType.FABRIC, cancelled));
         assertThrows(java.util.concurrent.CancellationException.class,
             () -> installer.execute(root, fixtureGame(), LoaderType.FABRIC, "1", "取消实例", task));
@@ -189,7 +201,7 @@ class InstallationRecoveryTest {
         var repo = new JsonInstanceRepository(temp.resolve("existing-state"));
         Path root = temp.resolve("existing-game");
         GameVersion game = fixtureGame();
-        var installer = new InstallGame(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
+        var installer = new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
         GameInstance existing = installer.execute(root, game, LoaderType.VANILLA, null, "已有实例", task);
         Files.createDirectories(InstanceDirectories.directory(root, existing).resolve("saves/world"));
         Path saved = InstanceDirectories.directory(root, existing).resolve("saves/world/level.dat");
@@ -211,7 +223,7 @@ class InstallationRecoveryTest {
                 throw new IOException("fixture registration failure");
             }
         };
-        var broken = new InstallGame(failing, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
+        var broken = new LocalGameInstallation(failing, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
         assertThrows(IOException.class, () -> broken.execute(root, game, LoaderType.VANILLA, null, "失败实例", task));
         assertFalse(Files.exists(root.resolve("versions/失败实例")));
         assertFalse(Files.exists(root.resolve(".fuzz-staging")));
@@ -225,7 +237,7 @@ class InstallationRecoveryTest {
         String metadata = endpoint("/invalid-metadata", "invalid json");
         Path root = temp.resolve("metadata-game");
         var repo = new JsonInstanceRepository(temp.resolve("metadata-state"));
-        var installer = new InstallGame(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
+        var installer = new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
         assertThrows(Exception.class,
             () -> installer.execute(root, new GameVersion("base", "release", metadata, ""), LoaderType.VANILLA, null, "下载失败", task));
         assertFalse(Files.exists(root.resolve("versions/base")));
@@ -244,7 +256,7 @@ class InstallationRecoveryTest {
         String metadata = endpoint("/named-metadata", base.toString());
         var repo = new JsonInstanceRepository(temp.resolve("named-state"));
         Path root = temp.resolve("named-game");
-        var installer = new InstallGame(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
+        var installer = new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
         var game = new GameVersion("base", "release", metadata, "");
         GameInstance first = installer.execute(root, game, LoaderType.VANILLA, null, "base", task);
         GameInstance second = installer.execute(root, game, LoaderType.VANILLA, null, "另一个实例", task);

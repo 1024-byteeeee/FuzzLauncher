@@ -1,9 +1,19 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.*;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.*;
+import com.fuzzlauncher.application.port.InstanceRepository;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.infrastructure.filesystem.InstanceDirectories;
+import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
+import com.fuzzlauncher.infrastructure.game.install.GameFiles;
+import com.fuzzlauncher.infrastructure.game.install.LoaderInstaller;
+import com.fuzzlauncher.infrastructure.game.install.LocalLoaderReinstallation;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
+import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
+import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
 
 import com.google.gson.*;
 import org.junit.jupiter.api.*;
@@ -86,8 +96,9 @@ class ReinstallLoaderTest {
         return profile;
     }
 
-    private ReinstallLoader operation(InstanceRepository state, LoaderInstaller installer) {
-        return new ReinstallLoader(state, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of(LoaderType.FABRIC, installer));
+    private LocalLoaderReinstallation operation(InstanceRepository state, LoaderInstaller installer) {
+        return new LocalLoaderReinstallation(state, new GameFiles(new HttpTransport()), new VersionResolver(),
+            Map.of(LoaderType.FABRIC, installer));
     }
 
     private LoaderInstaller installer() {
@@ -106,7 +117,7 @@ class ReinstallLoaderTest {
     @Test
     void successfulReinstallationCompletesItsPersistentJournal() throws Exception {
         Path records = temp.resolve("operations");
-        var operation = new ReinstallLoader(repository, new GameFiles(new HttpTransport()), new VersionResolver(),
+        var operation = new LocalLoaderReinstallation(repository, new GameFiles(new HttpTransport()), new VersionResolver(),
             Map.of(LoaderType.FABRIC, installer()), new OperationJournal.Store(records, temp.resolve("state")));
         GameInstance updated = operation.execute(root, original, "2", task);
         assertEquals("2", updated.loaderVersion());

@@ -1,9 +1,22 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.application.TaskContext;
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
-import com.fuzzlauncher.infrastructure.game.LaunchArguments;
+import com.fuzzlauncher.application.task.TaskContext;
+import com.fuzzlauncher.domain.game.LoaderType;
+import com.fuzzlauncher.domain.instance.GameInstance;
+import com.fuzzlauncher.domain.instance.IsolationMode;
+import com.fuzzlauncher.domain.instance.IsolationOverride;
+import com.fuzzlauncher.domain.settings.LauncherSettings;
+import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
+import com.fuzzlauncher.infrastructure.filesystem.CancellableFiles;
+import com.fuzzlauncher.infrastructure.game.launch.LaunchArguments;
+import com.fuzzlauncher.infrastructure.network.HttpTransport;
+import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
+import com.fuzzlauncher.infrastructure.persistence.RecoverableJson;
+import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
+import com.fuzzlauncher.infrastructure.platform.ProcessCleanup;
+import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
+import com.fuzzlauncher.infrastructure.settings.DataLocations;
+import com.fuzzlauncher.infrastructure.settings.GameRootMigration;
 
 import com.google.gson.Gson;
 import com.sun.jna.Native;
@@ -59,7 +72,7 @@ class StabilityTest {
     }
 
     private LauncherSettings settings(String root) {
-        return new LauncherSettings(temp.resolve(root).toString(), IsolationMode.ALL);
+        return SettingsDefaults.create(temp.resolve(root).toString(), IsolationMode.ALL);
     }
 
     @Test
@@ -213,8 +226,8 @@ class StabilityTest {
         Path target = temp.resolve("new");
         Path data = Files.createDirectory(temp.resolve("data"));
         SettingsStore settings = new SettingsStore(data);
-        LauncherSettings before = new LauncherSettings(source.toString(), IsolationMode.ALL);
-        LauncherSettings after = new LauncherSettings(target.toString(), IsolationMode.ALL);
+        LauncherSettings before = SettingsDefaults.create(source.toString(), IsolationMode.ALL);
+        LauncherSettings after = SettingsDefaults.create(target.toString(), IsolationMode.ALL);
         settings.save(before);
         Path records = temp.resolve("operations");
         var operation = new OperationJournal.Store(records, data).begin("migration", source, target);

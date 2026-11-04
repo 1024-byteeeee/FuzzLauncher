@@ -1,7 +1,10 @@
 package com.fuzzlauncher;
 
-import com.fuzzlauncher.domain.*;
-import com.fuzzlauncher.infrastructure.*;
+import com.fuzzlauncher.domain.instance.IsolationMode;
+import com.fuzzlauncher.domain.settings.DownloadSource;
+import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
+import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
+import com.fuzzlauncher.infrastructure.settings.DataLocations;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -47,11 +50,11 @@ class DataLocationsTest {
     void localSettingsAndExistingDirectorySelectionsRemainReadable() throws Exception {
         Path launcher = Files.createDirectories(temp.resolve("launcher"));
         Path bootstrap = Files.createDirectories(temp.resolve("bootstrap"));
-        var legacySettings = new LauncherSettings(temp.resolve("legacy-game").toString(), IsolationMode.ALL);
+        var legacySettings = SettingsDefaults.create(temp.resolve("legacy-game").toString(), IsolationMode.ALL);
         new SettingsStore(bootstrap).save(legacySettings);
         assertEquals(bootstrap, DataLocations.resolve(bootstrap, launcher));
         Path local = Files.createDirectories(launcher.resolve("data"));
-        var localSettings = new LauncherSettings(launcher.resolve("game").toString(), IsolationMode.ALL);
+        var localSettings = SettingsDefaults.create(launcher.resolve("game").toString(), IsolationMode.ALL);
         new SettingsStore(local).save(localSettings);
         assertEquals(local, DataLocations.resolve(bootstrap, launcher));
         assertEquals(localSettings, new SettingsStore(local).load());
@@ -68,8 +71,8 @@ class DataLocationsTest {
         Path source = Files.createDirectories(temp.resolve("old")), target = temp.resolve("new"), bootstrap = temp.resolve("bootstrap");
         Path game = Files.createDirectories(source.resolve(".minecraft/saves"));
         Files.writeString(game.resolve("world.dat"), "world");
-        new SettingsStore(source)
-            .save(new LauncherSettings(source.resolve(".minecraft").toString(), IsolationMode.ALL, DownloadSource.AUTO, target.toString()));
+        new SettingsStore(source).save(
+            SettingsDefaults.create(source.resolve(".minecraft").toString(), IsolationMode.ALL, DownloadSource.AUTO, target.toString()));
         Files.writeString(source.resolve("instances.json"), "{\"instances\":[]}");
         Files.writeString(source.resolve("account.json"), "{}");
         Files.write(source.resolve("credentials.dpapi"), new byte[] { 1, 2, 3 });
