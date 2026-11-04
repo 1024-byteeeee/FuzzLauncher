@@ -11,6 +11,7 @@ import com.fuzzlauncher.bootstrap.StartupRecovery;
 import com.fuzzlauncher.bootstrap.ViewModels;
 import com.fuzzlauncher.domain.account.Account;
 import com.fuzzlauncher.domain.account.GameSession;
+import com.fuzzlauncher.domain.game.GameVersion;
 import com.fuzzlauncher.domain.game.LoaderType;
 import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.instance.IsolationMode;
@@ -21,6 +22,7 @@ import com.fuzzlauncher.domain.settings.LauncherSettings;
 import com.fuzzlauncher.domain.settings.LauncherVisibility;
 import com.fuzzlauncher.infrastructure.auth.MicrosoftAuthentication;
 import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
+import com.fuzzlauncher.infrastructure.filesystem.BaseVersions;
 import com.fuzzlauncher.infrastructure.filesystem.InstanceDirectories;
 import com.fuzzlauncher.infrastructure.game.catalog.VersionCatalog;
 import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
@@ -28,6 +30,7 @@ import com.fuzzlauncher.infrastructure.game.install.GameFiles;
 import com.fuzzlauncher.infrastructure.game.install.LoaderInstaller;
 import com.fuzzlauncher.infrastructure.game.install.LocalGameInstallation;
 import com.fuzzlauncher.infrastructure.modpack.LocalModpackOperations;
+import com.fuzzlauncher.infrastructure.modpack.LocalModpacks;
 import com.fuzzlauncher.infrastructure.modpack.ModpackArchive;
 import com.fuzzlauncher.infrastructure.network.HttpTransport;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
@@ -142,6 +145,7 @@ class UiSmokeTest {
                 view.layout();
                 assertTrue(view.lookupAll(".text-field").stream().filter(TextField.class::isInstance).map(TextField.class::cast)
                     .anyMatch(field -> field.getText().equals("1.21.1")));
+                verifyInstanceSelectionSync(view);
                 Files.createDirectories(Path.of("build/ui-check"));
                 for (int page = 0; page < 6; page++) {
                     view.showPage(page);
@@ -167,6 +171,7 @@ class UiSmokeTest {
                 verifyDirectoryLoading(stage);
                 verifyModpackDialogs(stage);
                 verifyLoaderReinstallation(stage);
+                verifyImportedInstanceSelection(stage);
                 verifyStartupRecovery(stage);
                 result.complete(null);
             } catch (Throwable ex) {
@@ -181,6 +186,116 @@ class UiSmokeTest {
             result.get(30, TimeUnit.SECONDS);
         } finally {
             System.clearProperty("fuzz.dataDir");
+        }
+    }
+
+    private static void verifyInstanceSelectionSync(LauncherView view) {
+        LauncherViewModel vm = view.viewModel();
+        @SuppressWarnings("unchecked")
+        ListView<GameInstance> list = (ListView<GameInstance>) view.lookup(".list-view");
+        for (GameInstance instance : vm.instances()) {
+            vm.instancesModel().selectInstance(instance);
+            assertEquals(instance, list.getSelectionModel().getSelectedItem(),
+                "Programmatic selection must update the list highlight as well as the details");
+            assertTrue(view.lookupAll("#instance-settings-form .text-field").stream().filter(TextField.class::isInstance)
+                .map(TextField.class::cast).anyMatch(field -> field.getText().equals(instance.name())));
+        }
+        list.getSelectionModel().selectFirst();
+        assertEquals(list.getSelectionModel().getSelectedItem(), vm.selectedProperty().get());
+        view.showPage(5);
+        GameInstance next = vm.instances().getLast();
+        vm.instancesModel().selectInstance(next);
+        view.showPage(0);
+        @SuppressWarnings("unchecked")
+        ListView<GameInstance> current = (ListView<GameInstance>) view.lookup(".list-view");
+        assertEquals(next, current.getSelectionModel().getSelectedItem());
+        var scene = view.getScene();
+        scene.setRoot(new VBox());
+        GameInstance first = vm.instances().getFirst();
+        vm.instancesModel().selectInstance(first);
+        current.getSelectionModel().selectFirst();
+        current.getSelectionModel().selectLast();
+        assertEquals(first, vm.selectedProperty().get(), "A detached page must not change the current instance");
+        scene.setRoot(view);
+        assertEquals(first, current.getSelectionModel().getSelectedItem());
+        vm.instancesModel().selectInstance(next);
+        assertEquals(next, current.getSelectionModel().getSelectedItem(), "A reattached page must resume selection synchronization");
+    }
+
+    private void verifyImportedInstanceSelection(Stage stage) throws Exception {
+        var original = stage.getScene().getRoot();
+        Path data = Files.createDirectories(temp.resolve("import-selection")), root = data.resolve("game");
+        var settings = new SettingsStore(data);
+        settings.save(SettingsDefaults.create(root.toString(), IsolationMode.ALL));
+        var repository = new JsonInstanceRepository(data);
+        GameInstance first = new GameInstance("first", "已有原版", "selection-base", LoaderType.VANILLA, null,
+            IsolationOverride.INHERIT, 4096);
+        GameInstance second = new GameInstance("second", "已有 Fabric", "selection-base", LoaderType.FABRIC, "0.16.0",
+            IsolationOverride.INHERIT, 4096);
+        repository.save(first);
+        repository.save(second);
+        Path content = Files.createDirectories(data.resolve("source/config"));
+        Files.writeString(content.resolve("settings.txt"), "fixture");
+        Path archive = data.resolve("pack.zip");
+        ModpackArchive.export(content.getParent(), second, ModpackFormat.MCBBS, "新导入实例", "1", "", "", "", Set.of("config"),
+            archive, false, ModFixtures.TASK);
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        String base = "http://127.0.0.1:" + server.getAddress().getPort();
+        server.createContext("/", exchange -> {
+            String body = exchange.getRequestURI().getPath().equals("/version.json")
+                ? "{\"id\":\"selection-base\",\"mainClass\":\"Fixture\",\"libraries\":[],\"downloads\":{\"client\":{\"url\":\""
+                    + base + "/client.jar\"}}}"
+                : "fixture client";
+            try (exchange) {
+                byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, bytes.length);
+                exchange.getResponseBody().write(bytes);
+            }
+        });
+        server.start();
+        try {
+            HttpTransport http = new HttpTransport();
+            BaseVersions bases = new BaseVersions(data.resolve("bases"));
+            GameVersion game = new GameVersion("selection-base", "release", base + "/version.json", "");
+            var recovery = new OperationJournal.Store(data.resolve("operations"), data);
+            LoaderInstaller loader = (gameRoot, workspace, version, selected, task) -> new JsonObject();
+            var installer = new LocalGameInstallation(repository, new GameFiles(http, bases), new VersionResolver(bases),
+                Map.of(LoaderType.FABRIC, loader), recovery);
+            try (var vm = ViewModels.create(settings, repository, null, new MicrosoftAuthentication(http, data), installer, null, null,
+                new LocalModpacks(http, () -> List.of(game), installer, repository), recovery)) {
+                LauncherView view = new LauncherView(stage, vm);
+                stage.getScene().setRoot(view);
+                view.applyCss();
+                view.layout();
+                vm.instancesModel().selectInstance(second);
+                awaitAccountOperation(vm, () -> vm.modpacksModel().importModpack(archive, "新导入实例", true));
+                GameInstance imported = vm.selectedProperty().get();
+                assertEquals("新导入实例", imported.name());
+                assertInstanceSelection(view, imported);
+                awaitAccountOperation(vm, vm.instancesModel()::refreshInstances);
+                assertEquals(imported.id(), vm.selectedProperty().get().id());
+                assertInstanceSelection(view, vm.selectedProperty().get());
+                for (GameInstance item : List.copyOf(vm.instances())) {
+                    awaitAccountOperation(vm, () -> vm.instancesModel().unregister(item));
+                    assertInstanceSelection(view, vm.selectedProperty().get());
+                }
+                assertNull(vm.selectedProperty().get());
+            }
+        } finally {
+            stage.getScene().setRoot(original);
+            server.stop(0);
+        }
+    }
+
+    private static void assertInstanceSelection(LauncherView view, GameInstance expected) {
+        @SuppressWarnings("unchecked")
+        ListView<GameInstance> list = (ListView<GameInstance>) view.lookup(".list-view");
+        assertEquals(expected, list.getSelectionModel().getSelectedItem());
+        if (expected == null) {
+            assertNull(view.lookup("#instance-settings-form"));
+        } else {
+            assertTrue(view.lookupAll("#instance-settings-form .text-field").stream().filter(TextField.class::isInstance)
+                .map(TextField.class::cast).anyMatch(field -> field.getText().equals(expected.name())));
         }
     }
 

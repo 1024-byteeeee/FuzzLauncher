@@ -14,6 +14,7 @@ import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
+import javafx.collections.ListChangeListener;
 import javafx.concurrent.Task;
 import javafx.geometry.*;
 import javafx.scene.Node;
@@ -94,11 +95,11 @@ public final class InstancesPage extends RetroPage {
         if (vm.selectedProperty().get() != null) {
             list.getSelectionModel().select(vm.selectedProperty().get());
         }
-        list.getSelectionModel().selectedItemProperty().addListener((o, a, b) -> {
+        ChangeListener<GameInstance> listSelection = (o, a, b) -> {
             if (b != null) {
                 vm.instancesModel().selectInstance(b);
             }
-        });
+        };
         Label heading = label("游戏实例", "section-title");
         Button add = button("新建", () -> showPage(1));
         Button refresh = button("刷新", vm.instancesModel()::refreshInstances);
@@ -151,7 +152,15 @@ public final class InstancesPage extends RetroPage {
         VBox emptyDetails = new VBox(20, label("实例详情", "section-title"), new Label("安装一个游戏版本后，在这里配置并启动。"),
             button("下载游戏", () -> showPage(1)));
         emptyDetails.setPadding(new Insets(20));
+        Consumer<GameInstance> select = item -> {
+            if (item == null || !list.getItems().contains(item)) {
+                list.getSelectionModel().clearSelection();
+            } else {
+                list.getSelectionModel().select(item);
+            }
+        };
         Consumer<GameInstance> render = item -> {
+            select.accept(item);
             if (item != null) {
                 editor.update.accept(item);
             }
@@ -160,10 +169,18 @@ public final class InstancesPage extends RetroPage {
         render.accept(vm.selectedProperty().get());
         // A page-scoped binding avoids retaining obsolete detail views when navigating.
         ChangeListener<GameInstance> listener = (o, a, b) -> render.accept(b);
-        vm.selectedProperty().addListener(listener);
+        ListChangeListener<GameInstance> items = change -> select.accept(vm.selectedProperty().get());
         details.sceneProperty().addListener((o, old, scene) -> {
-            if (scene == null && old != null) {
+            if (old != null) {
                 vm.selectedProperty().removeListener(listener);
+                list.getSelectionModel().selectedItemProperty().removeListener(listSelection);
+                list.getItems().removeListener(items);
+            }
+            if (scene != null) {
+                vm.selectedProperty().addListener(listener);
+                list.getSelectionModel().selectedItemProperty().addListener(listSelection);
+                list.getItems().addListener(items);
+                render.accept(vm.selectedProperty().get());
             }
         });
         HBox content = new HBox(14, left, details);
