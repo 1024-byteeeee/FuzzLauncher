@@ -439,9 +439,7 @@ public final class ModsPage extends RetroPage {
                 list.getSelectionModel().selectFirst();
             }
             long enabled = values.stream().filter(ModFile::enabled).count();
-            long problems = values.stream().filter(mod -> !mod.problem().isBlank()).count();
-            summary.setText(values.size() + " 个模组文件 · 启用 " + enabled + " · 禁用 " + (values.size() - enabled)
-                + (problems == 0 ? "" : " · 异常 " + problems));
+            summary.setText(values.size() + " 个模组文件 · 启用 " + enabled + " · 禁用 " + (values.size() - enabled));
         }
     }
 

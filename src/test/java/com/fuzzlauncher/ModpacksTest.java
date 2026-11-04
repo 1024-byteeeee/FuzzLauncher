@@ -23,6 +23,7 @@ import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.*;
@@ -30,7 +31,9 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -90,7 +93,42 @@ class ModpacksTest {
     }
 
     @Test
-    void importingLongDataPackPathsWithRecoveryReportsCopyAndVerificationStages() throws Exception {
+    @EnabledIfSystemProperty(named = "fuzz.importBenchmark", matches = "true")
+    void localImportBenchmark() throws Exception {
+        GameVersion game = game("benchmark");
+        for (boolean smallFiles : List.of(true, false)) {
+            String name = smallFiles ? "small-files" : "large-files";
+            Path source = Files.createDirectories(temp.resolve(name + "/source/mods")).getParent();
+            int count = smallFiles ? 1500 : 4;
+            byte[] bytes = new byte[smallFiles ? 512 : 16 * 1024 * 1024];
+            new Random(1).nextBytes(bytes);
+            for (int i = 0; i < count; i++) {
+                Files.write(source.resolve("mods/fixture-" + i + ".jar"), bytes);
+            }
+            GameInstance original = new GameInstance("export", name, game.id(), LoaderType.FABRIC, "0.16.0",
+                IsolationOverride.INHERIT, 4096);
+            Path archive = temp.resolve(name + "/pack.zip");
+            ModpackArchive.export(source, original, ModpackFormat.MCBBS, name, "1", "author", "description", base,
+                Set.of("mods"), archive, false, task);
+            Path data = temp.resolve(name + "/data"), root = temp.resolve(name + "/game");
+            var repository = new JsonInstanceRepository(data);
+            HttpTransport http = new HttpTransport();
+            BaseVersions bases = new BaseVersions(temp.resolve(name + "/bases"));
+            LoaderInstaller loader = (gameRoot, staging, version, loaderVersion, context) -> new JsonObject();
+            var installer = new LocalGameInstallation(repository, new GameFiles(http, bases), new VersionResolver(bases),
+                Map.of(LoaderType.FABRIC, loader), new OperationJournal.Store(temp.resolve(name + "/operations"), data));
+            var service = new LocalModpacks(http, () -> List.of(game), installer, repository);
+            long started = System.nanoTime();
+            GameInstance imported = service.importPack(root, archive, name, true, task);
+            long millis = (System.nanoTime() - started) / 1_000_000;
+            assertEquals(bytes.length, Files.size(InstanceDirectories.directory(root, imported).resolve("mods/fixture-0.jar")));
+            System.out.printf(Locale.ROOT, "Import benchmark %s: %d files, %d bytes, %d ms%n", name, count,
+                (long) count * bytes.length, millis);
+        }
+    }
+
+    @Test
+    void importingLongDataPackPathsWithRecoveryUsesOneStagingTree() throws Exception {
         GameVersion game = game("base");
         Path source = Files.createDirectories(temp.resolve("source"));
         String relative = "saves/world/datapacks/中文数据包/data/minecraft/advancements/recipes/building_blocks/"
@@ -118,6 +156,16 @@ class ModpacksTest {
         TaskContext progress = new TaskContext() {
             public void report(String message, double value) {
                 messages.add(message);
+                if (message.equals("保存实例安装描述")) {
+                    try (var workspaces = Files.list(root.resolve(".fuzz-staging"))) {
+                        List<Path> directories = workspaces.toList();
+                        assertEquals(1, directories.size());
+                        Path stagedFile = directories.getFirst().resolve("profile").resolve(relative);
+                        assertEquals("{}", Files.readString(stagedFile));
+                    } catch (IOException ex) {
+                        throw new UncheckedIOException(ex);
+                    }
+                }
             }
 
             public boolean cancelled() {
@@ -127,9 +175,11 @@ class ModpacksTest {
         GameInstance imported = service.importPack(root, archive, "long pack", true, progress);
         assertEquals("{}", Files.readString(InstanceDirectories.directory(root, imported).resolve(relative)));
         assertEquals(List.of(imported), repository.findAll());
-        int fabric = messages.indexOf("生成 Fabric 安装描述"), copying = messages.indexOf("复制整合包文件");
-        assertTrue(fabric >= 0 && copying > fabric);
-        assertTrue(messages.stream().skip(copying).anyMatch(message -> message.startsWith("校验待发布文件")));
+        int fabric = messages.indexOf("生成 Fabric 安装描述");
+        assertTrue(fabric >= 0);
+        assertTrue(messages.stream().skip(fabric).anyMatch(message -> message.startsWith("解压 ")));
+        assertTrue(messages.stream().anyMatch(message -> message.startsWith("校验待发布文件")));
+        assertTrue(messages.stream().noneMatch(message -> message.startsWith("复制整合包文件")));
         assertTrue(OperationJournal.pending(temp.resolve("operations")).isEmpty());
     }
 
@@ -176,6 +226,51 @@ class ModpacksTest {
         assertTrue(repo.findAll().isEmpty());
         assertFalse(Files.exists(root.resolve("versions/broken")));
         assertEquals("keep", Files.readString(root.resolve("user.txt")));
+    }
+
+    @Test
+    void cancellingExtractionPersistenceAndCachedManifestGenerationCleansTheSingleWorkspace() throws Exception {
+        GameVersion game = game("base");
+        Path source = Files.createDirectories(temp.resolve("source/config")).getParent();
+        Files.writeString(source.resolve("config/settings.txt"), "fixture");
+        GameInstance original = new GameInstance("export", "pack", "base", LoaderType.FABRIC, "0.16.0", IsolationOverride.ISOLATED, 4096);
+        Path archive = temp.resolve("cancel.zip");
+        ModpackArchive.export(source, original, ModpackFormat.MCBBS, "pack", "1", "", "", "", Set.of("config"), archive, false, task);
+        for (String phase : List.of("解压 ", "持久化整合包文件", "校验待发布文件")) {
+            Path root = Files.createDirectories(temp.resolve("game-" + phase.strip()));
+            Path data = temp.resolve("data-" + phase.strip()), operations = temp.resolve("operations-" + phase.strip());
+            Files.writeString(root.resolve("user.txt"), "keep");
+            var repository = new JsonInstanceRepository(data);
+            HttpTransport http = new HttpTransport();
+            BaseVersions bases = new BaseVersions(temp.resolve("bases-" + phase.strip()));
+            LoaderInstaller loader = (gameRoot, staging, version, loaderVersion, context) -> new JsonObject();
+            var installer = new LocalGameInstallation(repository, new GameFiles(http, bases), new VersionResolver(bases),
+                Map.of(LoaderType.FABRIC, loader), new OperationJournal.Store(operations, data));
+            var service = new LocalModpacks(http, () -> List.of(game), installer, repository);
+            AtomicBoolean stopped = new AtomicBoolean();
+            TaskContext cancelled = new TaskContext() {
+                public void report(String message, double value) {
+                    if (message.startsWith(phase)) {
+                        stopped.set(true);
+                    }
+                }
+
+                public boolean cancelled() {
+                    return stopped.get();
+                }
+            };
+            assertThrows(CancellationException.class, () -> service.importPack(root, archive, "cancelled", true, cancelled));
+            assertTrue(stopped.get());
+            assertTrue(repository.findAll().isEmpty());
+            assertFalse(Files.exists(root.resolve("versions/cancelled")));
+            assertEquals("keep", Files.readString(root.resolve("user.txt")));
+            assertTrue(OperationJournal.pending(operations).isEmpty());
+            if (Files.exists(root.resolve(".fuzz-staging"))) {
+                try (var files = Files.list(root.resolve(".fuzz-staging"))) {
+                    assertEquals(0, files.count());
+                }
+            }
+        }
     }
 
     private JsonObject manifest(String version, String game, Map<String, String> files) throws Exception {

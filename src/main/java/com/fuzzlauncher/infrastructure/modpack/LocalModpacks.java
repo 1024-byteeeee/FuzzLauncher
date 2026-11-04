@@ -61,17 +61,8 @@ public final class LocalModpacks {
             throw new IOException("目标实例目录已存在，请换一个名称");
         }
         GameVersion game = game(info.game());
-        Path workRoot = root.toAbsolutePath().normalize().resolve(".fuzz-staging");
-        Files.createDirectories(workRoot);
-        Path work = Files.createTempDirectory(workRoot, "pack-import-");
-        try {
-            ModpackArchive.extract(archive, info, work.resolve("content"), optional, excludedOptional, http, task);
-            task.checkCancelled();
-            return installer.execute(root, game, candidate.loader(), candidate.loaderVersion(), name, IsolationOverride.ISOLATED,
-                work.resolve("content"), task);
-        } finally {
-            ModpackArchive.deleteWorkspace(work, workRoot);
-        }
+        return installer.installModpack(root, game, candidate.loader(), candidate.loaderVersion(), name,
+            (directory, context) -> ModpackArchive.extract(archive, info, directory, optional, excludedOptional, http, context), task);
     }
 
     private GameVersion game(String id) throws Exception {

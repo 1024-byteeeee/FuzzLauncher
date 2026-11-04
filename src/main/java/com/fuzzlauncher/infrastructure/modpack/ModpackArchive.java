@@ -4,6 +4,7 @@ import com.fuzzlauncher.application.task.TaskContext;
 import com.fuzzlauncher.domain.game.LoaderType;
 import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.modpack.ModpackFormat;
+import com.fuzzlauncher.infrastructure.filesystem.StagedFiles;
 import com.fuzzlauncher.infrastructure.filesystem.WorkspaceFiles;
 import com.fuzzlauncher.infrastructure.network.HttpTransport;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
@@ -197,9 +198,10 @@ public final class ModpackArchive {
         extract(archive, info, content, optional, Set.of(), http, task);
     }
 
-    public static void extract(Path archive, Info info, Path content, boolean optional, Set<String> excludedOptional, HttpTransport http,
-        TaskContext task) throws Exception {
+    public static StagedFiles extract(Path archive, Info info, Path content, boolean optional, Set<String> excludedOptional,
+        HttpTransport http, TaskContext task) throws Exception {
         Files.createDirectories(content);
+        StagedFiles staged = new StagedFiles();
         if (info.format() == ModpackFormat.MODRINTH) {
             Set<String> paths = new HashSet<>();
             for (JsonElement element : array(info.manifest(), "files")) {
@@ -229,8 +231,9 @@ public final class ModpackArchive {
                 boolean downloaded = false;
                 for (JsonElement url : array(file, "downloads")) {
                     try {
+                        staged.invalidate(target);
                         download(http, url.getAsString(), target, string(hashes, "sha1", ""), task);
-                        verify(target, string(hashes, "sha512", ""), "SHA-512");
+                        staged.verify(target, string(hashes, "sha512", ""), "SHA-512", task);
                         if (Files.size(target) != file.get("fileSize").getAsLong()) {
                             throw new IOException("下载文件大小不匹配：" + path);
                         }
@@ -250,14 +253,14 @@ public final class ModpackArchive {
             validateEntries(zip);
             if (info.format() == ModpackFormat.MULTIMC) {
                 boolean dot = zip.stream().anyMatch(e -> e.getName().startsWith(info.prefix() + ".minecraft/"));
-                copyLayer(zip, info.prefix() + (dot ? ".minecraft/" : "minecraft/"), content, task);
+                copyLayer(zip, info.prefix() + (dot ? ".minecraft/" : "minecraft/"), content, staged, task);
                 if (zip.stream().anyMatch(e -> e.getName().startsWith(info.prefix() + "patches/") && !e.isDirectory())) {
                     throw new IOException("此 MultiMC 包包含自定义补丁，当前仅支持标准游戏与加载器组件");
                 }
             } else {
-                copyLayer(zip, info.prefix() + "overrides/", content, task);
+                copyLayer(zip, info.prefix() + "overrides/", content, staged, task);
                 if (info.format() == ModpackFormat.MODRINTH) {
-                    copyLayer(zip, info.prefix() + "client-overrides/", content, task);
+                    copyLayer(zip, info.prefix() + "client-overrides/", content, staged, task);
                 }
             }
         }
@@ -301,14 +304,17 @@ public final class ModpackArchive {
                     } else {
                         throw new IOException("整合包缺少清单中的文件：" + path);
                     }
+                    staged.invalidate(target);
                     download(http, url, target, hash, task, true);
                 }
                 if (hash != null) {
-                    verify(target, hash, "SHA-1");
+                    staged.verify(target, hash, "SHA-1", task);
                 }
             }
         }
+        staged.invalidate(content.resolve(STATE));
         JsonFiles.write(content.resolve(STATE), Map.of("format", info.format().name(), "manifest", info.manifest()));
+        return staged;
     }
 
     public static List<String> exportEntries(Path source) throws IOException {
@@ -489,7 +495,7 @@ public final class ModpackArchive {
         return result;
     }
 
-    private static void copyLayer(ZipFile zip, String prefix, Path target, TaskContext task) throws IOException {
+    private static void copyLayer(ZipFile zip, String prefix, Path target, StagedFiles staged, TaskContext task) throws IOException {
         long total = 0;
         for (ZipEntry entry : zip.stream().filter(e -> e.getName().startsWith(prefix) && !e.getName().equals(prefix)).toList()) {
             String name = entry.getName().substring(prefix.length());
@@ -505,8 +511,8 @@ public final class ModpackArchive {
             }
             Files.createDirectories(destination.getParent());
             task.report("解压 " + name, -1);
-            try (InputStream input = zip.getInputStream(entry); OutputStream output = Files.newOutputStream(destination)) {
-                total += copy(input, output, task, MAX_EXPANDED - total);
+            try (InputStream input = zip.getInputStream(entry)) {
+                total += staged.write(input, destination, MAX_EXPANDED - total, task);
             }
         }
     }

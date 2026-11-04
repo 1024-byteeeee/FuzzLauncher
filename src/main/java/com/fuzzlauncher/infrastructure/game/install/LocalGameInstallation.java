@@ -11,6 +11,7 @@ import com.fuzzlauncher.infrastructure.config.LauncherConfig;
 import com.fuzzlauncher.infrastructure.filesystem.BaseVersions;
 import com.fuzzlauncher.infrastructure.filesystem.CancellableFiles;
 import com.fuzzlauncher.infrastructure.filesystem.InstanceDirectories;
+import com.fuzzlauncher.infrastructure.filesystem.StagedFiles;
 import com.fuzzlauncher.infrastructure.filesystem.WorkspaceFiles;
 import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
@@ -25,6 +26,11 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
 public final class LocalGameInstallation implements GameInstallation {
+    @FunctionalInterface
+    public interface ContentPreparation {
+        StagedFiles prepare(Path directory, TaskContext task) throws Exception;
+    }
+
     private final InstanceRepository instances;
     private final GameFiles files;
     private final VersionResolver resolver;
@@ -56,6 +62,17 @@ public final class LocalGameInstallation implements GameInstallation {
 
     public GameInstance execute(Path root, GameVersion game, LoaderType loader, String loaderVersion, String name,
         IsolationOverride isolation, Path content, TaskContext task) throws Exception {
+        return execute(root, game, loader, loaderVersion, name, isolation, content, null, task);
+    }
+
+    public GameInstance installModpack(Path root, GameVersion game, LoaderType loader, String loaderVersion, String name,
+        ContentPreparation preparation, TaskContext task) throws Exception {
+        return execute(root, game, loader, loaderVersion, name, IsolationOverride.ISOLATED, null,
+            Objects.requireNonNull(preparation), task);
+    }
+
+    private GameInstance execute(Path root, GameVersion game, LoaderType loader, String loaderVersion, String name,
+        IsolationOverride isolation, Path content, ContentPreparation preparation, TaskContext task) throws Exception {
         if (loader != LoaderType.VANILLA && (loaderVersion == null || loaderVersion.isBlank())) {
             throw new IllegalArgumentException("请选择兼容的加载器版本");
         }
@@ -100,6 +117,8 @@ public final class LocalGameInstallation implements GameInstallation {
             }
             Path stagedVersion = staging.resolve("profile");
             Files.createDirectories(stagedVersion);
+            StagedFiles prepared = preparation == null ? null : Objects.requireNonNull(preparation.prepare(stagedVersion, task));
+            task.checkCancelled();
             if (content != null) {
                 task.report("复制整合包文件", -1);
                 try (var paths = Files.walk(content)) {
@@ -122,15 +141,21 @@ public final class LocalGameInstallation implements GameInstallation {
                 }
             }
             task.report("保存实例安装描述", -1);
+            if (prepared != null) {
+                prepared.invalidate(stagedVersion.resolve(InstanceDirectories.PROFILE));
+            }
             JsonFiles.write(stagedVersion.resolve(InstanceDirectories.PROFILE), profile);
+            if (prepared != null) {
+                prepared.persist(stagedVersion, task);
+            }
             InstanceDirectories.checkAvailable(root, instance, instances.findAll());
             createdDirectory = !Files.exists(pending);
             if (createdDirectory) {
                 if (journal != null) {
-                    journal.tree(pending, stagedVersion, false, task);
+                    journal.tree(pending, stagedVersion, false, task, prepared);
                 }
                 Files.move(stagedVersion, pending);
-            } else if (content == null) {
+            } else if (content == null && preparation == null) {
                 if (journal != null) {
                     journal.file(pending.resolve(InstanceDirectories.PROFILE), stagedVersion.resolve(InstanceDirectories.PROFILE));
                 }

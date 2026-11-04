@@ -2,6 +2,7 @@ package com.fuzzlauncher.infrastructure.recovery;
 
 import com.fuzzlauncher.application.task.TaskContext;
 import com.fuzzlauncher.infrastructure.filesystem.PhysicalPaths;
+import com.fuzzlauncher.infrastructure.filesystem.StagedFiles;
 import com.fuzzlauncher.infrastructure.network.HttpTransport;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 import com.fuzzlauncher.infrastructure.persistence.RecoverableJson;
@@ -198,6 +199,10 @@ public final class OperationJournal {
     }
 
     public void tree(Path target, Path staged, boolean keepRoot, TaskContext task) throws IOException {
+        tree(target, staged, keepRoot, task, null);
+    }
+
+    public void tree(Path target, Path staged, boolean keepRoot, TaskContext task, StagedFiles prepared) throws IOException {
         target = checked(target);
         Map<String, String> manifest = new LinkedHashMap<>();
         try (var files = Files.walk(staged)) {
@@ -209,8 +214,11 @@ public final class OperationJournal {
                 }
                 Path file = iterator.next();
                 ordinary(file);
-                manifest.put(staged.relativize(file).toString(),
-                    Files.isDirectory(file) ? "directory" : HttpTransport.digest(file, "SHA-256"));
+                String hash = "directory";
+                if (!Files.isDirectory(file)) {
+                    hash = prepared == null ? HttpTransport.digest(file, "SHA-256") : prepared.digest(file, "SHA-256", task);
+                }
+                manifest.put(staged.relativize(file).toString(), hash);
             }
         }
         if (task != null) {
