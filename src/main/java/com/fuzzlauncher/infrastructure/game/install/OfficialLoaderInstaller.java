@@ -13,6 +13,7 @@ import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 import com.google.gson.*;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.zip.ZipFile;
 
@@ -55,7 +56,7 @@ public final class OfficialLoaderInstaller implements LoaderInstaller {
                 throw new IOException("安装器缺少 install_profile.json");
             }
 
-            try (Reader reader = new InputStreamReader(zip.getInputStream(entry), java.nio.charset.StandardCharsets.UTF_8)) {
+            try (Reader reader = new InputStreamReader(zip.getInputStream(entry), StandardCharsets.UTF_8)) {
                 profile = JsonParser.parseReader(reader).getAsJsonObject();
             }
             if (profile.has("versionInfo")) {

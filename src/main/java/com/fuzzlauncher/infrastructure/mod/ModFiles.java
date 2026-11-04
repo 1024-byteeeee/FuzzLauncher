@@ -8,9 +8,14 @@ import com.fuzzlauncher.domain.mod.ModFileNames;
 import com.fuzzlauncher.infrastructure.filesystem.BrowserFiles;
 import com.fuzzlauncher.infrastructure.filesystem.CancellableFiles;
 
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinNT;
+
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.DosFileAttributes;
 import java.util.*;
 
 /** Local archive operations. Every publication refuses to overwrite an existing file. */
@@ -205,7 +210,7 @@ public final class ModFiles implements ModRepository {
             IOException failure = null;
             for (Path path : temporaryFiles) {
                 try {
-                    if (Files.exists(path) && Files.readAttributes(path, java.nio.file.attribute.DosFileAttributes.class).isReadOnly()) {
+                    if (Files.exists(path) && Files.readAttributes(path, DosFileAttributes.class).isReadOnly()) {
                         Files.setAttribute(path, "dos:readonly", false);
                     }
                     Files.deleteIfExists(path);
@@ -291,9 +296,9 @@ public final class ModFiles implements ModRepository {
     }
 
     private static void ordinary(Path path) throws IOException {
-        int flags = com.sun.jna.platform.win32.Kernel32.INSTANCE.GetFileAttributes(path.toString());
-        if (flags == com.sun.jna.platform.win32.WinBase.INVALID_FILE_ATTRIBUTES
-            || (flags & com.sun.jna.platform.win32.WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+        int flags = Kernel32.INSTANCE.GetFileAttributes(path.toString());
+        if (flags == WinBase.INVALID_FILE_ATTRIBUTES
+            || (flags & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
             throw new IOException("路径是链接或无法读取：" + path);
         }
     }

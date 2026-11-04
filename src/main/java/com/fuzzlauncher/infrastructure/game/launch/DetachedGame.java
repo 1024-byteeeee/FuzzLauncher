@@ -1,6 +1,7 @@
 package com.fuzzlauncher.infrastructure.game.launch;
 
 import java.io.*;
+import java.net.URISyntaxException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -25,7 +26,7 @@ public final class DetachedGame {
         String classpath;
         try {
             classpath = Path.of(DetachedGame.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
-        } catch (java.net.URISyntaxException ex) {
+        } catch (URISyntaxException ex) {
             throw new IOException("无法定位游戏日志辅助程序", ex);
         }
         Process relay = new ProcessBuilder(java.toString(), "-cp", classpath, DetachedGame.class.getName())

@@ -12,6 +12,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
@@ -89,7 +91,7 @@ class BrowserSignInTest {
     private static String callback(Map<String, String> query, String state) {
         try {
             var response = HttpClient.newHttpClient().send(
-                HttpRequest.newBuilder(URI.create(query.get("redirect_uri"))).timeout(java.time.Duration.ofSeconds(3))
+                HttpRequest.newBuilder(URI.create(query.get("redirect_uri"))).timeout(Duration.ofSeconds(3))
                     .header("Content-Type", "application/x-www-form-urlencoded")
                     .POST(HttpRequest.BodyPublishers.ofString("code=private-authorization-code&state=" + encoded(state))).build(),
                 HttpResponse.BodyHandlers.ofString());
@@ -116,7 +118,7 @@ class BrowserSignInTest {
                 String hash = Base64.getUrlEncoder().withoutPadding().encodeToString(
                     MessageDigest.getInstance("SHA-256").digest(body.get("code_verifier").getBytes(StandardCharsets.US_ASCII)));
                 assertEquals(authorization.get().get("code_challenge"), hash);
-            } catch (java.security.NoSuchAlgorithmException ex) {
+            } catch (NoSuchAlgorithmException ex) {
                 throw new AssertionError(ex);
             }
             return new Response(200, """

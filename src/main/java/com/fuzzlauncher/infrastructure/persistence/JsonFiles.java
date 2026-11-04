@@ -5,25 +5,31 @@ import com.fuzzlauncher.domain.settings.LauncherSettings;
 import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
 
 import com.google.gson.*;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 
 public final class JsonFiles {
     public static final Gson GSON = new GsonBuilder().registerTypeAdapterFactory(new TypeAdapterFactory() {
         @Override
-        public <T> TypeAdapter<T> create(Gson gson, com.google.gson.reflect.TypeToken<T> type) {
+        public <T> TypeAdapter<T> create(Gson gson, TypeToken<T> type) {
             if (type.getRawType() != LauncherSettings.class) {
                 return null;
             }
             TypeAdapter<T> delegate = gson.getDelegateAdapter(this, type);
             return new TypeAdapter<>() {
-                public void write(com.google.gson.stream.JsonWriter output, T value) throws IOException {
+                public void write(JsonWriter output, T value) throws IOException {
                     delegate.write(output, value);
                 }
 
-                public T read(com.google.gson.stream.JsonReader input) throws IOException {
+                public T read(JsonReader input) throws IOException {
                     JsonElement json = JsonParser.parseReader(input);
                     return delegate.fromJsonTree(json.isJsonNull() ? json : SettingsDefaults.withDefaults(json.getAsJsonObject()));
                 }
@@ -31,7 +37,7 @@ public final class JsonFiles {
         }
     }).registerTypeAdapter(DownloadSource.class, new TypeAdapter<DownloadSource>() {
         @Override
-        public void write(com.google.gson.stream.JsonWriter output, DownloadSource value) throws IOException {
+        public void write(JsonWriter output, DownloadSource value) throws IOException {
             if (value == null) {
                 output.nullValue();
             } else {
@@ -40,8 +46,8 @@ public final class JsonFiles {
         }
 
         @Override
-        public DownloadSource read(com.google.gson.stream.JsonReader input) throws IOException {
-            if (input.peek() == com.google.gson.stream.JsonToken.NULL) {
+        public DownloadSource read(JsonReader input) throws IOException {
+            if (input.peek() == JsonToken.NULL) {
                 input.nextNull();
                 return null;
             }
@@ -76,8 +82,8 @@ public final class JsonFiles {
         Files.createDirectories(path.toAbsolutePath().getParent());
         Path temporary = Files.createTempFile(path.toAbsolutePath().getParent(), ".fuzz-", ".tmp");
         try {
-            try (var channel = java.nio.channels.FileChannel.open(temporary, StandardOpenOption.WRITE)) {
-                var buffer = java.nio.ByteBuffer.wrap(bytes);
+            try (var channel = FileChannel.open(temporary, StandardOpenOption.WRITE)) {
+                var buffer = ByteBuffer.wrap(bytes);
                 while (buffer.hasRemaining()) {
                     channel.write(buffer);
                 }

@@ -28,6 +28,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -36,7 +37,7 @@ class ModpacksTest {
     Path temp;
     private HttpServer server;
     private String base;
-    private final Map<String, byte[]> responses = new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, byte[]> responses = new ConcurrentHashMap<>();
     private final TaskContext task = new TaskContext() {
         public void report(String message, double value) {
         }

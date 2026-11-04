@@ -12,8 +12,10 @@ import com.google.gson.*;
 
 import java.io.*;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.*;
 import java.util.*;
 import java.util.zip.*;
@@ -59,7 +61,7 @@ public final class ModpackArchive {
             }
 
             @Override
-            public FileVisitResult preVisitDirectory(Path path, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+            public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attrs) throws IOException {
                 if (path.equals(root)) {
                     return FileVisitResult.CONTINUE;
                 }
@@ -71,7 +73,7 @@ public final class ModpackArchive {
             }
 
             @Override
-            public FileVisitResult visitFile(Path path, java.nio.file.attribute.BasicFileAttributes attrs) throws IOException {
+            public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) throws IOException {
                 if (attrs.isRegularFile() && include(path)) {
                     add(new ContentEntry(relative(path), false, attrs.size()));
                 }
@@ -592,7 +594,7 @@ public final class ModpackArchive {
         validateContent(path);
         try {
             return base + "/overrides/" + new URI(null, null, "/" + path, null).getRawPath().substring(1);
-        } catch (java.net.URISyntaxException ex) {
+        } catch (URISyntaxException ex) {
             throw new IOException("无效的文件下载路径", ex);
         }
     }

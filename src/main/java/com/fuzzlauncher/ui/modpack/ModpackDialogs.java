@@ -44,13 +44,13 @@ public final class ModpackDialogs {
         description.setWrapText(true);
         ModpackFileTree optional = new ModpackFileTree("可选客户端文件", path -> true);
         optional.setId("modpack-optional-files");
-        java.util.List<ModpackContent> optionalEntries = info.optionalFiles();
+        List<ModpackContent> optionalEntries = info.optionalFiles();
         String optionalError = info.problem();
         optional.setEntries(optionalEntries);
         ((TreeView<?>) optional.lookup("#modpack-export-files")).setPrefHeight(180);
         optional.setVisible(!optionalEntries.isEmpty());
         optional.setManaged(optional.isVisible());
-        java.util.Set<String> optionalPaths = new java.util.HashSet<>();
+        Set<String> optionalPaths = new HashSet<>();
         for (var entry : optionalEntries) {
             optionalPaths.add(entry.path());
         }
@@ -72,7 +72,7 @@ public final class ModpackDialogs {
             try {
                 new GameInstance("validation", name.getText(), info.game(), info.loader(), info.loaderVersion(), IsolationOverride.ISOLATED,
                     vm.options().defaultMemory());
-                java.util.Set<String> excluded = new java.util.HashSet<>(optionalPaths);
+                Set<String> excluded = new HashSet<>(optionalPaths);
                 excluded.removeAll(optional.selectedPaths());
                 vm.modpacksModel().importModpack(archive, name.getText().strip(), true, excluded);
             } catch (IllegalArgumentException ex) {

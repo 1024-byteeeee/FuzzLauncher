@@ -5,6 +5,7 @@ import com.fuzzlauncher.domain.instance.GameInstance;
 import java.io.IOException;
 import java.util.*;
 import java.util.regex.*;
+import java.util.stream.Collectors;
 
 /** Command-line tokenization and memory validation, independent of JavaFX and protocol JSON. */
 public final class LaunchParameters {
@@ -50,7 +51,7 @@ public final class LaunchParameters {
     }
 
     public static String display(List<String> tokens) {
-        return tokens.stream().map(LaunchParameters::quote).collect(java.util.stream.Collectors.joining(" "));
+        return tokens.stream().map(LaunchParameters::quote).collect(Collectors.joining(" "));
     }
 
     private static String quote(String token) {

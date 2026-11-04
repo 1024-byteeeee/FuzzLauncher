@@ -6,6 +6,7 @@ import com.fuzzlauncher.domain.settings.DownloadSource;
 import com.fuzzlauncher.domain.settings.LauncherVisibility;
 
 import com.google.gson.*;
+import com.google.gson.annotations.SerializedName;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 
@@ -206,7 +207,7 @@ public record LauncherConfig(Defaults defaults, Network network, Downloads downl
     }
 
     public record Defaults(int minMemoryMb, int maxMemoryMb, String gameDirectory, IsolationMode isolation,
-        @com.google.gson.annotations.SerializedName("downloadSource") String downloadSourceId, LauncherVisibility launcherVisibility,
+        @SerializedName("downloadSource") String downloadSourceId, LauncherVisibility launcherVisibility,
         List<String> jvmArguments) {
         public Defaults {
             jvmArguments = List.copyOf(jvmArguments);

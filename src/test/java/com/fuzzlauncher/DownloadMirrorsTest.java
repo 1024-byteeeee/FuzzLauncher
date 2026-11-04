@@ -7,10 +7,13 @@ import com.fuzzlauncher.infrastructure.network.DownloadMirrors;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
 
+import com.google.gson.JsonObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -37,19 +40,19 @@ class DownloadMirrorsTest {
 
     @Test
     void prioritiesFollowSystemRegionAndMetadataUsesOfficialFirstInAutoMode() {
-        java.util.Locale previous = java.util.Locale.getDefault();
+        Locale previous = Locale.getDefault();
         String url = "https://libraries.minecraft.net/a.jar";
         String mirror = "https://bmclapi2.bangbang93.com/libraries/a.jar";
         try {
-            java.util.Locale.setDefault(java.util.Locale.CHINA);
-            assertEquals(java.util.List.of(mirror, url), DownloadMirrors.candidates(DownloadSource.AUTO, url, false));
-            assertEquals(java.util.List.of(url, mirror), DownloadMirrors.candidates(DownloadSource.AUTO, url, true));
-            assertEquals(java.util.List.of(url, mirror), DownloadMirrors.candidates(DownloadSource.OFFICIAL, url, false));
-            java.util.Locale.setDefault(java.util.Locale.US);
-            assertEquals(java.util.List.of(url), DownloadMirrors.candidates(DownloadSource.AUTO, url, false));
-            assertEquals(java.util.List.of(mirror, url), DownloadMirrors.candidates(DownloadSource.MIRROR, url, false));
+            Locale.setDefault(Locale.CHINA);
+            assertEquals(List.of(mirror, url), DownloadMirrors.candidates(DownloadSource.AUTO, url, false));
+            assertEquals(List.of(url, mirror), DownloadMirrors.candidates(DownloadSource.AUTO, url, true));
+            assertEquals(List.of(url, mirror), DownloadMirrors.candidates(DownloadSource.OFFICIAL, url, false));
+            Locale.setDefault(Locale.US);
+            assertEquals(List.of(url), DownloadMirrors.candidates(DownloadSource.AUTO, url, false));
+            assertEquals(List.of(mirror, url), DownloadMirrors.candidates(DownloadSource.MIRROR, url, false));
         } finally {
-            java.util.Locale.setDefault(previous);
+            Locale.setDefault(previous);
         }
     }
 
@@ -61,7 +64,7 @@ class DownloadMirrorsTest {
             DownloadMirrors.resolve(DownloadSource.MIRROR, "https://repo1.maven.org/maven2/com/example/a.jar"));
         String original = "https://maven.neoforged.net/releases/net/neoforged/a.jar";
         assertEquals(
-            java.util.List.of("https://bmclapi2.bangbang93.com/maven/net/neoforged/a.jar", original,
+            List.of("https://bmclapi2.bangbang93.com/maven/net/neoforged/a.jar", original,
                 "https://neoforged.forgecdn.net/releases/net/neoforged/a.jar"),
             DownloadMirrors.candidates(DownloadSource.MIRROR, original, false));
     }
@@ -80,7 +83,7 @@ class DownloadMirrorsTest {
 
     @Test
     void oldSettingsAndRemovedMirrorNamesMigrateWithoutLosingOtherSettings() throws Exception {
-        var json = new com.google.gson.JsonObject();
+        var json = new JsonObject();
         json.addProperty("gameRoot", temp.resolve("game").toString());
         json.addProperty("isolation", "ALL");
         JsonFiles.write(temp.resolve("settings.json"), json);

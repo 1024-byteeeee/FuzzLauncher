@@ -21,6 +21,7 @@ import com.google.gson.JsonObject;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 
 public final class LocalGameInstallation implements GameInstallation {
@@ -241,7 +242,7 @@ public final class LocalGameInstallation implements GameInstallation {
         }
         Files.walkFileTree(target, new SimpleFileVisitor<>() {
             @Override
-            public FileVisitResult preVisitDirectory(Path directory, java.nio.file.attribute.BasicFileAttributes attributes)
+            public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes)
                 throws IOException {
                 if (!directory.toRealPath().startsWith(realRoot)) {
                     throw new IOException("安装目录包含外部目录链接");
@@ -250,7 +251,7 @@ public final class LocalGameInstallation implements GameInstallation {
             }
 
             @Override
-            public FileVisitResult visitFile(Path file, java.nio.file.attribute.BasicFileAttributes attributes) throws IOException {
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
                 Files.delete(file);
                 return FileVisitResult.CONTINUE;
             }

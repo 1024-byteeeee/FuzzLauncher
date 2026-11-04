@@ -1,6 +1,7 @@
 package com.fuzzlauncher.infrastructure.platform;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.*;
 
 /** Resolves the executable location independently of shortcuts' working directories. */
@@ -20,7 +21,7 @@ public final class LauncherPaths {
             }
             // Gradle/IDE execution has class directories rather than a launcher executable.
             return Path.of("").toAbsolutePath().normalize();
-        } catch (java.net.URISyntaxException ex) {
+        } catch (URISyntaxException ex) {
             throw new IOException("无法定位启动器所在目录", ex);
         }
     }

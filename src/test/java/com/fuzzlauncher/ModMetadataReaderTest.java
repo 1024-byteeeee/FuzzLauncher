@@ -6,7 +6,9 @@ import com.fuzzlauncher.infrastructure.mod.ModMetadataReader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.awt.image.BufferedImage;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.CancellationException;
@@ -138,11 +140,11 @@ class ModMetadataReaderTest {
         Path path = temp.resolve("logo-" + UUID.randomUUID() + ".jar");
         try (var output = new ZipOutputStream(Files.newOutputStream(path))) {
             output.putNextEntry(new ZipEntry(entry));
-            output.write(metadata.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            output.write(metadata.getBytes(StandardCharsets.UTF_8));
             output.closeEntry();
             for (var image : images.entrySet()) {
                 output.putNextEntry(new ZipEntry(image.getKey()));
-                var pixels = new java.awt.image.BufferedImage(32, 32, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                var pixels = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
                 for (int y = 0; y < pixels.getHeight(); y++) {
                     for (int x = 0; x < pixels.getWidth(); x++) {
                         pixels.setRGB(x, y, image.getValue());
@@ -172,10 +174,10 @@ class ModMetadataReaderTest {
         Path file = temp.resolve(name);
         try (var output = new ZipOutputStream(Files.newOutputStream(file))) {
             output.putNextEntry(new ZipEntry("fabric.mod.json"));
-            output.write("{\"id\":\"icon\",\"icon\":\"icon.png\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            output.write("{\"id\":\"icon\",\"icon\":\"icon.png\"}".getBytes(StandardCharsets.UTF_8));
             output.closeEntry();
             output.putNextEntry(new ZipEntry("icon.png"));
-            ImageIO.write(new java.awt.image.BufferedImage(width, height, java.awt.image.BufferedImage.TYPE_INT_ARGB), "png", output);
+            ImageIO.write(new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB), "png", output);
             output.closeEntry();
         }
         return file;

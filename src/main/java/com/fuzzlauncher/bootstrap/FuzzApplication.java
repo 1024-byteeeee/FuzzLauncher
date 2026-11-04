@@ -33,16 +33,21 @@ import com.fuzzlauncher.ui.shell.LauncherVisibilityController;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
 import javafx.application.*;
+import javafx.embed.swing.SwingFXUtils;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
+import javafx.scene.image.Image;
 import javafx.stage.*;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
+import javax.imageio.ImageIO;
 
 /** Composition root. All dependencies are explicit constructor parameters. */
 public final class FuzzApplication extends Application {
@@ -63,7 +68,7 @@ public final class FuzzApplication extends Application {
                 StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             recoveryLock = recoveryChannel.tryLock();
             if (recoveryLock == null) {
-                throw new java.io.IOException("此配置位置已有启动器运行，不能同时恢复操作");
+                throw new IOException("此配置位置已有启动器运行，不能同时恢复操作");
             }
             Path operations = bootstrap.resolve("operations");
             if (!StartupRecovery.operations(stage, operations)) {
@@ -71,12 +76,11 @@ public final class FuzzApplication extends Application {
                 return;
             }
             Path data = DataLocations.resolve();
-            java.nio.file.Files.createDirectories(data);
-            instanceChannel = java.nio.channels.FileChannel.open(data.resolve("launcher.lock"), java.nio.file.StandardOpenOption.CREATE,
-                java.nio.file.StandardOpenOption.WRITE);
+            Files.createDirectories(data);
+            instanceChannel = FileChannel.open(data.resolve("launcher.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             instanceLock = instanceChannel.tryLock();
             if (instanceLock == null) {
-                throw new java.io.IOException("此数据目录已有 Fuzz Launcher 运行，请先关闭已有窗口");
+                throw new IOException("此数据目录已有 Fuzz Launcher 运行，请先关闭已有窗口");
             }
             LauncherLog.configure(data);
             SettingsStore settings = new SettingsStore(data);
@@ -89,7 +93,7 @@ public final class FuzzApplication extends Application {
                 Platform.exit();
                 return;
             }
-            java.nio.file.Files.createDirectories(Path.of(settings.load().gameRoot()));
+            Files.createDirectories(Path.of(settings.load().gameRoot()));
             HttpTransport http = new HttpTransport();
             http.setDownloadSource(settings.load().downloadSource());
             http.setDownloadConcurrency(settings.load().effectiveDownloadThreads(LauncherConfig.get().network().concurrency()));
@@ -112,7 +116,7 @@ public final class FuzzApplication extends Application {
                 try {
                     restartCommand = LauncherRestart.command();
                     Platform.exit();
-                } catch (java.io.IOException ex) {
+                } catch (IOException ex) {
                     RetroDialogs.alert(stage, Alert.AlertType.ERROR, "自动重启失败", "请手动重新打开启动器：" + ex.getMessage()).showAndWait();
                 }
             });
@@ -122,10 +126,10 @@ public final class FuzzApplication extends Application {
             });
             stage.initStyle(StageStyle.UNDECORATED);
             Scene scene = new Scene(new LauncherView(stage, viewModel), 1200, 860);
-            scene.getStylesheets().add(getClass().getResource("/com/fuzzlauncher/retro.css").toExternalForm());
+            scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/com/fuzzlauncher/retro.css")).toExternalForm());
             stage.setScene(scene);
             stage.setTitle(LauncherInfo.TITLE);
-            stage.getIcons().add(new javafx.scene.image.Image(getClass().getResourceAsStream("/com/fuzzlauncher/launcher.png")));
+            stage.getIcons().add(new Image(Objects.requireNonNull(getClass().getResourceAsStream("/com/fuzzlauncher/launcher.png"))));
             stage.setMinWidth(1100);
             stage.setMinHeight(780);
             stage.setOnCloseRequest(event -> {
@@ -140,10 +144,10 @@ public final class FuzzApplication extends Application {
             if (Boolean.getBoolean("fuzz.snapshot")) {
                 Platform.runLater(() -> {
                     try {
-                        javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(scene.snapshot(null), null), "png",
+                        ImageIO.write(SwingFXUtils.fromFXImage(scene.snapshot(null), null), "png",
                             Path.of("ui-preview.png").toFile());
-                    } catch (java.io.IOException ex) {
-                        throw new java.io.UncheckedIOException(ex);
+                    } catch (IOException ex) {
+                        throw new UncheckedIOException(ex);
                     }
                     Platform.exit();
                 });
@@ -178,7 +182,7 @@ public final class FuzzApplication extends Application {
             if (recoveryChannel != null) {
                 recoveryChannel.close();
             }
-        } catch (java.io.IOException ex) {
+        } catch (IOException ex) {
             System.err.println("无法关闭启动器目录锁: " + ex.getMessage());
         }
         if (restartCommand != null) {
@@ -186,7 +190,7 @@ public final class FuzzApplication extends Application {
             restartCommand = null;
             try {
                 LauncherRestart.launch(command);
-            } catch (java.io.IOException ex) {
+            } catch (IOException ex) {
                 RetroDialogs.alert(null, Alert.AlertType.ERROR, "自动重启失败", "请手动重新打开启动器：" + ex.getMessage()).showAndWait();
             }
         }

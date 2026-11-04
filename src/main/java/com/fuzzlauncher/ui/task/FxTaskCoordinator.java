@@ -7,7 +7,9 @@ import javafx.concurrent.Task;
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 public final class FxTaskCoordinator implements AutoCloseable {
     @FunctionalInterface
@@ -23,13 +25,13 @@ public final class FxTaskCoordinator implements AutoCloseable {
     private volatile boolean closed;
     private Object catalogOwner;
     private boolean catalogTask;
-    private final java.util.function.BooleanSupplier savingSettings;
+    private final BooleanSupplier savingSettings;
     private final Runnable finished;
     private final BooleanProperty busy = new SimpleBooleanProperty();
     private final DoubleProperty progress = new SimpleDoubleProperty();
     private final StringProperty status = new SimpleStringProperty("就绪"), error = new SimpleStringProperty("");
 
-    public FxTaskCoordinator(java.util.function.BooleanSupplier savingSettings, Runnable finished) {
+    public FxTaskCoordinator(BooleanSupplier savingSettings, Runnable finished) {
         this.savingSettings = savingSettings;
         this.finished = finished;
     }
@@ -125,7 +127,7 @@ public final class FxTaskCoordinator implements AutoCloseable {
         active = task;
         catalogOwner = owner;
         catalogTask = catalog;
-        java.util.logging.Logger.getLogger("com.fuzzlauncher.launcher").info(title);
+        Logger.getLogger("com.fuzzlauncher.launcher").info(title);
         status.bind(task.messageProperty());
         progress.bind(task.progressProperty());
         task.setOnSucceeded(event -> {
@@ -133,7 +135,7 @@ public final class FxTaskCoordinator implements AutoCloseable {
                 return;
             }
             success.accept(task.getValue());
-            java.util.logging.Logger.getLogger("com.fuzzlauncher.launcher").info(title + "完成");
+            Logger.getLogger("com.fuzzlauncher.launcher").info(title + "完成");
         });
         task.setOnFailed(event -> {
             if (!finish(task)) {
@@ -145,7 +147,7 @@ public final class FxTaskCoordinator implements AutoCloseable {
             }
             String message = Objects.toString(cause.getMessage(), cause.getClass().getSimpleName());
             status.set(title + "失败");
-            java.util.logging.Logger.getLogger("com.fuzzlauncher.launcher").warning(title + "失败：" + message);
+            Logger.getLogger("com.fuzzlauncher.launcher").warning(title + "失败：" + message);
             error.set(message);
         });
         task.setOnCancelled(event -> {
@@ -153,7 +155,7 @@ public final class FxTaskCoordinator implements AutoCloseable {
                 return;
             }
             status.set(catalog ? "已停止获取版本列表" : "任务已取消");
-            java.util.logging.Logger.getLogger("com.fuzzlauncher.launcher").info(title + "已取消");
+            Logger.getLogger("com.fuzzlauncher.launcher").info(title + "已取消");
         });
         executor.execute(task);
     }

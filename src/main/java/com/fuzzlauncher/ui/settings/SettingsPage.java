@@ -15,7 +15,9 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import javafx.util.StringConverter;
 
+import java.io.IOException;
 import java.nio.file.*;
 import java.util.function.Consumer;
 
@@ -73,7 +75,7 @@ public final class SettingsPage extends RetroPage {
         ComboBox<DownloadSource> source = new RetroComboBox<>();
         source.setId("download-source");
         source.getItems().setAll(DownloadSource.values());
-        source.setConverter(new javafx.util.StringConverter<>() {
+        source.setConverter(new StringConverter<>() {
             public String toString(DownloadSource value) {
                 return value == null ? "" : vm.options().sources().get(value).label();
             }
@@ -141,7 +143,7 @@ public final class SettingsPage extends RetroPage {
                 }
                 vm.settingsModel().saveSettings(new LauncherSettings(normalized.toString(), mode.getValue(), source.getValue(),
                     requested.toString(), visibility.getValue(), automaticDownloads.isSelected(), downloadThreads.getValue()), migrate);
-            } catch (IllegalArgumentException | java.io.IOException ex) {
+            } catch (IllegalArgumentException | IOException ex) {
                 message(Alert.AlertType.ERROR, "设置无效", ex.getMessage());
             }
         });

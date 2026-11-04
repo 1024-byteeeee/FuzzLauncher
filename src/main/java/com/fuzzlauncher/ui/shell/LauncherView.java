@@ -15,6 +15,7 @@ import javafx.geometry.*;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.scene.shape.FillRule;
 import javafx.scene.shape.SVGPath;
 import javafx.stage.Stage;
 
@@ -110,7 +111,7 @@ public final class LauncherView extends RetroPage {
     private Button windowControl(String path, Runnable action) {
         SVGPath glyph = new SVGPath();
         glyph.setContent(path);
-        glyph.setFillRule(javafx.scene.shape.FillRule.EVEN_ODD);
+        glyph.setFillRule(FillRule.EVEN_ODD);
         glyph.setSmooth(false);
         glyph.setMouseTransparent(true);
         StackPane graphic = new StackPane(glyph);

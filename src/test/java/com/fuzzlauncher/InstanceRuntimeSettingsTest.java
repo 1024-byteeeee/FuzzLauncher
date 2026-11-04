@@ -11,11 +11,14 @@ import com.fuzzlauncher.infrastructure.game.runtime.JavaRuntimeManager;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
 
+import com.google.gson.JsonParser;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -60,12 +63,12 @@ class InstanceRuntimeSettingsTest {
         assertEquals(1024, loaded.minMemoryMb());
         assertEquals(6000, loaded.memoryMb());
         assertEquals(1024, loaded.withSettings("Renamed", loaded.isolation(), 7000).minMemoryMb());
-        var version = com.google.gson.JsonParser
+        var version = JsonParser
             .parseString(
                 "{\"_clientVersion\":\"1.20.4\",\"mainClass\":\"Main\",\"minecraftArguments\":\"--username" + " ${auth_player_name}\"}")
             .getAsJsonObject();
         var args = new LaunchArguments().build(temp, temp, temp.resolve("natives"), loaded, GameSession.offline(Account.offline("Steve")),
-            version, java.util.List.of());
+            version, List.of());
         assertTrue(args.contains("-Xms1024M"));
         assertTrue(args.contains("-Xmx6000M"));
         assertFalse(args.contains("-Xms256M"));
@@ -107,7 +110,7 @@ class InstanceRuntimeSettingsTest {
         Path executable = Files.createFile(home.resolve("bin/java.exe"));
         Files.writeString(home.resolve("release"), "JAVA_VERSION=\"21.0.4\"\n");
         Path cache = Files.createDirectories(temp.resolve("cached"));
-        JsonFiles.write(cache.resolve("java-21.json"), java.util.Map.of("home", home.toString()));
+        JsonFiles.write(cache.resolve("java-21.json"), Map.of("home", home.toString()));
         assertEquals(executable, new JavaRuntimeManager(cache).resolve(21, task));
     }
 }

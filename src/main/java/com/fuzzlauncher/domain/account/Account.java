@@ -1,5 +1,8 @@
 package com.fuzzlauncher.domain.account;
 
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+
 /** Contains identity only. Credentials use a separate encrypted store. */
 public record Account(String homeAccountId, String uuid, String name, AccountType type, String skinUrl) {
     public Account {
@@ -29,7 +32,7 @@ public record Account(String homeAccountId, String uuid, String name, AccountTyp
         if (!username.matches("[A-Za-z0-9_]{3,16}")) {
             throw new IllegalArgumentException("离线用户名需为 3–16 位英文字母、数字或下划线");
         }
-        String uuid = java.util.UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(java.nio.charset.StandardCharsets.UTF_8))
+        String uuid = UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(StandardCharsets.UTF_8))
             .toString().replace("-", "");
         return new Account("offline:" + uuid, uuid, username, AccountType.OFFLINE);
     }

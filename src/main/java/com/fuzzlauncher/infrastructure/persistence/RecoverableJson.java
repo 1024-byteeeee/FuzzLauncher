@@ -4,6 +4,11 @@ import com.google.gson.JsonObject;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 
 /** Keeps a validated previous generation; damaged input is never silently replaced. */
@@ -15,7 +20,7 @@ public final class RecoverableJson {
         return file.resolveSibling(file.getFileName() + ".bak");
     }
 
-    public static void integer(com.google.gson.JsonObject object, String field, String path) {
+    public static void integer(JsonObject object, String field, String path) {
         if (!object.has(field)) {
             return;
         }
@@ -30,7 +35,7 @@ public final class RecoverableJson {
         }
     }
 
-    public static <E extends Enum<E>> void enumField(com.google.gson.JsonObject object, String field, Class<E> type, String path) {
+    public static <E extends Enum<E>> void enumField(JsonObject object, String field, Class<E> type, String path) {
         if (!object.has(field)) {
             return;
         }
@@ -88,14 +93,14 @@ public final class RecoverableJson {
             Path backup = backup(file);
             read(backup, decode);
             if (Files.exists(file)) {
-                Files.copy(file, file.resolveSibling(file.getFileName() + ".corrupt-" + java.util.UUID.randomUUID()));
+                Files.copy(file, file.resolveSibling(file.getFileName() + ".corrupt-" + UUID.randomUUID()));
             }
             JsonFiles.atomicWrite(file, Files.readAllBytes(backup));
         }
 
         private static String explanation(Throwable error) {
-            java.util.Set<String> messages = new java.util.LinkedHashSet<>();
-            java.util.Set<Throwable> seen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            Set<String> messages = new LinkedHashSet<>();
+            Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
             while (error != null && seen.add(error)) {
                 if (error.getMessage() != null) {
                     messages.add(error.getMessage());

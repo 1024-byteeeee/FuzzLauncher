@@ -1,9 +1,14 @@
 package com.fuzzlauncher.infrastructure.filesystem;
 
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinNT;
+
 import java.awt.Desktop;
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.DosFileAttributeView;
 
 /** Local file operations used by the path picker, independent of JavaFX. Never overwrites data. */
 public final class BrowserFiles {
@@ -139,11 +144,11 @@ public final class BrowserFiles {
         Files.walkFileTree(source, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes) throws IOException {
-                int flags = com.sun.jna.platform.win32.Kernel32.INSTANCE.GetFileAttributes(directory.toString());
-                if (flags == com.sun.jna.platform.win32.WinBase.INVALID_FILE_ATTRIBUTES) {
+                int flags = Kernel32.INSTANCE.GetFileAttributes(directory.toString());
+                if (flags == WinBase.INVALID_FILE_ATTRIBUTES) {
                     throw new IOException("无法读取目录属性：" + directory);
                 }
-                if ((flags & com.sun.jna.platform.win32.WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+                if ((flags & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
                     throw new IOException("暂不复制目录链接：" + directory);
                 }
                 if (!directory.toRealPath().startsWith(realSource)) {
@@ -180,7 +185,7 @@ public final class BrowserFiles {
                 // COPY_ATTRIBUTES may have copied the DOS read-only flag into our private
                 // workspace.
                 if (workspace && !Files.isSymbolicLink(file)) {
-                    var dos = Files.getFileAttributeView(file, java.nio.file.attribute.DosFileAttributeView.class,
+                    var dos = Files.getFileAttributeView(file, DosFileAttributeView.class,
                         LinkOption.NOFOLLOW_LINKS);
                     if (dos != null && dos.readAttributes().isReadOnly()) {
                         dos.setReadOnly(false);

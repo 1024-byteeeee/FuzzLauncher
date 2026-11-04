@@ -2,11 +2,13 @@ package com.fuzzlauncher;
 
 import com.fuzzlauncher.application.task.TaskContext;
 
+import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.Map;
 import java.util.zip.*;
+import javax.imageio.ImageIO;
 
 public final class ModFixtures {
     public static final TaskContext TASK = new TaskContext() {
@@ -46,13 +48,13 @@ public final class ModFixtures {
                 .getBytes(StandardCharsets.UTF_8));
             output.closeEntry();
             output.putNextEntry(new ZipEntry("assets/" + id + "/logo.png"));
-            var image = new java.awt.image.BufferedImage(32, 32, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            var image = new BufferedImage(32, 32, BufferedImage.TYPE_INT_ARGB);
             for (int y = 0; y < image.getHeight(); y++) {
                 for (int x = 0; x < image.getWidth(); x++) {
                     image.setRGB(x, y, color);
                 }
             }
-            javax.imageio.ImageIO.write(image, "png", output);
+            ImageIO.write(image, "png", output);
             output.closeEntry();
         }
         return path;

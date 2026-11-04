@@ -5,6 +5,8 @@ import com.fuzzlauncher.domain.game.LoaderType;
 import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.instance.IsolationOverride;
 
+import com.google.gson.JsonObject;
+
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
@@ -66,7 +68,7 @@ public final class JsonInstanceRepository implements InstanceRepository {
         RecoverableJson.write(file, Map.of("instances", instances), JsonInstanceRepository::decode);
     }
 
-    private static List<GameInstance> decode(com.google.gson.JsonObject json) {
+    private static List<GameInstance> decode(JsonObject json) {
         if (json.has("instances") && json.get("instances").isJsonArray()) {
             int index = 0;
             for (var value : json.getAsJsonArray("instances")) {

@@ -24,6 +24,8 @@ import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 import com.google.gson.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import java.nio.file.*;
 import java.util.*;
@@ -72,8 +74,8 @@ class OfflineAccountTest {
         assertThrows(IllegalArgumentException.class, () -> GameSession.offline(account));
     }
 
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.EnumSource(LauncherVisibility.class)
+    @ParameterizedTest
+    @EnumSource(LauncherVisibility.class)
     void offlineLaunchRunsLocalFixtureAndKeepsZeroesInLogsWithoutRefreshingMicrosoft(LauncherVisibility visibility) throws Exception {
         Path root = temp.resolve("game");
         Path versionDir = root.resolve("versions/local-test");

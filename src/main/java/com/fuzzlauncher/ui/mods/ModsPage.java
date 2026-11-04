@@ -13,23 +13,32 @@ import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
+import javafx.beans.binding.BooleanExpression;
 import javafx.beans.property.*;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.*;
 import javafx.collections.transformation.*;
 import javafx.concurrent.Task;
+import javafx.event.EventHandler;
 import javafx.geometry.*;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.*;
 import javafx.scene.input.*;
 import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.SVGPath;
 import javafx.stage.Stage;
+import javafx.stage.WindowEvent;
+import javafx.util.StringConverter;
 
+import java.awt.Desktop;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /** Local-only mod management. Scans belong to the page; mutations belong to the ViewModel. */
@@ -42,7 +51,7 @@ public final class ModsPage extends RetroPage {
     private final Label summary = new Label(), directory = new Label();
     private Task<List<ModFile>> scan;
     private long generation;
-    private final javafx.event.EventHandler<javafx.stage.WindowEvent> windowHidden = event -> cancelScan();
+    private final EventHandler<WindowEvent> windowHidden = event -> cancelScan();
 
     public ModsPage(Stage stage, LauncherViewModel vm, Consumer<Integer> navigate) {
         super(stage, navigate);
@@ -53,7 +62,7 @@ public final class ModsPage extends RetroPage {
         instances.setMinWidth(0);
         instances.setValue(vm.selectedProperty().get() != null ? vm.selectedProperty().get()
             : vm.instances().isEmpty() ? null : vm.instances().getFirst());
-        instances.setConverter(new javafx.util.StringConverter<>() {
+        instances.setConverter(new StringConverter<>() {
             public String toString(GameInstance value) {
                 return value == null ? "" : value.name();
             }
@@ -77,7 +86,7 @@ public final class ModsPage extends RetroPage {
                 vm.selectedProperty().removeListener(selected);
                 vm.settingsProperty().removeListener(settings);
                 if (old.getWindow() != null) {
-                    old.getWindow().removeEventHandler(javafx.stage.WindowEvent.WINDOW_HIDDEN, windowHidden);
+                    old.getWindow().removeEventHandler(WindowEvent.WINDOW_HIDDEN, windowHidden);
                 }
             }
             if (scene == null) {
@@ -86,7 +95,7 @@ public final class ModsPage extends RetroPage {
                 vm.selectedProperty().addListener(selected);
                 vm.settingsProperty().addListener(settings);
                 if (scene.getWindow() != null) {
-                    scene.getWindow().addEventHandler(javafx.stage.WindowEvent.WINDOW_HIDDEN, windowHidden);
+                    scene.getWindow().addEventHandler(WindowEvent.WINDOW_HIDDEN, windowHidden);
                 }
                 refresh();
             }
@@ -194,7 +203,7 @@ public final class ModsPage extends RetroPage {
             event.consume();
         });
         list.setOnDragDropped(event -> {
-            List<Path> sources = event.getDragboard().getFiles().stream().map(java.io.File::toPath).toList();
+            List<Path> sources = event.getDragboard().getFiles().stream().map(File::toPath).toList();
             boolean accepted = !blocked.get() && !sources.isEmpty();
             event.setDropCompleted(accepted);
             if (accepted) {
@@ -230,7 +239,7 @@ public final class ModsPage extends RetroPage {
         private final HBox row;
         private ModFile displayed;
 
-        private ModCell(javafx.beans.binding.BooleanExpression blocked) {
+        private ModCell(BooleanExpression blocked) {
             enabled.getStyleClass().add("mod-enabled");
             enabled.setFocusTraversable(false);
             enabled.setAccessibleText("启用模组");
@@ -324,10 +333,10 @@ public final class ModsPage extends RetroPage {
 
     private Button entryButton(String title, String path, Runnable action) {
         Button button = button("", action);
-        javafx.scene.shape.SVGPath graphic = new javafx.scene.shape.SVGPath();
+        SVGPath graphic = new SVGPath();
         graphic.setContent(path);
-        graphic.setFill(javafx.scene.paint.Color.TRANSPARENT);
-        graphic.setStroke(javafx.scene.paint.Color.BLACK);
+        graphic.setFill(Color.TRANSPARENT);
+        graphic.setStroke(Color.BLACK);
         graphic.setStrokeWidth(1.5);
         graphic.setMouseTransparent(true);
         StackPane slot = new StackPane(graphic);
@@ -349,8 +358,8 @@ public final class ModsPage extends RetroPage {
             return;
         }
         try {
-            java.awt.Desktop desktop = java.awt.Desktop.getDesktop();
-            if (desktop.isSupported(java.awt.Desktop.Action.BROWSE_FILE_DIR)) {
+            Desktop desktop = Desktop.getDesktop();
+            if (desktop.isSupported(Desktop.Action.BROWSE_FILE_DIR)) {
                 desktop.browseFileDirectory(mod.path().toFile());
             } else {
                 desktop.open(mod.path().getParent().toFile());
@@ -403,7 +412,7 @@ public final class ModsPage extends RetroPage {
             if (ticket == generation) {
                 scanning.set(false);
                 summary.setText("无法读取模组：" + task.getException().getMessage());
-                java.util.logging.Logger.getLogger("com.fuzzlauncher.launcher").warning(summary.getText());
+                Logger.getLogger("com.fuzzlauncher.launcher").warning(summary.getText());
             }
         });
         scan = task;

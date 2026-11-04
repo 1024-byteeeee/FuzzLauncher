@@ -4,11 +4,16 @@ import com.fuzzlauncher.infrastructure.persistence.RecoverableJson;
 import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
 import com.fuzzlauncher.ui.common.RetroDialogs;
 
+import javafx.application.Platform;
 import javafx.scene.control.*;
 import javafx.stage.Window;
 
+import java.awt.Desktop;
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Explicit startup recovery choices; closing a recovery dialog never authorizes a write. */
 public final class StartupRecovery {
@@ -44,7 +49,9 @@ public final class StartupRecovery {
                     open(owner, damaged == null ? directory.resolve("config") : damaged.file().getParent());
                 } else if (answer == restore) {
                     try {
-                        damaged.restore();
+                        if (damaged != null) {
+                            damaged.restore();
+                        }
                     } catch (IOException failure) {
                         RetroDialogs.alert(owner, Alert.AlertType.ERROR, "恢复失败", failure.getMessage()).showAndWait();
                     }
@@ -93,7 +100,7 @@ public final class StartupRecovery {
         }
     }
 
-    private static void recoverInBackground(Window owner, java.util.List<OperationJournal> records) throws IOException {
+    private static void recoverInBackground(Window owner, List<OperationJournal> records) throws IOException {
         Dialog<ButtonType> progress = new Dialog<>();
         RetroDialogs.decorate(progress, owner, "正在恢复操作");
         progress.getDialogPane().setContent(new Label("正在恢复文件，请稍候…"));
@@ -101,8 +108,8 @@ public final class StartupRecovery {
         progress.getDialogPane().lookupButton(ButtonType.CLOSE).setVisible(false);
         progress.getDialogPane().lookupButton(ButtonType.CLOSE).setManaged(false);
         progress.getDialogPane().getHeader().lookup(".window-control").setDisable(true);
-        var finished = new java.util.concurrent.atomic.AtomicBoolean();
-        var failure = new java.util.concurrent.atomic.AtomicReference<Exception>();
+        var finished = new AtomicBoolean();
+        var failure = new AtomicReference<Exception>();
         progress.setOnCloseRequest(event -> {
             if (!finished.get()) {
                 event.consume();
@@ -116,7 +123,7 @@ public final class StartupRecovery {
             } catch (Exception ex) {
                 failure.set(ex);
             } finally {
-                javafx.application.Platform.runLater(() -> {
+                Platform.runLater(() -> {
                     finished.set(true);
                     progress.setResult(ButtonType.CLOSE);
                     progress.close();
@@ -132,7 +139,7 @@ public final class StartupRecovery {
     private static void open(Window owner, Path directory) {
         try {
             Files.createDirectories(directory);
-            java.awt.Desktop.getDesktop().open(directory.toFile());
+            Desktop.getDesktop().open(directory.toFile());
         } catch (IOException | RuntimeException ex) {
             RetroDialogs.alert(owner, Alert.AlertType.ERROR, "无法打开目录", ex.getMessage()).showAndWait();
         }

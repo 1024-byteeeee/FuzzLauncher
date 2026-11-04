@@ -14,7 +14,10 @@ import com.fuzzlauncher.infrastructure.platform.LauncherLog;
 import com.fuzzlauncher.infrastructure.platform.LauncherPaths;
 import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
 
+import com.google.gson.JsonObject;
+
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
@@ -45,7 +48,7 @@ public final class LocalSettingsOperations implements SettingsOperations {
         Path targetRoot = Path.of(config.gameRoot()).toAbsolutePath().normalize();
         boolean rootChanged = !sameDirectory(targetRoot, previousRoot);
 
-        if (java.nio.file.Files.exists(targetRoot) && !java.nio.file.Files.isDirectory(targetRoot)) {
+        if (Files.exists(targetRoot) && !Files.isDirectory(targetRoot)) {
             throw new IOException("游戏根目录不是文件夹");
         }
         List<GameInstance> oldInstances = repository.findAll();
@@ -77,12 +80,12 @@ public final class LocalSettingsOperations implements SettingsOperations {
                         Path pointer = DataLocations.bootstrapDirectory().resolve("data-location.json");
                         boolean dataChanged = !requested.toAbsolutePath().normalize().equals(dataDirectory().toAbsolutePath().normalize());
                         if (dataChanged || Files.exists(pointer)) {
-                            com.google.gson.JsonObject location = new com.google.gson.JsonObject();
+                            JsonObject location = new JsonObject();
                             location.addProperty("directory", requested.toAbsolutePath().normalize().toString());
                             if (dataChanged) {
                                 location.addProperty("previous", dataDirectory().toAbsolutePath().normalize().toString());
                             }
-                            operation.file(pointer, JsonFiles.GSON.toJson(location).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                            operation.file(pointer, JsonFiles.GSON.toJson(location).getBytes(StandardCharsets.UTF_8));
                         }
                     }
                     if (rootChanged) {

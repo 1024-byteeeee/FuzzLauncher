@@ -14,8 +14,13 @@ import com.fuzzlauncher.infrastructure.platform.LauncherLog;
 import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
 
 import com.google.gson.*;
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinNT;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
@@ -169,7 +174,7 @@ public final class LocalLoaderReinstallation {
                         publish(source, target);
                     }
                     if (operation != null) {
-                        operation.file(profile, JsonFiles.GSON.toJson(fresh).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                        operation.file(profile, JsonFiles.GSON.toJson(fresh).getBytes(StandardCharsets.UTF_8));
                         List<GameInstance> previous = repository.findAll();
                         List<GameInstance> next = previous.stream()
                             .map(instance -> instance.id().equals(original.id()) ? replacement : instance).toList();
@@ -338,9 +343,9 @@ public final class LocalLoaderReinstallation {
             throw new IOException("加载器路径指向游戏目录之外");
         }
         for (Path current = existing; current != null && current.startsWith(root); current = current.getParent()) {
-            int flags = com.sun.jna.platform.win32.Kernel32.INSTANCE.GetFileAttributes(current.toString());
-            if (flags == com.sun.jna.platform.win32.WinBase.INVALID_FILE_ATTRIBUTES
-                || (flags & com.sun.jna.platform.win32.WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+            int flags = Kernel32.INSTANCE.GetFileAttributes(current.toString());
+            if (flags == WinBase.INVALID_FILE_ATTRIBUTES
+                || (flags & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
                 throw new IOException("加载器路径包含目录链接或无法读取的文件");
             }
         }
@@ -351,7 +356,7 @@ public final class LocalLoaderReinstallation {
         Path temp = Files.createTempFile(target.getParent(), ".loader-", ".tmp");
         try {
             Files.copy(source, temp, StandardCopyOption.REPLACE_EXISTING);
-            try (var channel = java.nio.channels.FileChannel.open(temp, StandardOpenOption.WRITE)) {
+            try (var channel = FileChannel.open(temp, StandardOpenOption.WRITE)) {
                 channel.force(true);
             }
             try {

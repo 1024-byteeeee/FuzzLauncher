@@ -6,6 +6,8 @@ import com.fuzzlauncher.ui.common.RetroComboBox;
 import com.fuzzlauncher.ui.common.RetroPage;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
+import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.ListChangeListener;
 import javafx.collections.transformation.FilteredList;
@@ -15,6 +17,8 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
+import java.awt.Desktop;
+import java.net.URI;
 import java.util.*;
 import java.util.function.Consumer;
 
@@ -33,7 +37,7 @@ public final class DownloadsPage extends RetroPage {
                 vm.catalogModel().loadVersions(this);
             }
         };
-        ChangeListener<Boolean> busyListener = (observable, wasBusy, busy) -> javafx.application.Platform.runLater(loadWhenReady);
+        ChangeListener<Boolean> busyListener = (observable, wasBusy, busy) -> Platform.runLater(loadWhenReady);
         sceneProperty().addListener((observable, oldScene, scene) -> {
             if (oldScene != null) {
                 vm.busyProperty().removeListener(busyListener);
@@ -70,7 +74,7 @@ public final class DownloadsPage extends RetroPage {
         ListView<GameVersion> games = new ListView<>(filtered);
         games.setId("game-version-list");
         Label empty = new Label();
-        empty.textProperty().bind(javafx.beans.binding.Bindings.when(vm.busyProperty()).then("正在加载版本列表…").otherwise("暂无匹配版本，可点击“刷新版本”重试"));
+        empty.textProperty().bind(Bindings.when(vm.busyProperty()).then("正在加载版本列表…").otherwise("暂无匹配版本，可点击“刷新版本”重试"));
         games.setPlaceholder(empty);
         ComboBox<LoaderType> loader = new RetroComboBox<>();
         loader.setId("loader-type");
@@ -100,7 +104,7 @@ public final class DownloadsPage extends RetroPage {
         };
         ChangeListener<Boolean> queryWhenReady = (observable, old, busy) -> {
             if (!busy && pendingQuery[0]) {
-                javafx.application.Platform.runLater(() -> {
+                Platform.runLater(() -> {
                     if (getScene() != null && pendingQuery[0] && !vm.busyProperty().get()) {
                         query.run();
                     }
@@ -152,14 +156,14 @@ public final class DownloadsPage extends RetroPage {
         list.setPrefWidth(360);
         VBox.setVgrow(games, Priority.ALWAYS);
         Label sourceLabel = new Label();
-        sourceLabel.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(
+        sourceLabel.textProperty().bind(Bindings.createStringBinding(
             () -> "下载源：" + vm.options().sources().get(vm.settingsProperty().get().downloadSource()).label(), vm.settingsProperty()));
         Hyperlink sourceLink = new Hyperlink();
-        sourceLink.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(
+        sourceLink.textProperty().bind(Bindings.createStringBinding(
             () -> vm.options().sources().get(vm.settingsProperty().get().downloadSource()).website(), vm.settingsProperty()));
         sourceLink.setOnAction(event -> {
             try {
-                java.awt.Desktop.getDesktop().browse(java.net.URI.create(sourceLink.getText()));
+                Desktop.getDesktop().browse(URI.create(sourceLink.getText()));
             } catch (Exception ex) {
                 message(Alert.AlertType.ERROR, "无法打开下载源网站", ex.getMessage());
             }

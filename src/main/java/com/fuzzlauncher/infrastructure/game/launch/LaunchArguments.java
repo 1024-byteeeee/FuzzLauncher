@@ -14,6 +14,7 @@ import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 
 import com.google.gson.*;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
@@ -48,8 +49,8 @@ public final class LaunchArguments {
         values.put("launcher_name", "FuzzLauncher");
         values.put("launcher_version", LauncherInfo.VERSION);
         values.put("classpath",
-            String.join(java.io.File.pathSeparator, classpath.stream().map(p -> p.toAbsolutePath().toString()).toList()));
-        values.put("classpath_separator", java.io.File.pathSeparator);
+            String.join(File.pathSeparator, classpath.stream().map(p -> p.toAbsolutePath().toString()).toList()));
+        values.put("classpath_separator", File.pathSeparator);
         values.put("library_directory", root.resolve("libraries").toAbsolutePath().toString());
         values.put("auth_player_name", session.account().name());
         values.put("auth_uuid", session.account().uuid());

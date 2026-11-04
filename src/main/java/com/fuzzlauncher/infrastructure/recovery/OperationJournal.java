@@ -5,9 +5,18 @@ import com.fuzzlauncher.infrastructure.network.HttpTransport;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 import com.fuzzlauncher.infrastructure.persistence.RecoverableJson;
 
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinNT;
+
 import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.DosFileAttributeView;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 /** Write-ahead recovery records. Recovery only changes files matching a recorded generation. */
@@ -103,11 +112,11 @@ public final class OperationJournal {
     }
 
     public void configuration(Path file, Object after, Object rollback) throws IOException {
-        configurationPlan(file, after, JsonFiles.GSON.toJson(rollback).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        configurationPlan(file, after, JsonFiles.GSON.toJson(rollback).getBytes(StandardCharsets.UTF_8));
     }
 
     private void configurationPlan(Path file, Object after, byte[] rollback) throws IOException {
-        byte[] bytes = JsonFiles.GSON.toJson(after).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] bytes = JsonFiles.GSON.toJson(after).getBytes(StandardCharsets.UTF_8);
         String nextHash = hash(bytes);
         file = checked(file);
         byte[] previous = Files.exists(file) ? Files.readAllBytes(file) : null;
@@ -173,7 +182,7 @@ public final class OperationJournal {
             backup = "snapshot-" + state.changes.size();
             before = HttpTransport.digest(path, "SHA-256");
             Files.copy(path, directory.resolve(backup));
-            try (var channel = java.nio.channels.FileChannel.open(directory.resolve(backup), StandardOpenOption.WRITE)) {
+            try (var channel = FileChannel.open(directory.resolve(backup), StandardOpenOption.WRITE)) {
                 channel.force(true);
             }
         }
@@ -310,16 +319,16 @@ public final class OperationJournal {
 
     private static String hash(byte[] bytes) {
         try {
-            return HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (java.security.NoSuchAlgorithmException ex) {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (NoSuchAlgorithmException ex) {
             throw new IllegalStateException(ex);
         }
     }
 
     private static void ordinary(Path path) throws IOException {
-        int flags = com.sun.jna.platform.win32.Kernel32.INSTANCE.GetFileAttributes(path.toString());
-        if (flags == com.sun.jna.platform.win32.WinBase.INVALID_FILE_ATTRIBUTES
-            || (flags & com.sun.jna.platform.win32.WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+        int flags = Kernel32.INSTANCE.GetFileAttributes(path.toString());
+        if (flags == WinBase.INVALID_FILE_ATTRIBUTES
+            || (flags & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
             throw new IOException("恢复路径是链接或无法读取：" + path);
         }
     }
@@ -339,7 +348,7 @@ public final class OperationJournal {
 
             public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
                 ordinary(file);
-                var dos = Files.getFileAttributeView(file, java.nio.file.attribute.DosFileAttributeView.class);
+                var dos = Files.getFileAttributeView(file, DosFileAttributeView.class);
                 if (dos != null && dos.readAttributes().isReadOnly()) {
                     dos.setReadOnly(false);
                 }

@@ -12,6 +12,8 @@ import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.File;
+import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
@@ -41,7 +43,7 @@ class LauncherVisibilityTest {
         String classes = Path.of(LauncherVisibilityTest.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
         String main = Path.of(DetachedGame.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
         String executable = Path.of(System.getProperty("java.home"), "bin", "java.exe").toString();
-        Process parent = new ProcessBuilder(executable, "-cp", main + java.io.File.pathSeparator + classes, Parent.class.getName(),
+        Process parent = new ProcessBuilder(executable, "-cp", main + File.pathSeparator + classes, Parent.class.getName(),
             executable, classes, temp.toString(), log.toString()).start();
         try {
             assertTrue(parent.waitFor(10, TimeUnit.SECONDS));
@@ -64,7 +66,7 @@ class LauncherVisibilityTest {
         } finally {
             parent.destroyForcibly();
         }
-        assertThrows(java.io.IOException.class,
+        assertThrows(IOException.class,
             () -> DetachedGame.start(List.of(temp.resolve("missing.exe").toString()), temp, temp.resolve("failed.log"), ""));
         Process failedGame = DetachedGame.start(List.of(executable, "-cp", classes, Fixture.class.getName(), "0", "7"), temp,
             temp.resolve("nonzero.log"), "private-token");

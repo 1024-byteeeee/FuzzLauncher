@@ -22,6 +22,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 
 public final class GamesViewModel {
     private final PresentationState state;
@@ -40,7 +41,7 @@ public final class GamesViewModel {
     private final ModpackOperations modpacks;
     private Consumer<LauncherVisibility> gameStarted = ignored -> {
     };
-    private java.util.function.IntConsumer gameExited = ignored -> {
+    private IntConsumer gameExited = ignored -> {
     };
 
     GamesViewModel(PresentationState state, FxTaskCoordinator tasks, VersionCatalogPort catalog, GameInstallation install,
@@ -62,7 +63,7 @@ public final class GamesViewModel {
         this.modpacks = modpacks;
     }
 
-    public void onGameLifecycle(Consumer<LauncherVisibility> started, java.util.function.IntConsumer exited) {
+    public void onGameLifecycle(Consumer<LauncherVisibility> started, IntConsumer exited) {
         gameStarted = Objects.requireNonNull(started);
         gameExited = Objects.requireNonNull(exited);
     }

@@ -21,6 +21,7 @@ import com.google.gson.*;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Imports into isolated instances and synchronizes only files owned by a server pack. */
 public final class LocalModpacks {
@@ -151,7 +152,7 @@ public final class LocalModpacks {
         Path workRoot = root.toAbsolutePath().normalize().resolve(".fuzz-staging");
         Files.createDirectories(workRoot);
         Path work = Files.createTempDirectory(workRoot, "pack-update-");
-        java.util.concurrent.atomic.AtomicBoolean preserveBackup = new java.util.concurrent.atomic.AtomicBoolean();
+        AtomicBoolean preserveBackup = new AtomicBoolean();
         try {
             Path staged = work.resolve("new"), backup = work.resolve("backup");
             Files.createDirectories(staged);

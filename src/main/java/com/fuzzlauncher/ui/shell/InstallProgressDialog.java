@@ -4,10 +4,13 @@ import com.fuzzlauncher.ui.common.RetroDialogs;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
 import javafx.beans.binding.Bindings;
+import javafx.event.ActionEvent;
 import javafx.geometry.*;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.*;
+
+import java.util.Locale;
 
 /** Progress stays visible until the installation task has actually finished or cancelled. */
 final class InstallProgressDialog extends Dialog<ButtonType> {
@@ -38,7 +41,7 @@ final class InstallProgressDialog extends Dialog<ButtonType> {
         percent.setPrefHeight(24);
         percent.setMaxHeight(24);
         percent.textProperty().bind(Bindings.createStringBinding(() -> vm.progressProperty().get() < 0 ? "正在准备…"
-            : String.format(java.util.Locale.ROOT, "%.0f%%", vm.progressProperty().get() * 100), vm.progressProperty()));
+            : String.format(Locale.ROOT, "%.0f%%", vm.progressProperty().get() * 100), vm.progressProperty()));
         VBox content = new VBox(16, new Label("正在处理，请稍候"), message, bar, percent);
         content.setPadding(new Insets(12));
         content.setMinSize(520, 222);
@@ -49,7 +52,7 @@ final class InstallProgressDialog extends Dialog<ButtonType> {
         ButtonType cancel = new ButtonType("取消任务", ButtonBar.ButtonData.CANCEL_CLOSE);
         getDialogPane().getButtonTypes().add(cancel);
         Button cancelButton = (Button) getDialogPane().lookupButton(cancel);
-        cancelButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+        cancelButton.addEventFilter(ActionEvent.ACTION, event -> {
             vm.cancel();
             cancelButton.setDisable(true);
             event.consume();

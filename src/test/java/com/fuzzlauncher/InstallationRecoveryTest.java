@@ -27,6 +27,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.zip.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -170,7 +171,7 @@ class InstallationRecoveryTest {
                 return true;
             }
         };
-        assertThrows(java.util.concurrent.CancellationException.class,
+        assertThrows(CancellationException.class,
             () -> installer.execute(root, fixtureGame(), LoaderType.VANILLA, null, "base", cancelled));
         assertFalse(Files.exists(root.resolve("versions/base")));
         assertFalse(Files.exists(root.resolve(".fuzz-staging")));
@@ -184,11 +185,11 @@ class InstallationRecoveryTest {
         LoaderInstaller cancelled = (gameRoot, staging, game, loaderVersion, context) -> {
             Files.createDirectories(staging.resolve("libraries/nested/partial"));
             Files.writeString(staging.resolve("libraries/nested/partial/download.part"), "partial");
-            throw new java.util.concurrent.CancellationException("cancel fixture");
+            throw new CancellationException("cancel fixture");
         };
         var installer = new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(),
             Map.of(LoaderType.FABRIC, cancelled));
-        assertThrows(java.util.concurrent.CancellationException.class,
+        assertThrows(CancellationException.class,
             () -> installer.execute(root, fixtureGame(), LoaderType.FABRIC, "1", "取消实例", task));
         assertFalse(Files.exists(root.resolve("versions/base")));
         assertFalse(Files.exists(root.resolve("versions/取消实例")));

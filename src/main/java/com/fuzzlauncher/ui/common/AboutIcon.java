@@ -4,6 +4,7 @@ import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.*;
 import javafx.scene.image.Image;
 import javafx.scene.paint.Color;
+import javafx.scene.shape.ArcType;
 
 /** Small information symbol matching the retro navigation's blue and gray palette. */
 final class AboutIcon {
@@ -20,7 +21,7 @@ final class AboutIcon {
         graphics.setFill(Color.web("#000080"));
         graphics.fillOval(2, 2, 26, 26);
         graphics.setStroke(Color.web("#809cff"));
-        graphics.strokeArc(3, 3, 24, 24, 30, 140, javafx.scene.shape.ArcType.OPEN);
+        graphics.strokeArc(3, 3, 24, 24, 30, 140, ArcType.OPEN);
         graphics.setFill(Color.WHITE);
         graphics.fillRect(13, 7, 4, 4);
         graphics.fillRect(11, 13, 6, 3);

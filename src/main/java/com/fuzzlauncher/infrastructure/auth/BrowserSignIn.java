@@ -6,6 +6,7 @@ import com.microsoft.aad.msal4j.*;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.*;
 
@@ -53,7 +54,7 @@ public final class BrowserSignIn {
             }
             String message = "微软浏览器登录失败，请检查网络后重试";
             if (cause instanceof MsalException msal) {
-                message = switch (java.util.Objects.toString(msal.errorCode(), "")) {
+                message = switch (Objects.toString(msal.errorCode(), "")) {
                     case "access_denied", "authentication_canceled" -> "微软登录授权已取消或被拒绝，请重新登录";
                     case "authorization_pending", "authentication_timeout", "http_listener_timeout" -> "等待微软网页授权超时，请重新登录";
                     case "desktop_browser_not_supported" -> "无法打开默认浏览器，请设置 Windows 默认浏览器后重新登录";

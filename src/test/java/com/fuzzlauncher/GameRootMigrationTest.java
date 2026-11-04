@@ -6,11 +6,16 @@ import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
 import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
 import com.fuzzlauncher.infrastructure.settings.GameRootMigration;
 
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinNT;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.*;
+import java.nio.file.attribute.DosFileAttributes;
 import java.util.*;
 import java.util.concurrent.CancellationException;
 
@@ -155,7 +160,7 @@ class GameRootMigrationTest {
                     try {
                         Files.writeString(source.resolve("new-file.txt"), "new");
                     } catch (IOException ex) {
-                        throw new java.io.UncheckedIOException(ex);
+                        throw new UncheckedIOException(ex);
                     }
                 }
             }
@@ -197,14 +202,14 @@ class GameRootMigrationTest {
         Path readOnly = Files.writeString(source.resolve("a-readonly.txt"), "read only");
         Files.setAttribute(readOnly, "dos:readonly", true);
         Path locked = Files.writeString(source.resolve("z-locked.txt"), "locked");
-        var kernel = com.sun.jna.platform.win32.Kernel32.INSTANCE;
-        var handle = kernel.CreateFile(locked.toString(), com.sun.jna.platform.win32.WinNT.GENERIC_READ, 0, null,
-            com.sun.jna.platform.win32.WinNT.OPEN_EXISTING, com.sun.jna.platform.win32.WinNT.FILE_ATTRIBUTE_NORMAL, null);
-        assertNotEquals(com.sun.jna.platform.win32.WinBase.INVALID_HANDLE_VALUE, handle);
+        var kernel = Kernel32.INSTANCE;
+        var handle = kernel.CreateFile(locked.toString(), WinNT.GENERIC_READ, 0, null,
+            WinNT.OPEN_EXISTING, WinNT.FILE_ATTRIBUTE_NORMAL, null);
+        assertNotEquals(WinBase.INVALID_HANDLE_VALUE, handle);
         try {
             assertThrows(IOException.class, () -> GameRootMigration.prepare(source, target, List.of(), task));
             assertFalse(Files.exists(target));
-            assertTrue(Files.readAttributes(readOnly, java.nio.file.attribute.DosFileAttributes.class).isReadOnly());
+            assertTrue(Files.readAttributes(readOnly, DosFileAttributes.class).isReadOnly());
             assertNoWorkspace();
         } finally {
             kernel.CloseHandle(handle);

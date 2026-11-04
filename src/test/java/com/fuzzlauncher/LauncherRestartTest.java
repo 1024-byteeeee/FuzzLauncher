@@ -5,7 +5,9 @@ import com.fuzzlauncher.infrastructure.platform.LauncherRestart;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.*;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -19,9 +21,9 @@ class LauncherRestartTest {
         try {
             Path executable = Files.createFile(temp.resolve("Fuzz Launcher.exe"));
             System.setProperty("jpackage.app-path", executable.toString());
-            assertEquals(java.util.List.of(executable.toString()), LauncherRestart.command());
+            assertEquals(List.of(executable.toString()), LauncherRestart.command());
             Files.delete(executable);
-            assertThrows(java.io.IOException.class, LauncherRestart::command);
+            assertThrows(IOException.class, LauncherRestart::command);
         } finally {
             if (previous == null) {
                 System.clearProperty("jpackage.app-path");

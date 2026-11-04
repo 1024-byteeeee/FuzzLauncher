@@ -9,6 +9,7 @@ import com.fuzzlauncher.infrastructure.game.launch.LaunchArguments;
 import com.fuzzlauncher.infrastructure.game.runtime.JavaRuntimeManager;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 
+import com.google.gson.JsonObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -103,7 +104,7 @@ class LauncherConfigurationTest {
         assertTrue(config.loaderMaven(LoaderType.NEOFORGE, "1.20.1").endsWith("/forge/"));
         JavaRuntimeManager manager = new JavaRuntimeManager(directory);
         assertEquals(21, manager.requiredMajor(
-            JsonFiles.GSON.fromJson("{\"id\":\"1.20.1\",\"javaVersion\":{\"majorVersion\":21}}", com.google.gson.JsonObject.class)));
+            JsonFiles.GSON.fromJson("{\"id\":\"1.20.1\",\"javaVersion\":{\"majorVersion\":21}}", JsonObject.class)));
     }
 
     @Test

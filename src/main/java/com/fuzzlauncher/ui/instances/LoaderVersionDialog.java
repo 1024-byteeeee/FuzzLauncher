@@ -9,6 +9,7 @@ import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.collections.ListChangeListener;
+import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -50,7 +51,7 @@ public final class LoaderVersionDialog extends Dialog<ButtonType> {
         versions.disableProperty().bind(vm.busyProperty());
         var button = (Button) getDialogPane().lookupButton(install);
         button.disableProperty().bind(vm.busyProperty().or(versions.valueProperty().isNull()).or(vm.gameRunningProperty()));
-        button.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+        button.addEventFilter(ActionEvent.ACTION, event -> {
             String selected = versions.getValue();
             close();
             vm.gamesModel().reinstallLoader(instance, selected);

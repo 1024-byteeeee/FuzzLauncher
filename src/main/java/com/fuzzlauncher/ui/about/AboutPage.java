@@ -5,6 +5,7 @@ import com.fuzzlauncher.ui.common.RetroPage;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
 import javafx.geometry.*;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.input.*;
 import javafx.scene.layout.*;
@@ -97,7 +98,7 @@ public final class AboutPage extends RetroPage {
         setCenter(content);
     }
 
-    private static VBox section(javafx.scene.Node... content) {
+    private static VBox section(Node... content) {
         VBox section = new VBox(10, content);
         section.setMinWidth(0);
         section.getStyleClass().add("details-box");

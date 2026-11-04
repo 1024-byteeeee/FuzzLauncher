@@ -10,6 +10,7 @@ import com.fuzzlauncher.ui.common.RetroDialogs;
 import com.fuzzlauncher.ui.common.RetroPathDialog;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
+import javafx.beans.binding.Bindings;
 import javafx.beans.property.*;
 import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
@@ -19,6 +20,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
+import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
 
@@ -75,7 +77,7 @@ final class ModpackExportDialog extends Dialog<ButtonType> {
         HBox folder = new HBox(8, directory, browse);
         HBox.setHgrow(directory, Priority.ALWAYS);
         Label suffix = new Label();
-        suffix.textProperty().bind(javafx.beans.binding.Bindings
+        suffix.textProperty().bind(Bindings
             .createStringBinding(() -> "文件名（自动添加 " + format.getValue().extension() + "）", format.valueProperty()));
         GridPane output = new GridPane();
         output.setHgap(12);
@@ -201,7 +203,7 @@ final class ModpackExportDialog extends Dialog<ButtonType> {
             author.setText(defaults.author());
             description.setText(defaults.description());
             fileApi.setText(defaults.fileApi());
-        } catch (java.io.IOException | RuntimeException ignored) {
+        } catch (IOException | RuntimeException ignored) {
             /* Editable defaults remain available. */
         }
         Task<List<ModpackContent>> scan = new Task<>() {

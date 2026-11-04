@@ -5,6 +5,8 @@ import com.fuzzlauncher.domain.settings.DownloadSource;
 import com.fuzzlauncher.domain.settings.LauncherSettings;
 import com.fuzzlauncher.domain.settings.LauncherVisibility;
 
+import com.google.gson.JsonObject;
+
 /** Applies release configuration at the I/O boundary, before constructing validated domain values. */
 public final class SettingsDefaults {
     private SettingsDefaults() {
@@ -35,8 +37,8 @@ public final class SettingsDefaults {
             threads == null ? config.network().maxConcurrency() : threads);
     }
 
-    public static com.google.gson.JsonObject withDefaults(com.google.gson.JsonObject input) {
-        com.google.gson.JsonObject json = input.deepCopy();
+    public static JsonObject withDefaults(JsonObject input) {
+        JsonObject json = input.deepCopy();
         var defaults = LauncherConfig.get();
         if (!json.has("downloadSource") || json.get("downloadSource").isJsonNull()) {
             json.addProperty("downloadSource", defaults.defaults().downloadSource().name());

@@ -11,18 +11,24 @@ import com.fuzzlauncher.ui.common.RetroPathDialog;
 import com.fuzzlauncher.ui.modpack.ModpackDialogs;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
+import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
+import javafx.beans.value.ChangeListener;
+import javafx.concurrent.Task;
 import javafx.geometry.*;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.*;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
 import javafx.scene.text.TextAlignment;
 import javafx.stage.Stage;
 
+import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.logging.Logger;
 
 /** InstancesPage presentation; all application operations are delegated to the ViewModel. */
 public final class InstancesPage extends RetroPage {
@@ -35,7 +41,7 @@ public final class InstancesPage extends RetroPage {
         setOnDragOver(event -> {
             if (!vm.busyProperty().get() && !vm.gameRunningProperty().get() && event.getDragboard().hasFiles()
                 && event.getDragboard().getFiles().size() == 1 && isModpack(event.getDragboard().getFiles().getFirst().toPath())) {
-                event.acceptTransferModes(javafx.scene.input.TransferMode.COPY);
+                event.acceptTransferModes(TransferMode.COPY);
             }
             event.consume();
         });
@@ -44,7 +50,7 @@ public final class InstancesPage extends RetroPage {
                 && event.getDragboard().getFiles().size() == 1 && isModpack(event.getDragboard().getFiles().getFirst().toPath());
             if (accepted) {
                 Path archive = event.getDragboard().getFiles().getFirst().toPath();
-                javafx.application.Platform.runLater(() -> ModpackDialogs.importArchive(stage, vm, archive));
+                Platform.runLater(() -> ModpackDialogs.importArchive(stage, vm, archive));
             }
             event.setDropCompleted(accepted);
             event.consume();
@@ -124,7 +130,7 @@ public final class InstancesPage extends RetroPage {
         });
         exportPack.setId("export-modpack");
         exportPack.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()).or(vm.selectedProperty().isNull()));
-        for (Button action : java.util.List.of(add, remove, refresh, importPack, exportPack)) {
+        for (Button action : List.of(add, remove, refresh, importPack, exportPack)) {
             action.setStyle("-fx-padding: 5 3;");
             action.setMinWidth(54);
             action.setPrefWidth(54);
@@ -153,7 +159,7 @@ public final class InstancesPage extends RetroPage {
         };
         render.accept(vm.selectedProperty().get());
         // A page-scoped binding avoids retaining obsolete detail views when navigating.
-        javafx.beans.value.ChangeListener<GameInstance> listener = (o, a, b) -> render.accept(b);
+        ChangeListener<GameInstance> listener = (o, a, b) -> render.accept(b);
         vm.selectedProperty().addListener(listener);
         details.sceneProperty().addListener((o, old, scene) -> {
             if (scene == null && old != null) {
@@ -168,7 +174,7 @@ public final class InstancesPage extends RetroPage {
     private final class InstanceDetails extends VBox {
         private GameInstance instance;
         private Consumer<GameInstance> update;
-        private javafx.concurrent.Task<Boolean> packPreview;
+        private Task<Boolean> packPreview;
 
         private InstanceDetails() {
             ImageView landscape = new ImageView(image("landscape"));
@@ -262,7 +268,7 @@ public final class InstancesPage extends RetroPage {
                     Path root = Path.of(vm.settingsProperty().get().gameRoot());
                     vm.instancesModel().prepareInstanceDirectory(instance);
                     openFolder(new IsolationPolicy().gameDirectory(root, instance, vm.settingsProperty().get().isolation()));
-                } catch (java.io.IOException ex) {
+                } catch (IOException ex) {
                     message(Alert.AlertType.ERROR, "无法打开实例目录", ex.getMessage());
                 }
             });
@@ -301,7 +307,7 @@ public final class InstancesPage extends RetroPage {
                 updatePack.setVisible(false);
                 updatePack.setManaged(false);
                 GameInstance snapshot = selected;
-                javafx.concurrent.Task<Boolean> task = new javafx.concurrent.Task<>() {
+                Task<Boolean> task = new Task<>() {
                     @Override
                     protected Boolean call() throws Exception {
                         return vm.instancesModel().serverPack(snapshot);
@@ -315,7 +321,7 @@ public final class InstancesPage extends RetroPage {
                 });
                 // Broken pack state is reported by launch/update; a preview must not block selection.
                 task.setOnFailed(
-                    event -> java.util.logging.Logger.getLogger("com.fuzzlauncher.launcher").fine("无法预览整合包状态：" + task.getException()));
+                    event -> Logger.getLogger("com.fuzzlauncher.launcher").fine("无法预览整合包状态：" + task.getException()));
                 packPreview = task;
                 Thread.ofVirtual().name("instance-pack-preview").start(task);
             };

@@ -3,6 +3,8 @@ package com.fuzzlauncher.ui.modpack;
 import com.fuzzlauncher.application.model.ModpackContent;
 
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
+import javafx.scene.AccessibleRole;
 import javafx.scene.control.*;
 import javafx.scene.input.KeyCode;
 import javafx.scene.layout.*;
@@ -36,7 +38,7 @@ public final class ModpackFileTree extends VBox {
         tree.setCellFactory(view -> new TreeCell<>() {
             private final CheckBox checkbox = new CheckBox();
             private CheckBoxTreeItem<ModpackContent> current;
-            private final javafx.beans.value.ChangeListener<Boolean> changed = (o, before, after) -> sync();
+            private final ChangeListener<Boolean> changed = (o, before, after) -> sync();
 
             {
                 checkbox.setFocusTraversable(false);
@@ -47,7 +49,7 @@ public final class ModpackFileTree extends VBox {
                     sync();
                     event.consume();
                 });
-                setAccessibleRole(javafx.scene.AccessibleRole.CHECK_BOX_TREE_ITEM);
+                setAccessibleRole(AccessibleRole.CHECK_BOX_TREE_ITEM);
             }
 
             private void sync() {

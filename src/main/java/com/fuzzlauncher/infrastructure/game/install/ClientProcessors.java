@@ -10,6 +10,8 @@ import com.fuzzlauncher.infrastructure.platform.ProcessCleanup;
 import com.google.gson.*;
 
 import java.io.*;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.*;
@@ -162,13 +164,13 @@ public final class ClientProcessors {
 
     /** Preserve Forge's declared --sanitize/--format semantics using its exact srgutils version. */
     private static void sanitizeMappings(JsonObject processor, Path staging, Path input, Path output, List<String> args) throws Exception {
-        List<java.net.URL> libraries = new ArrayList<>();
+        List<URL> libraries = new ArrayList<>();
         for (JsonElement coordinate : processor.getAsJsonArray("classpath")) {
             libraries.add(
                 JsonFiles.safeResolve(staging.resolve("libraries"), VersionResolver.mavenPath(coordinate.getAsString())).toUri().toURL());
         }
         try (
-            java.net.URLClassLoader loader = new java.net.URLClassLoader(libraries.toArray(java.net.URL[]::new),
+            URLClassLoader loader = new URLClassLoader(libraries.toArray(URL[]::new),
                 ClassLoader.getPlatformClassLoader());
             InputStream stream = Files.newInputStream(input)) {
             Class<?> mapping = loader.loadClass("net.minecraftforge.srgutils.IMappingFile");

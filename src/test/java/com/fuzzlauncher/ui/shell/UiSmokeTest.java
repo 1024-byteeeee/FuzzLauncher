@@ -1,5 +1,6 @@
 package com.fuzzlauncher.ui.shell;
 
+import com.fuzzlauncher.ModFixtures;
 import com.fuzzlauncher.application.model.LauncherInfo;
 import com.fuzzlauncher.application.model.ModpackContent;
 import com.fuzzlauncher.application.port.AccountAuthenticator;
@@ -41,25 +42,69 @@ import com.fuzzlauncher.ui.modpack.ModpackFileTree;
 import com.fuzzlauncher.ui.settings.SettingsPage;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.sun.net.httpserver.HttpServer;
+import javafx.animation.KeyFrame;
+import javafx.animation.PauseTransition;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.value.ChangeListener;
+import javafx.css.PseudoClass;
+import javafx.embed.swing.SwingFXUtils;
+import javafx.event.ActionEvent;
 import javafx.event.Event;
+import javafx.event.EventType;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
+import javafx.scene.Parent;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.control.*;
 import javafx.scene.control.skin.ComboBoxListViewSkin;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.DataFormat;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.PickResult;
+import javafx.scene.layout.CornerRadii;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.Window;
+import javafx.util.Duration;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.net.InetSocketAddress;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
+import java.util.function.UnaryOperator;
+import java.util.zip.ZipFile;
+import javax.imageio.ImageIO;
 
+import static java.awt.Color.BLUE;
 import static org.junit.jupiter.api.Assertions.*;
 
 @EnabledIfSystemProperty(named = "fuzz.uiTests", matches = "true")
@@ -106,7 +151,7 @@ class UiSmokeTest {
                         var bounds = field.localToScene(field.getBoundsInLocal());
                         assertTrue(bounds.getMaxX() <= stage.getScene().getWidth() + 2, "Field overflow on page " + page);
                     }
-                    javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(stage.getScene().snapshot(null), null), "png",
+                    ImageIO.write(SwingFXUtils.fromFXImage(stage.getScene().snapshot(null), null), "png",
                         Path.of("build/ui-check/page-" + page + ".png").toFile());
                 }
                 verifyAboutPage(stage, view);
@@ -146,7 +191,7 @@ class UiSmokeTest {
         store.save(previous);
         store.save(SettingsDefaults.create(data.resolve("new-game").toString(), IsolationMode.ALL));
         Files.writeString(data.resolve("settings.json"), "{broken");
-        var error = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        var error = new AtomicReference<Throwable>();
         chooseRecoveryButton("配置需要修复", ButtonBar.ButtonData.YES, error);
         assertTrue(StartupRecovery.configurations(owner, data, store::load));
         assertNull(error.get());
@@ -168,16 +213,16 @@ class UiSmokeTest {
     }
 
     private static void chooseRecoveryButton(String title, ButtonBar.ButtonData choice,
-        java.util.concurrent.atomic.AtomicReference<Throwable> error) {
+        AtomicReference<Throwable> error) {
         Platform.runLater(() -> {
             Window window = null;
             try {
-                window = java.util.List.copyOf(Window.getWindows()).stream()
+                window = List.copyOf(Window.getWindows()).stream()
                     .filter(value -> value instanceof Stage stage && title.equals(stage.getTitle())).findFirst().orElseThrow();
                 DialogPane pane = (DialogPane) window.getScene().getRoot();
                 assertTrue(pane.getStyleClass().contains("retro-dialog"));
                 if (title.equals("发现未完成操作")) {
-                    javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(window.getScene().snapshot(null), null), "png",
+                    ImageIO.write(SwingFXUtils.fromFXImage(window.getScene().snapshot(null), null), "png",
                         Path.of("build/ui-check/startup-recovery.png").toFile());
                 }
                 ButtonType type = pane.getButtonTypes().stream().filter(button -> button.getButtonData() == choice).findFirst()
@@ -195,15 +240,15 @@ class UiSmokeTest {
     private void verifyAvatarLifecycle(Stage stage) throws Exception {
         var original = stage.getScene().getRoot();
         Account microsoft = new Account("skin-fixture", "0123456789abcdef0123456789abcdef", "SkinFixture");
-        var identity = new java.util.concurrent.atomic.AtomicReference<>(microsoft);
+        var identity = new AtomicReference<>(microsoft);
         AccountAuthenticator auth = new AccountAuthenticator() {
-            public java.util.Optional<Account> savedAccount() {
-                return java.util.Optional.ofNullable(identity.get());
+            public Optional<Account> savedAccount() {
+                return Optional.ofNullable(identity.get());
             }
 
             public GameSession login(TaskContext task) {
                 identity.set(microsoft);
-                return new GameSession(microsoft, "fixture", java.time.Instant.MAX);
+                return new GameSession(microsoft, "fixture", Instant.MAX);
             }
 
             public GameSession loginOffline(String name, TaskContext task) {
@@ -219,11 +264,11 @@ class UiSmokeTest {
                 identity.set(null);
             }
         };
-        var image = new java.awt.image.BufferedImage(8, 8, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-        image.setRGB(0, 0, java.awt.Color.BLUE.getRGB());
-        var bytes = new java.io.ByteArrayOutputStream();
-        javax.imageio.ImageIO.write(image, "png", bytes);
-        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var image = new BufferedImage(8, 8, BufferedImage.TYPE_INT_ARGB);
+        image.setRGB(0, 0, BLUE.getRGB());
+        var bytes = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", bytes);
+        var calls = new AtomicInteger();
         CountDownLatch loading = new CountDownLatch(1), release = new CountDownLatch(1), returned = new CountDownLatch(1);
         Path data = temp.resolve("avatar-state");
         new SettingsStore(data).save(SettingsDefaults.create(data.resolve("game").toString(), IsolationMode.ALL));
@@ -251,11 +296,11 @@ class UiSmokeTest {
             stage.getScene().setRoot(page);
             page.applyCss();
             page.layout();
-            var avatar = (javafx.scene.image.ImageView) page.lookup("#microsoft-avatar");
+            var avatar = (ImageView) page.lookup("#microsoft-avatar");
             var fallback = avatar.getImage();
             Object loop = new Object();
-            javafx.animation.Timeline poll = new javafx.animation.Timeline(
-                new javafx.animation.KeyFrame(javafx.util.Duration.millis(20), event -> {
+            Timeline poll = new Timeline(
+                new KeyFrame(Duration.millis(20), event -> {
                     if (vm.accountsModel().accountAvatarProperty().get() != null) {
                         Platform.exitNestedEventLoop(loop, true);
                     }
@@ -280,7 +325,7 @@ class UiSmokeTest {
             release.countDown();
             assertTrue(returned.await(5, TimeUnit.SECONDS));
             Object drain = new Object();
-            var pause = new javafx.animation.PauseTransition(javafx.util.Duration.millis(200));
+            var pause = new PauseTransition(Duration.millis(200));
             pause.setOnFinished(event -> Platform.exitNestedEventLoop(drain, true));
             pause.play();
             Platform.enterNestedEventLoop(drain);
@@ -295,14 +340,14 @@ class UiSmokeTest {
 
     private void verifyBrowserLoginDialog(Stage stage) throws Exception {
         var original = stage.getScene().getRoot();
-        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var calls = new AtomicInteger();
         var release = new CountDownLatch(1);
         var authorized = new CountDownLatch(1);
         var verifying = new CountDownLatch(1);
         Account microsoft = new Account("browser-fixture", "0123456789abcdef0123456789abcdef", "BrowserFixture");
         AccountAuthenticator auth = new AccountAuthenticator() {
-            public java.util.Optional<Account> savedAccount() {
-                return java.util.Optional.empty();
+            public Optional<Account> savedAccount() {
+                return Optional.empty();
             }
 
             public GameSession login(TaskContext task) throws Exception {
@@ -328,7 +373,7 @@ class UiSmokeTest {
                         Thread.sleep(20);
                     }
                 }
-                return new GameSession(microsoft, "fixture", java.time.Instant.MAX);
+                return new GameSession(microsoft, "fixture", Instant.MAX);
             }
 
             public GameSession loginOffline(String name, TaskContext task) {
@@ -354,7 +399,7 @@ class UiSmokeTest {
             waitForFx(() -> ((Label) pane.lookup("#browser-login-status")).getText().contains("浏览器"));
             pane.applyCss();
             pane.layout();
-            javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null), "png",
+            ImageIO.write(SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null), "png",
                 Path.of("build/ui-check/browser-login.png").toFile());
             Window window = pane.getScene().getWindow();
             ((Button) pane.lookupButton(pane.getButtonTypes().getFirst())).fire();
@@ -427,7 +472,7 @@ class UiSmokeTest {
                         assertEquals(height, pane.getScene().getWindow().getHeight(), .01);
                     }
                 }
-                javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null), "png",
+                ImageIO.write(SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null), "png",
                     Path.of("build/ui-check/task-progress.png").toFile());
             } finally {
                 dialog.close();
@@ -453,8 +498,8 @@ class UiSmokeTest {
         var repository = new JsonInstanceRepository(data);
         repository.save(instance);
         AccountAuthenticator auth = new AccountAuthenticator() {
-            public java.util.Optional<Account> savedAccount() {
-                return java.util.Optional.empty();
+            public Optional<Account> savedAccount() {
+                return Optional.empty();
             }
 
             public GameSession login(TaskContext task) {
@@ -488,7 +533,7 @@ class UiSmokeTest {
             assertNotNull(pane.lookup("#modpack-type-multimc"));
             assertNotNull(pane.lookup("#modpack-type-server"));
             assertNotNull(pane.lookup("#modpack-type-modrinth"));
-            javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null), "png",
+            ImageIO.write(SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null), "png",
                 Path.of("build/ui-check/modpack-types.png").toFile());
             ((Button) pane.lookup("#modpack-type-server")).fire();
             pane.applyCss();
@@ -534,7 +579,7 @@ class UiSmokeTest {
             var selection = selector.selectedPaths();
             TextField search = (TextField) pane.lookup("#modpack-file-search");
             search.setText("nested/settings");
-            search.fireEvent(new javafx.event.ActionEvent());
+            search.fireEvent(new ActionEvent());
             assertEquals("config/nested/settings.json", tree.getSelectionModel().getSelectedItem().getValue().path());
             assertEquals(selection, selector.selectedPaths());
             ((Button) pane.lookup("#modpack-collapse-all")).fire();
@@ -547,20 +592,20 @@ class UiSmokeTest {
             ((Button) pane.lookup("#modpack-expand-all")).fire();
             pane.applyCss();
             pane.layout();
-            javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null), "png",
+            ImageIO.write(SwingFXUtils.fromFXImage(pane.getScene().snapshot(null), null), "png",
                 Path.of("build/ui-check/modpack-export.png").toFile());
             ((TextField) pane.lookup("#modpack-output-directory")).setText(data.resolve("exports").toString());
             ((TextField) pane.lookup("#modpack-filename")).setText("selected");
             ((Button) pane.lookup("#modpack-export-next")).fire();
             waitForFx(() -> !vm.busyProperty().get());
-            try (var zip = new java.util.zip.ZipFile(data.resolve("exports/selected.zip").toFile())) {
+            try (var zip = new ZipFile(data.resolve("exports/selected.zip").toFile())) {
                 assertNotNull(zip.getEntry("overrides/mods/test.jar"));
                 assertNotNull(zip.getEntry("overrides/config/nested/settings.json"));
                 assertNotNull(zip.getEntry("overrides/account.json"));
                 assertNull(zip.getEntry("overrides/mods/excluded.jar"));
                 assertNull(zip.getEntry("overrides/options.txt"));
             }
-            var optionalManifest = com.google.gson.JsonParser.parseString(
+            var optionalManifest = JsonParser.parseString(
                 "{\"files\":[{\"path\":\"mods/optional-a.jar\",\"fileSize\":100,\"env\":{\"client\":\"optional\"}},{\"path\":\"mods/optional-b.jar\",\"fileSize\":200,\"env\":{\"client\":\"optional\"}}]}")
                 .getAsJsonObject();
             var info = new ModpackArchive.Info(ModpackFormat.MODRINTH, "测试整合包", "1.0.0", "作者", "导入说明", "1.20.4", LoaderType.FABRIC,
@@ -577,13 +622,13 @@ class UiSmokeTest {
             TreeView<ModpackContent> optionalTree = (TreeView<ModpackContent>) optional.lookup("#modpack-export-files");
             packItem(optionalTree.getRoot(), "mods").setExpanded(true);
             packItem(optionalTree.getRoot(), "mods/optional-a.jar").setSelected(false);
-            assertEquals(java.util.Set.of("mods/optional-b.jar"), optional.selectedPaths());
+            assertEquals(Set.of("mods/optional-b.jar"), optional.selectedPaths());
             waitForFx(() -> ((Label) optional.lookup("#modpack-selection-summary")).getText().startsWith("已选择 1 个文件"));
-            javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(importPane.getScene().snapshot(null), null), "png",
+            ImageIO.write(SwingFXUtils.fromFXImage(importPane.getScene().snapshot(null), null), "png",
                 Path.of("build/ui-check/modpack-import.png").toFile());
             ((Button) importPane.lookupButton(ButtonType.CANCEL)).fire();
             var malformed = new ModpackArchive.Info(ModpackFormat.MODRINTH, "无效清单", "1", "", "", "1.20.4", LoaderType.VANILLA, null,
-                com.google.gson.JsonParser.parseString("{\"files\":[42]}").getAsJsonObject(), "");
+                JsonParser.parseString("{\"files\":[42]}").getAsJsonObject(), "");
             Dialog<ButtonType> invalid = ModpackDialogs.importOptions(stage, vm, temp.resolve("invalid.mrpack"),
                 LocalModpackOperations.describe(malformed));
             ButtonType invalidStart = invalid.getDialogPane().getButtonTypes().stream()
@@ -602,8 +647,8 @@ class UiSmokeTest {
                 Path entry = files.getItems().stream().filter(path -> {
                     try {
                         return Files.isSameFile(path, archive);
-                    } catch (java.io.IOException ex) {
-                        throw new java.io.UncheckedIOException(ex);
+                    } catch (IOException ex) {
+                        throw new UncheckedIOException(ex);
                     }
                 }).findFirst().orElseThrow();
                 files.getSelectionModel().select(entry);
@@ -611,7 +656,7 @@ class UiSmokeTest {
             });
             assertEquals(archive.toRealPath(), RetroPathDialog.modpack(stage, data, ViewModels.fileBrowser()).orElseThrow().toRealPath());
             ModpackFileTree large = new ModpackFileTree("大型整合包", path -> path.endsWith("-keep.jar"));
-            java.util.List<ModpackContent> largeEntries = new java.util.ArrayList<>();
+            List<ModpackContent> largeEntries = new ArrayList<>();
             for (int i = 0; i < 5000; i++) {
                 largeEntries.add(new ModpackContent("mods/" + i + "-keep.jar", false, 1024));
                 largeEntries.add(new ModpackContent("mods/" + i + "-skip.jar", false, 1024));
@@ -625,7 +670,7 @@ class UiSmokeTest {
             ((Button) large.lookup("#modpack-select-recommended")).fire();
             assertEquals(5000, large.selectedPaths().size());
         } finally {
-            stage.getScene().setRoot((javafx.scene.Parent) original);
+            stage.getScene().setRoot((Parent) original);
         }
     }
 
@@ -659,32 +704,32 @@ class UiSmokeTest {
         backing.save(fabric);
         var commitReached = new CountDownLatch(1);
         var releaseCommit = new CountDownLatch(1);
-        var releaseQuery = new java.util.concurrent.atomic.AtomicReference<>(new CountDownLatch(1));
-        var holdQuery = new java.util.concurrent.atomic.AtomicBoolean();
+        var releaseQuery = new AtomicReference<>(new CountDownLatch(1));
+        var holdQuery = new AtomicBoolean();
         InstanceRepository repository = new InstanceRepository() {
-            public java.util.List<GameInstance> findAll() throws java.io.IOException {
+            public List<GameInstance> findAll() throws IOException {
                 return backing.findAll();
             }
 
-            public void remove(String id) throws java.io.IOException {
+            public void remove(String id) throws IOException {
                 backing.remove(id);
             }
 
-            public void save(GameInstance value) throws java.io.IOException {
+            public void save(GameInstance value) throws IOException {
                 if ("2".equals(value.loaderVersion())) {
                     commitReached.countDown();
                     try {
                         if (!releaseCommit.await(5, TimeUnit.SECONDS)) {
-                            throw new java.io.IOException("Commit test timeout");
+                            throw new IOException("Commit test timeout");
                         }
                     } catch (InterruptedException ex) {
-                        throw new java.io.IOException("Commit was interrupted", ex);
+                        throw new IOException("Commit was interrupted", ex);
                     }
                 }
                 backing.save(value);
             }
         };
-        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/", exchange -> {
             if (holdQuery.get()) {
                 try {
@@ -694,7 +739,7 @@ class UiSmokeTest {
                 }
             }
             byte[] bytes = "[{\"loader\":{\"version\":\"2\"}},{\"loader\":{\"version\":\"1\"}}]"
-                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                .getBytes(StandardCharsets.UTF_8);
             try {
                 exchange.sendResponseHeaders(200, bytes.length);
                 exchange.getResponseBody().write(bytes);
@@ -703,23 +748,23 @@ class UiSmokeTest {
             }
         });
         server.start();
-        var constructor = HttpTransport.class.getDeclaredConstructor(java.util.function.UnaryOperator.class);
+        var constructor = HttpTransport.class.getDeclaredConstructor(UnaryOperator.class);
         constructor.setAccessible(true);
         HttpTransport http = constructor.newInstance(
-            (java.util.function.UnaryOperator<String>) url -> "http://127.0.0.1:" + server.getAddress().getPort() + "/loaders");
+            (UnaryOperator<String>) url -> "http://127.0.0.1:" + server.getAddress().getPort() + "/loaders");
         LoaderInstaller installer = (root, workspace, version, selected, task) -> {
             Path artifact = root.resolve("libraries/fixture/" + selected + ".jar");
             Files.createDirectories(artifact.getParent());
             Files.writeString(artifact, "fresh " + selected);
-            return com.google.gson.JsonParser.parseString("{\"mainClass\":\"Fixture\",\"libraries\":[{\"name\":\"fixture:loader:" + selected
+            return JsonParser.parseString("{\"mainClass\":\"Fixture\",\"libraries\":[{\"name\":\"fixture:loader:" + selected
                 + "\",\"downloads\":{\"artifact\":{\"path\":\"fixture/" + selected + ".jar\",\"url\":\"\"}}}]}").getAsJsonObject();
         };
         var files = new GameFiles(http);
         var resolver = new VersionResolver();
-        var install = new LocalGameInstallation(repository, files, resolver, java.util.Map.of(LoaderType.FABRIC, installer));
+        var install = new LocalGameInstallation(repository, files, resolver, Map.of(LoaderType.FABRIC, installer));
         AccountAuthenticator auth = new AccountAuthenticator() {
-            public java.util.Optional<Account> savedAccount() {
-                return java.util.Optional.empty();
+            public Optional<Account> savedAccount() {
+                return Optional.empty();
             }
 
             public GameSession login(TaskContext task) {
@@ -762,7 +807,7 @@ class UiSmokeTest {
             assertEquals("1", versions.getValue());
             assertEquals("请选择加载器版本", versions.getPromptText());
             versions.setValue("2");
-            javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(chooser.getScene().snapshot(null), null), "png",
+            ImageIO.write(SwingFXUtils.fromFXImage(chooser.getScene().snapshot(null), null), "png",
                 Path.of("build/ui-check/loader-version.png").toFile());
             Window chooserWindow = chooser.getScene().getWindow();
             ((Button) chooser.lookupButton(chooser.getButtonTypes().getFirst())).fire();
@@ -807,7 +852,7 @@ class UiSmokeTest {
         Path small = Files.createDirectories(root.resolve("small"));
         Path expected = Files.createDirectories(small.resolve("only-folder"));
         for (int i = 0; i < 600; i++) {
-            Files.createDirectories(large.resolve(String.format(java.util.Locale.ROOT, "folder-%04d", i)));
+            Files.createDirectories(large.resolve(String.format(Locale.ROOT, "folder-%04d", i)));
         }
         RetroPathDialog dialog = new RetroPathDialog(stage, "异步目录回归", large, true, ViewModels.fileBrowser());
         try {
@@ -821,15 +866,15 @@ class UiSmokeTest {
             assertEquals("folder-0000", files.getItems().getFirst().getFileName().toString());
             TextField address = (TextField) pane.lookup("#path-location");
             address.setText(large.toString());
-            address.fireEvent(new javafx.event.ActionEvent());
+            address.fireEvent(new ActionEvent());
             assertTrue(choose.isDisabled());
             address.setText(small.toString());
-            address.fireEvent(new javafx.event.ActionEvent());
+            address.fireEvent(new ActionEvent());
             waitForFx(() -> !choose.isDisabled());
-            assertEquals(java.util.List.of(expected), files.getItems());
+            assertEquals(List.of(expected), files.getItems());
             assertEquals(small.toString(), address.getText());
             address.setText(large.toString());
-            address.fireEvent(new javafx.event.ActionEvent());
+            address.fireEvent(new ActionEvent());
             dialog.close();
             waitForFx(() -> !dialog.isShowing());
         } finally {
@@ -843,15 +888,15 @@ class UiSmokeTest {
         var position = row.localToScreen(row.getBoundsInLocal());
         tooltip.show(row, position.getMinX() + 20, position.getMaxY());
         try {
-            var popup = (javafx.scene.layout.Region) tooltip.getSkin().getNode();
+            var popup = (Region) tooltip.getSkin().getNode();
             popup.applyCss();
             popup.layout();
             assertEquals(Color.web("#ffffe1"), popup.getBackground().getFills().getFirst().getFill());
-            assertEquals(javafx.scene.layout.CornerRadii.EMPTY, popup.getBackground().getFills().getFirst().getRadii());
+            assertEquals(CornerRadii.EMPTY, popup.getBackground().getFills().getFirst().getRadii());
             assertEquals(Color.BLACK, popup.getBorder().getStrokes().getFirst().getTopStroke());
             assertEquals(Color.BLACK, ((Label) popup).getTextFill());
             assertNull(popup.getEffect());
-            javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(popup.snapshot(null, null), null), "png",
+            ImageIO.write(SwingFXUtils.fromFXImage(popup.snapshot(null, null), null), "png",
                 Path.of("build/ui-check/tooltip.png").toFile());
         } finally {
             tooltip.hide();
@@ -885,9 +930,9 @@ class UiSmokeTest {
             }
         }
         Files.createDirectories(Path.of("build/ui-check"));
-        javafx.scene.SnapshotParameters capture = new javafx.scene.SnapshotParameters();
-        capture.setViewport(new javafx.geometry.Rectangle2D(0, 0, column.getMaxX() + 2, view.getHeight()));
-        javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(view.snapshot(capture, null), null), "png",
+        SnapshotParameters capture = new SnapshotParameters();
+        capture.setViewport(new Rectangle2D(0, 0, column.getMaxX() + 2, view.getHeight()));
+        ImageIO.write(SwingFXUtils.fromFXImage(view.snapshot(capture, null), null), "png",
             Path.of("build/ui-check/navigation-gutters.png").toFile());
     }
 
@@ -896,11 +941,11 @@ class UiSmokeTest {
         view.applyCss();
         view.layout();
         assertEquals("版本：" + LauncherInfo.VERSION, ((Label) view.lookup("#about-version")).getText());
-        assertEquals(java.net.URI.create("https://github.com/1024-byteeeee/FuzzLauncher"), view.lookup("#about-repository").getUserData());
-        assertEquals(java.net.URI.create("https://github.com/1024-byteeeee/FuzzLauncher/issues"),
+        assertEquals(URI.create("https://github.com/1024-byteeeee/FuzzLauncher"), view.lookup("#about-repository").getUserData());
+        assertEquals(URI.create("https://github.com/1024-byteeeee/FuzzLauncher/issues"),
             view.lookup("#about-feedback").getUserData());
-        var clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
-        java.util.Map<javafx.scene.input.DataFormat, Object> previous = new java.util.HashMap<>();
+        var clipboard = Clipboard.getSystemClipboard();
+        Map<DataFormat, Object> previous = new HashMap<>();
         for (var format : clipboard.getContentTypes()) {
             Object value = clipboard.getContent(format);
             if (value != null) {
@@ -916,7 +961,7 @@ class UiSmokeTest {
         } finally {
             clipboard.setContent(previous);
         }
-        javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(stage.getScene().snapshot(null), null), "png",
+        ImageIO.write(SwingFXUtils.fromFXImage(stage.getScene().snapshot(null), null), "png",
             Path.of("build/ui-check/about.png").toFile());
     }
 
@@ -926,9 +971,9 @@ class UiSmokeTest {
         GameInstance first = vm.selectedProperty().get();
         GameInstance second = vm.instances().stream().filter(instance -> !instance.equals(first)).findFirst().orElseThrow();
         Path directory = vm.modsModel().modDirectory(first);
-        com.fuzzlauncher.ModFixtures.fabricWithLogo(directory.resolve("alpha.jar"), "alpha", 0xff32aa68);
-        com.fuzzlauncher.ModFixtures.fabric(directory.resolve("beta.jar"), "beta");
-        com.fuzzlauncher.ModFixtures.fabric(vm.modsModel().modDirectory(second).resolve("other.jar"), "other");
+        ModFixtures.fabricWithLogo(directory.resolve("alpha.jar"), "alpha", 0xff32aa68);
+        ModFixtures.fabric(directory.resolve("beta.jar"), "beta");
+        ModFixtures.fabric(vm.modsModel().modDirectory(second).resolve("other.jar"), "other");
         view.showPage(4);
         view.applyCss();
         view.layout();
@@ -952,7 +997,7 @@ class UiSmokeTest {
         assertNotNull(firstRow.lookup(".mod-entry-name"));
         assertNotNull(firstRow.lookup(".mod-entry-version"));
         assertTrue(((Label) firstRow.lookup(".mod-entry-subtitle")).getText().contains("alpha.jar"));
-        var detailsError = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        var detailsError = new AtomicReference<Throwable>();
         Platform.runLater(() -> {
             DialogPane pane = (DialogPane) Window.getWindows().stream()
                 .filter(window -> window.getScene() != null && window.getScene().lookup("#mod-details-dialog") != null).findFirst()
@@ -993,14 +1038,14 @@ class UiSmokeTest {
         table.getSelectionModel().selectAll();
         var runningField = LauncherViewModel.class.getDeclaredField("gameRunning");
         runningField.setAccessible(true);
-        var running = (javafx.beans.property.BooleanProperty) runningField.get(vm);
+        var running = (BooleanProperty) runningField.get(vm);
         running.set(true);
         try {
-            for (String id : java.util.List.of("import-mods", "enable-mods", "disable-mods", "delete-mods")) {
+            for (String id : List.of("import-mods", "enable-mods", "disable-mods", "delete-mods")) {
                 assertTrue(view.lookup("#" + id).isDisabled());
             }
             assertTrue(table.lookupAll(".mod-enabled").stream().allMatch(Node::isDisabled));
-            vm.modsModel().setModsEnabled(first, java.util.List.copyOf(table.getItems()), false, () -> {
+            vm.modsModel().setModsEnabled(first, List.copyOf(table.getItems()), false, () -> {
                 throw new AssertionError();
             });
             assertFalse(vm.busyProperty().get());
@@ -1009,9 +1054,9 @@ class UiSmokeTest {
             running.set(false);
         }
         Path sources = Files.createDirectories(temp.resolve("mod-picker-source")).toRealPath();
-        Path one = com.fuzzlauncher.ModFixtures.fabric(sources.resolve("one.jar"), "one");
-        Path two = com.fuzzlauncher.ModFixtures.fabric(sources.resolve("two.jar"), "two");
-        var pickerError = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        Path one = ModFixtures.fabric(sources.resolve("one.jar"), "one");
+        Path two = ModFixtures.fabric(sources.resolve("two.jar"), "two");
+        var pickerError = new AtomicReference<Throwable>();
         Platform.runLater(() -> {
             DialogPane picker = (DialogPane) Window.getWindows().stream()
                 .filter(window -> window.getScene() != null && window.getScene().lookup("#path-dialog") != null).findFirst().orElseThrow()
@@ -1019,7 +1064,7 @@ class UiSmokeTest {
             try {
                 TextField location = (TextField) picker.lookup("#path-location");
                 location.setText(sources.toString());
-                location.fireEvent(new javafx.event.ActionEvent());
+                location.fireEvent(new ActionEvent());
                 waitForFx(() -> !picker.lookupButton(ButtonType.OK).isDisabled());
                 @SuppressWarnings("unchecked")
                 ListView<Path> entries = (ListView<Path>) picker.lookup("#path-entries");
@@ -1039,7 +1084,7 @@ class UiSmokeTest {
         waitForFx(() -> !vm.busyProperty().get() && table.getItems().size() == 4 && !view.lookup("#import-mods").isDisabled());
         assertTrue(Files.exists(one));
         assertTrue(Files.exists(two));
-        com.fuzzlauncher.ModFixtures.jar(directory.resolve("long.jar"), java.util.Map.of("fabric.mod.json",
+        ModFixtures.jar(directory.resolve("long.jar"), Map.of("fabric.mod.json",
             "{\"id\":\"long\",\"name\":\"" + "超长模组名称".repeat(40) + "\",\"version\":\"" + "1.0-long-version-".repeat(20) + "\"}"));
         ((Button) view.lookup("#refresh-mods")).fire();
         waitForFx(() -> table.getItems().size() == 5 && !view.lookup("#import-mods").isDisabled());
@@ -1055,7 +1100,7 @@ class UiSmokeTest {
         assertTrue(longRow.lookup(".mod-entry-version").getBoundsInParent().getWidth() <= 161);
         assertTrue(longRow.lookup(".mod-entry-version").getBoundsInParent().getWidth() >= 40);
         assertTrue(locate.localToScene(locate.getBoundsInLocal()).getMaxX() < info.localToScene(info.getBoundsInLocal()).getMinX());
-        javax.imageio.ImageIO.write(javafx.embed.swing.SwingFXUtils.fromFXImage(stage.getScene().snapshot(null), null), "png",
+        ImageIO.write(SwingFXUtils.fromFXImage(stage.getScene().snapshot(null), null), "png",
             Path.of("build/ui-check/mods.png").toFile());
         view.showPage(3);
         view.applyCss();
@@ -1068,13 +1113,13 @@ class UiSmokeTest {
             .orElseThrow().getScene().getRoot();
     }
 
-    private static void waitForFx(java.util.function.BooleanSupplier done) {
+    private static void waitForFx(BooleanSupplier done) {
         if (done.getAsBoolean()) {
             return;
         }
         Object loop = new Object();
         boolean[] finished = { false };
-        var timer = new javafx.animation.Timeline(new javafx.animation.KeyFrame(javafx.util.Duration.millis(20), event -> {
+        var timer = new Timeline(new KeyFrame(Duration.millis(20), event -> {
             if (!finished[0] && done.getAsBoolean()) {
                 finished[0] = true;
                 Platform.exitNestedEventLoop(loop, true);
@@ -1105,21 +1150,21 @@ class UiSmokeTest {
             Node root = menu.getScene().getRoot();
             root.applyCss();
             Node blocked = disabled.getStyleableNode();
-            var idleBackground = ((javafx.scene.layout.Region) blocked).getBackground();
+            var idleBackground = ((Region) blocked).getBackground();
             var idleText = ((Label) blocked.lookup(".label")).getTextFill();
-            blocked.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("focused"), true);
-            blocked.pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("hover"), true);
+            blocked.pseudoClassStateChanged(PseudoClass.getPseudoClass("focused"), true);
+            blocked.pseudoClassStateChanged(PseudoClass.getPseudoClass("hover"), true);
             root.applyCss();
-            var background = ((javafx.scene.layout.Region) blocked).getBackground();
+            var background = ((Region) blocked).getBackground();
             assertEquals(idleBackground, background, "Disabled menu background must not change on hover");
             assertEquals(Color.web("#c0c0c0"), background.getFills().getFirst().getFill());
             assertEquals(1.0, blocked.getOpacity());
             assertEquals(idleText, ((Label) blocked.lookup(".label")).getTextFill());
             assertEquals(Color.GRAY, idleText);
-            enabled.getStyleableNode().pseudoClassStateChanged(javafx.css.PseudoClass.getPseudoClass("focused"), true);
+            enabled.getStyleableNode().pseudoClassStateChanged(PseudoClass.getPseudoClass("focused"), true);
             root.applyCss();
             assertEquals(Color.NAVY,
-                ((javafx.scene.layout.Region) enabled.getStyleableNode()).getBackground().getFills().getFirst().getFill());
+                ((Region) enabled.getStyleableNode()).getBackground().getFills().getFirst().getFill());
         } finally {
             menu.hide();
         }
@@ -1130,7 +1175,7 @@ class UiSmokeTest {
         view.applyCss();
         @SuppressWarnings("unchecked")
         var choice = (ComboBox<LauncherVisibility>) view.lookup("#launcher-visibility");
-        assertEquals(java.util.List.of(LauncherVisibility.values()), choice.getItems());
+        assertEquals(List.of(LauncherVisibility.values()), choice.getItems());
         assertEquals(LauncherVisibility.KEEP, choice.getValue());
         var vmField = FuzzApplication.class.getDeclaredField("viewModel");
         vmField.setAccessible(true);
@@ -1145,7 +1190,7 @@ class UiSmokeTest {
         view.showPage(3);
         assertEquals(LauncherVisibility.HIDE_AND_REOPEN, ((ComboBox<?>) view.lookup("#launcher-visibility")).getValue());
         awaitAccountOperation(vm, () -> vm.settingsModel().saveSettings(original));
-        var quits = new java.util.concurrent.atomic.AtomicInteger();
+        var quits = new AtomicInteger();
         var controller = new LauncherVisibilityController(stage, quits::incrementAndGet);
         try {
             controller.started(LauncherVisibility.KEEP);
@@ -1205,9 +1250,9 @@ class UiSmokeTest {
     private static GameInstance rootFixture(Path root, String id, String name) throws Exception {
         GameInstance item = new GameInstance(id, name, "base", LoaderType.VANILLA, null, IsolationOverride.INHERIT, 4096);
         JsonFiles.write(root.resolve("versions/base/base.json"),
-            com.google.gson.JsonParser.parseString("{\"id\":\"base\",\"mainClass\":\"Main\",\"libraries\":[]}"));
+            JsonParser.parseString("{\"id\":\"base\",\"mainClass\":\"Main\",\"libraries\":[]}"));
         Files.writeString(root.resolve("versions/base/base.jar"), "fixture client");
-        var marker = new com.google.gson.JsonObject();
+        var marker = new JsonObject();
         marker.addProperty("id", id);
         marker.addProperty("inheritsFrom", "base");
         marker.add("fuzzInstance", JsonFiles.GSON.toJsonTree(item));
@@ -1219,25 +1264,25 @@ class UiSmokeTest {
     }
 
     private static void verifyGameRootSwitch(Stage stage, LauncherViewModel vm, Path data) throws Exception {
-        var restarts = new java.util.concurrent.atomic.AtomicInteger();
+        var restarts = new AtomicInteger();
         vm.settingsModel().onRestartRequired(restarts::incrementAndGet);
         var original = vm.settingsProperty().get();
         Path oldRoot = Path.of(original.gameRoot()), newRoot = data.resolve("other-game-root");
         GameInstance old = rootFixture(oldRoot, "old-root", "Old world"), target = rootFixture(newRoot, "new-root", "New world");
         awaitAccountOperation(vm, vm.instancesModel()::refreshInstances);
-        assertEquals(java.util.List.of(old), vm.instances());
+        assertEquals(List.of(old), vm.instances());
         verifyRootBrowser(stage, vm, data); // The browse button must also work when instances already exist.
         var changed = SettingsDefaults.create(newRoot.toString(), original.isolation(), original.downloadSource(),
             original.dataDirectory());
         awaitAccountOperation(vm, () -> vm.settingsModel().saveSettings(changed));
         assertEquals(1, restarts.get());
-        assertEquals(java.util.List.of(target), vm.instances());
+        assertEquals(List.of(target), vm.instances());
         assertEquals(target, vm.selectedProperty().get());
         assertEquals(changed, new SettingsStore(data).load());
         assertEquals("world old-root", Files.readString(InstanceDirectories.directory(oldRoot, old).resolve("saves/world/level.dat")));
         awaitAccountOperation(vm, () -> vm.settingsModel().saveSettings(original));
         assertEquals(2, restarts.get());
-        assertEquals(java.util.List.of(old), vm.instances());
+        assertEquals(List.of(old), vm.instances());
         assertEquals("world new-root", Files.readString(InstanceDirectories.directory(newRoot, target).resolve("saves/world/level.dat")));
         Path occupied = Files.createDirectories(data.resolve("occupied-data"));
         Files.writeString(occupied.resolve("keep.txt"), "keep");
@@ -1246,20 +1291,20 @@ class UiSmokeTest {
         assertEquals(2, restarts.get());
         assertEquals(original, vm.settingsProperty().get());
         assertEquals(original, new SettingsStore(data).load());
-        assertEquals(java.util.List.of(old), new JsonInstanceRepository(data).findAll());
+        assertEquals(List.of(old), new JsonInstanceRepository(data).findAll());
         Path emptyRoot = data.resolve("empty-game-root");
         awaitAccountOperation(vm, () -> vm.settingsModel()
             .saveSettings(SettingsDefaults.create(emptyRoot.toString(), original.isolation(), original.downloadSource())));
         assertTrue(vm.instances().isEmpty());
         assertNull(vm.selectedProperty().get());
         awaitAccountOperation(vm, () -> vm.settingsModel().saveSettings(original));
-        assertEquals(java.util.List.of(old), vm.instances());
+        assertEquals(List.of(old), vm.instances());
         Path movedRoot = data.resolve("moved-game-root");
         var migrated = SettingsDefaults.create(movedRoot.toString(), original.isolation(), original.downloadSource(),
             original.dataDirectory(), original.launcherVisibility());
         awaitAccountOperation(vm, () -> vm.settingsModel().saveSettings(migrated, true));
         assertEquals(5, restarts.get());
-        assertEquals(java.util.List.of(old), vm.instances());
+        assertEquals(List.of(old), vm.instances());
         assertFalse(Files.exists(oldRoot));
         assertEquals("world old-root", Files.readString(InstanceDirectories.directory(movedRoot, old).resolve("saves/world/level.dat")));
         // A post-copy configuration failure must roll back the destination, not remove source
@@ -1279,7 +1324,7 @@ class UiSmokeTest {
     }
 
     private static void verifyMigrationQuestion(Stage stage, LauncherViewModel vm, Path data,
-        java.util.concurrent.atomic.AtomicInteger restarts) throws Exception {
+        AtomicInteger restarts) throws Exception {
         Node original = stage.getScene().getRoot();
         Path target = data.resolve("ui-root");
         try {
@@ -1295,7 +1340,7 @@ class UiSmokeTest {
                     var pane = (DialogPane) Window.getWindows().stream()
                         .filter(window -> window.getScene() != null && window.getScene().lookup("#game-root-migration-question") != null)
                         .findFirst().orElseThrow().getScene().getRoot();
-                    assertEquals(java.util.List.of("迁移并重启", "不迁移，仅重启", "取消"),
+                    assertEquals(List.of("迁移并重启", "不迁移，仅重启", "取消"),
                         pane.getButtonTypes().stream().map(ButtonType::getText).toList());
                     var selected = pane.getButtonTypes().stream().filter(type -> type.getText().equals(cancel ? "取消" : "不迁移，仅重启"))
                         .findFirst().orElseThrow();
@@ -1313,7 +1358,7 @@ class UiSmokeTest {
                 }
             }
         } finally {
-            stage.getScene().setRoot((javafx.scene.Parent) original);
+            stage.getScene().setRoot((Parent) original);
         }
     }
 
@@ -1324,14 +1369,14 @@ class UiSmokeTest {
         LauncherViewModel vm = (LauncherViewModel) vmField.get(app);
         var runningField = LauncherViewModel.class.getDeclaredField("gameRunning");
         runningField.setAccessible(true);
-        var running = (javafx.beans.property.BooleanProperty) runningField.get(vm);
+        var running = (BooleanProperty) runningField.get(vm);
         view.showPage(0);
         view.applyCss();
         view.layout();
         Node form = view.lookup("#instance-settings-form");
-        var preview = (javafx.scene.image.ImageView) view.lookup("#instance-preview-image");
+        var preview = (ImageView) view.lookup("#instance-preview-image");
         assertTrue(preview.isPreserveRatio());
-        var frame = (javafx.scene.layout.Region) preview.getParent();
+        var frame = (Region) preview.getParent();
         double originalWidth = frame.getWidth();
         double originalHeight = frame.getHeight();
         for (double[] size : new double[][] { { 580, 90 }, { 580, 210 }, { 300, 250 } }) {
@@ -1375,17 +1420,17 @@ class UiSmokeTest {
         for (int state = 0; state < 3; state++) {
             Account initial = state == 0 ? null
                 : state == 1 ? new Account("microsoft-fixture", "uuid-fixture", "MicrosoftFixture") : Account.offline("OfflineFixture");
-            var saved = new java.util.concurrent.atomic.AtomicReference<>(initial);
-            var logins = new java.util.concurrent.atomic.AtomicInteger();
+            var saved = new AtomicReference<>(initial);
+            var logins = new AtomicInteger();
             AccountAuthenticator auth = new AccountAuthenticator() {
-                public java.util.Optional<Account> savedAccount() {
-                    return java.util.Optional.ofNullable(saved.get());
+                public Optional<Account> savedAccount() {
+                    return Optional.ofNullable(saved.get());
                 }
 
                 public GameSession login(TaskContext task) {
                     logins.incrementAndGet();
                     saved.set(new Account("microsoft-fixture", "uuid-fixture", "MicrosoftFixture"));
-                    return new GameSession(saved.get(), "fixture", java.time.Instant.MAX);
+                    return new GameSession(saved.get(), "fixture", Instant.MAX);
                 }
 
                 public GameSession loginOffline(String name, TaskContext task) {
@@ -1409,7 +1454,7 @@ class UiSmokeTest {
                     verifyRootBrowser(stage, vm, data);
                     var field = LauncherViewModel.class.getDeclaredField("gameRunning");
                     field.setAccessible(true);
-                    var running = (javafx.beans.property.BooleanProperty) field.get(vm);
+                    var running = (BooleanProperty) field.get(vm);
                     running.set(true);
                     try {
                         vm.instancesModel().updateInstance(
@@ -1480,9 +1525,9 @@ class UiSmokeTest {
 
     private static void awaitAccountOperation(LauncherViewModel vm, Runnable action, boolean success) {
         Object loop = new Object();
-        javafx.animation.PauseTransition timeout = new javafx.animation.PauseTransition(javafx.util.Duration.seconds(5));
+        PauseTransition timeout = new PauseTransition(Duration.seconds(5));
         timeout.setOnFinished(event -> Platform.exitNestedEventLoop(loop, false));
-        javafx.beans.value.ChangeListener<Boolean> listener = (observable, old, busy) -> {
+        ChangeListener<Boolean> listener = (observable, old, busy) -> {
             if (!busy) {
                 Platform.runLater(() -> Platform.exitNestedEventLoop(loop, true));
             }
@@ -1529,10 +1574,10 @@ class UiSmokeTest {
             .map(node -> (ListCell<?>) node).findFirst().orElseThrow();
     }
 
-    private static MouseEvent mouse(Node target, javafx.event.EventType<MouseEvent> type) {
+    private static MouseEvent mouse(Node target, EventType<MouseEvent> type) {
         var point = target.localToScene(5, 5);
         return new MouseEvent(type, point.getX(), point.getY(), point.getX(), point.getY(), MouseButton.PRIMARY, 1, false, false, false,
             false, type == MouseEvent.MOUSE_PRESSED, false, false, false, false, true,
-            new javafx.scene.input.PickResult(target, point.getX(), point.getY()));
+            new PickResult(target, point.getX(), point.getY()));
     }
 }

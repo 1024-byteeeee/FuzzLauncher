@@ -1,6 +1,7 @@
 package com.fuzzlauncher.infrastructure.platform;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 import java.nio.file.*;
 import java.util.*;
 
@@ -28,7 +29,7 @@ public final class LauncherRestart {
         command.add(executable.toString());
         // Windows does not expose ProcessHandle arguments. Preserve module paths and VM properties
         // directly, but do not reattach a debugger to its already occupied port.
-        java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments().stream()
+        ManagementFactory.getRuntimeMXBean().getInputArguments().stream()
             .filter(argument -> !argument.startsWith("-agentlib:") && !argument.startsWith("-Xrunjdwp:")).forEach(command::add);
         command.add("-cp");
         command.add(System.getProperty("java.class.path"));

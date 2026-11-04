@@ -7,13 +7,16 @@ import javafx.scene.layout.*;
 import javafx.stage.Stage;
 
 import java.awt.Desktop;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /** Shared retro controls and dialogs. Contains no application logic. */
 public class RetroPage extends BorderPane {
-    private static final Map<String, Image> IMAGES = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Map<String, Image> IMAGES = new ConcurrentHashMap<>();
     protected final Stage stage;
     private final Consumer<Integer> navigate;
 
@@ -68,8 +71,8 @@ public class RetroPage extends BorderPane {
             }
             try (var input = Objects.requireNonNull(RetroPage.class.getResourceAsStream("/com/fuzzlauncher/" + key + ".png"))) {
                 return new Image(input);
-            } catch (java.io.IOException ex) {
-                throw new java.io.UncheckedIOException(ex);
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
             }
         });
     }

@@ -7,6 +7,7 @@ import com.google.gson.JsonObject;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.*;
 import java.util.*;
 
@@ -101,7 +102,7 @@ public final class DataLocations {
                     try (lock) {
                         transfer(source, target);
                     }
-                } catch (java.nio.channels.OverlappingFileLockException ex) {
+                } catch (OverlappingFileLockException ex) {
                     throw new IOException("请先退出旧启动器，再切换数据目录", ex);
                 }
             }

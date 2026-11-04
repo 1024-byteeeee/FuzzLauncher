@@ -1,11 +1,12 @@
 package com.fuzzlauncher.domain.account;
 
 import java.time.Instant;
+import java.util.Objects;
 
 public record GameSession(Account account, String accessToken, Instant expiresAt) {
     public GameSession {
-        java.util.Objects.requireNonNull(account);
-        java.util.Objects.requireNonNull(expiresAt);
+        Objects.requireNonNull(account);
+        Objects.requireNonNull(expiresAt);
         if (accessToken == null || accessToken.isBlank()) {
             throw new IllegalArgumentException("缺少有效的游戏访问令牌");
         }

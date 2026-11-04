@@ -14,9 +14,12 @@ import com.fuzzlauncher.infrastructure.mod.ModFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
 import java.nio.file.*;
+import java.nio.file.attribute.DosFileAttributes;
 import java.util.*;
 import java.util.concurrent.CancellationException;
+import java.util.stream.Collectors;
 
 import static com.fuzzlauncher.ModFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -133,7 +136,7 @@ class ModFilesTest {
         Path mods = temp.resolve("mods");
         assertEquals(2, files.importFiles(mods, List.of(first, second), true, TASK).completed());
         assertEquals(Set.of("first", "second"),
-            files.scan(mods, TASK).stream().map(mod -> mod.metadata().getFirst().id()).collect(java.util.stream.Collectors.toSet()));
+            files.scan(mods, TASK).stream().map(mod -> mod.metadata().getFirst().id()).collect(Collectors.toSet()));
         assertNoTemporaryDirectories(mods);
     }
 
@@ -144,7 +147,7 @@ class ModFilesTest {
         Path second = fabric(mods.resolve("second.jar.disabled"), "second");
         ModFiles service = new ModFiles(path -> {
             if (path.getFileName().toString().equals("second.jar.disabled")) {
-                throw new java.io.IOException("fixture recycle failure");
+                throw new IOException("fixture recycle failure");
             }
             Files.move(path, trash.resolve(path.getFileName()));
         });
@@ -165,7 +168,7 @@ class ModFilesTest {
             var report = files.importFiles(mods, List.of(source), false, TASK);
             assertEquals(0, report.completed());
             assertEquals(1, report.failures().size());
-            assertTrue(Files.readAttributes(source, java.nio.file.attribute.DosFileAttributes.class).isReadOnly());
+            assertTrue(Files.readAttributes(source, DosFileAttributes.class).isReadOnly());
             assertNoTemporaryDirectories(mods);
         } finally {
             Files.setAttribute(source, "dos:readonly", false);

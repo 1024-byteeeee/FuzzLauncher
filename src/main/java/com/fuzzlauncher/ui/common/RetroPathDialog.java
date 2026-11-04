@@ -6,6 +6,7 @@ import com.fuzzlauncher.domain.mod.ModFileNames;
 import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.concurrent.Task;
+import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.*;
@@ -18,12 +19,14 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
+import java.util.function.Predicate;
 
 /** File picker and local file management using the launcher's shared dialog chrome. */
 public final class RetroPathDialog extends Dialog<Path> {
     private final FileBrowser browser;
     private final boolean directoryOnly;
-    private final java.util.function.Predicate<Path> fileFilter;
+    private final Predicate<Path> fileFilter;
     private final TextField location = new TextField();
     private final ComboBox<Path> drives = new RetroComboBox<>();
     private final ListView<Path> files = new ListView<>();
@@ -44,7 +47,7 @@ public final class RetroPathDialog extends Dialog<Path> {
         this(owner, title, initial, directoryOnly, RetroPathDialog::isJava, browser);
     }
 
-    private RetroPathDialog(Window owner, String title, Path initial, boolean directoryOnly, java.util.function.Predicate<Path> fileFilter,
+    private RetroPathDialog(Window owner, String title, Path initial, boolean directoryOnly, Predicate<Path> fileFilter,
         FileBrowser browser) {
         this.browser = browser;
         this.directoryOnly = directoryOnly;
@@ -137,7 +140,7 @@ public final class RetroPathDialog extends Dialog<Path> {
                 event.consume();
             }
         });
-        choose.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+        choose.addEventFilter(ActionEvent.ACTION, event -> {
             Path selected = files.getSelectionModel().getSelectedItem();
             if (directoryOnly) {
                 // An edited address must be resolved before returning a folder.
@@ -241,7 +244,7 @@ public final class RetroPathDialog extends Dialog<Path> {
                 if (nearest) {
                     while (target != null && !Files.isDirectory(target)) {
                         if (isCancelled()) {
-                            throw new java.util.concurrent.CancellationException();
+                            throw new CancellationException();
                         }
                         target = target.getParent();
                     }
@@ -254,7 +257,7 @@ public final class RetroPathDialog extends Dialog<Path> {
                 try (var stream = Files.newDirectoryStream(resolved)) {
                     for (Path entry : stream) {
                         if (isCancelled() || Thread.currentThread().isInterrupted()) {
-                            throw new java.util.concurrent.CancellationException();
+                            throw new CancellationException();
                         }
                         boolean directory = Files.isDirectory(entry);
                         if (directory || (!directoryOnly && fileFilter.test(entry))) {

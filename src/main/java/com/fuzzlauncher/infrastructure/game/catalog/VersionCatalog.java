@@ -11,7 +11,12 @@ import com.google.gson.*;
 import org.xml.sax.InputSource;
 
 import java.io.*;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.time.Clock;
 import java.util.*;
+import java.util.function.Consumer;
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -24,11 +29,11 @@ public final class VersionCatalog implements VersionCatalogPort {
         this(http, null);
     }
 
-    public VersionCatalog(HttpTransport http, java.nio.file.Path directory) {
-        this(http, directory, java.time.Clock.systemUTC());
+    public VersionCatalog(HttpTransport http, Path directory) {
+        this(http, directory, Clock.systemUTC());
     }
 
-    VersionCatalog(HttpTransport http, java.nio.file.Path directory, java.time.Clock clock) {
+    VersionCatalog(HttpTransport http, Path directory, Clock clock) {
         this.http = http;
         cache = new CatalogCache(directory, clock);
     }
@@ -38,7 +43,7 @@ public final class VersionCatalog implements VersionCatalogPort {
         });
     }
 
-    public List<GameVersion> games(boolean force, java.util.function.Consumer<List<GameVersion>> cached)
+    public List<GameVersion> games(boolean force, Consumer<List<GameVersion>> cached)
         throws IOException, InterruptedException {
         String key = http.catalogSource() + "|" + MANIFEST;
         var previous = cache.read(key, GameVersion[].class);
@@ -62,7 +67,7 @@ public final class VersionCatalog implements VersionCatalogPort {
         });
     }
 
-    public List<String> loaders(LoaderType loader, String game, boolean force, java.util.function.Consumer<List<String>> cached)
+    public List<String> loaders(LoaderType loader, String game, boolean force, Consumer<List<String>> cached)
         throws Exception {
         if (loader == LoaderType.VANILLA) {
             return List.of();
@@ -77,7 +82,7 @@ public final class VersionCatalog implements VersionCatalogPort {
             }
         }
         if (loader == LoaderType.FABRIC) {
-            String gameId = java.net.URLEncoder.encode(game, java.nio.charset.StandardCharsets.UTF_8).replace("+", "%20");
+            String gameId = URLEncoder.encode(game, StandardCharsets.UTF_8).replace("+", "%20");
             JsonArray values = JsonParser.parseString(http.getText(LauncherConfig.get().service("fabricMeta") + gameId)).getAsJsonArray();
             List<String> result = new ArrayList<>();
             for (JsonElement item : values) {

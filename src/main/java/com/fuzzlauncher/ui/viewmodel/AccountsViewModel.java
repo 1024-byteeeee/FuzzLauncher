@@ -8,9 +8,12 @@ import com.fuzzlauncher.ui.task.FxTaskCoordinator;
 
 import javafx.application.Platform;
 import javafx.beans.property.*;
+import javafx.scene.image.Image;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.concurrent.*;
+import java.util.logging.Logger;
 
 public final class AccountsViewModel {
     private final FxTaskCoordinator tasks;
@@ -21,7 +24,7 @@ public final class AccountsViewModel {
     private final BooleanProperty loggingIn;
     private final AccountAuthenticator authentication;
     private final AccountAvatars avatarLoader;
-    private final ObjectProperty<javafx.scene.image.Image> accountAvatar = new SimpleObjectProperty<>();
+    private final ObjectProperty<Image> accountAvatar = new SimpleObjectProperty<>();
     private final ExecutorService avatarExecutor = Executors.newSingleThreadExecutor(Thread.ofVirtual().name("account-avatar").factory());
     private Future<?> avatarWork;
     private volatile int avatarGeneration;
@@ -42,7 +45,7 @@ public final class AccountsViewModel {
         account.set(authentication.savedAccount().orElse(null));
     }
 
-    public ReadOnlyObjectProperty<javafx.scene.image.Image> accountAvatarProperty() {
+    public ReadOnlyObjectProperty<Image> accountAvatarProperty() {
         return accountAvatar;
     }
 
@@ -68,11 +71,11 @@ public final class AccountsViewModel {
                 if (bytes != null && !closed) {
                     Platform.runLater(() -> {
                         if (!closed && generation == avatarGeneration && identity.equals(account.get())) {
-                            var image = new javafx.scene.image.Image(new java.io.ByteArrayInputStream(bytes));
+                            var image = new Image(new ByteArrayInputStream(bytes));
                             if (!image.isError()) {
                                 accountAvatar.set(image);
                             } else {
-                                java.util.logging.Logger.getLogger("com.fuzzlauncher.launcher").warning("头像 PNG 解码失败");
+                                Logger.getLogger("com.fuzzlauncher.launcher").warning("头像 PNG 解码失败");
                             }
                         }
                     });
@@ -80,7 +83,7 @@ public final class AccountsViewModel {
             } catch (InterruptedException | CancellationException ex) {
                 Thread.currentThread().interrupt();
             } catch (Exception ex) {
-                java.util.logging.Logger.getLogger("com.fuzzlauncher.launcher").warning("头像加载失败：" + ex.getMessage());
+                Logger.getLogger("com.fuzzlauncher.launcher").warning("头像加载失败：" + ex.getMessage());
             }
         });
     }

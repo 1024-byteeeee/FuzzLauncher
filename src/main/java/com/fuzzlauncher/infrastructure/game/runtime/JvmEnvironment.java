@@ -3,24 +3,30 @@ package com.fuzzlauncher.infrastructure.game.runtime;
 import com.fuzzlauncher.infrastructure.network.HttpTransport;
 import com.fuzzlauncher.infrastructure.platform.ProcessCleanup;
 
+import com.sun.management.OperatingSystemMXBean;
+
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.*;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
+import java.util.stream.IntStream;
 
 /** Queries the selected runtime, independently of the launcher's bundled JVM. */
 public record JvmEnvironment(int major, boolean is64Bit, boolean hotspot, long physicalMemory, String encoding, Set<String> flags) {
 
     private static final Map<Path, Cached> CACHE = new LinkedHashMap<>(32, 0.75f, true);
-    private static final java.util.concurrent.locks.ReentrantLock[] LOCKS = java.util.stream.IntStream.range(0, 32)
-        .mapToObj(i -> new java.util.concurrent.locks.ReentrantLock()).toArray(java.util.concurrent.locks.ReentrantLock[]::new);
+    private static final ReentrantLock[] LOCKS = IntStream.range(0, 32)
+        .mapToObj(i -> new ReentrantLock()).toArray(ReentrantLock[]::new);
 
-    private record Stamp(Object key, long size, java.nio.file.attribute.FileTime modified, java.nio.file.attribute.FileTime created) {
+    private record Stamp(Object key, long size, FileTime modified, FileTime created) {
         static Stamp read(Path file) throws IOException {
-            var attributes = Files.readAttributes(file, java.nio.file.attribute.BasicFileAttributes.class);
+            var attributes = Files.readAttributes(file, BasicFileAttributes.class);
             return new Stamp(attributes.fileKey(), attributes.size(), attributes.lastModifiedTime(), attributes.creationTime());
         }
     }
@@ -102,7 +108,7 @@ public record JvmEnvironment(int major, boolean is64Bit, boolean hotspot, long p
         if (!Charset.isSupported(encoding)) {
             throw new IOException("游戏 Java 返回了无法识别的系统编码：" + encoding);
         }
-        long memory = ManagementFactory.getOperatingSystemMXBean() instanceof com.sun.management.OperatingSystemMXBean bean
+        long memory = ManagementFactory.getOperatingSystemMXBean() instanceof OperatingSystemMXBean bean
             ? bean.getTotalMemorySize()
             : 0;
         return new JvmEnvironment(major, "64".equals(property(properties, "sun.arch.data.model", "")), hotspot, memory, encoding, flags);

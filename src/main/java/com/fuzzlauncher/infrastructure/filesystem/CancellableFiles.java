@@ -3,6 +3,7 @@ package com.fuzzlauncher.infrastructure.filesystem;
 import com.fuzzlauncher.application.task.TaskContext;
 
 import java.io.*;
+import java.nio.channels.FileChannel;
 import java.nio.file.*;
 import java.nio.file.attribute.*;
 import java.util.Arrays;
@@ -26,7 +27,7 @@ public final class CancellableFiles {
                 }
             }
             task.checkCancelled();
-            try (var channel = java.nio.channels.FileChannel.open(target, StandardOpenOption.WRITE)) {
+            try (var channel = FileChannel.open(target, StandardOpenOption.WRITE)) {
                 channel.force(true);
             }
             BasicFileAttributes attributes = Files.readAttributes(source, BasicFileAttributes.class);

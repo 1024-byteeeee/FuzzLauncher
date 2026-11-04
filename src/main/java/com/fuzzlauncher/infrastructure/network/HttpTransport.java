@@ -14,7 +14,14 @@ import java.nio.file.*;
 import java.security.*;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.UnaryOperator;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import javax.net.ssl.SSLException;
 
 public final class HttpTransport {
@@ -39,8 +46,8 @@ public final class HttpTransport {
     private final LauncherConfig.Network network = LauncherConfig.get().network();
     private volatile DownloadSource downloadSource = DownloadSource.OFFICIAL;
     private final UnaryOperator<String> downloadUrl;
-    private final java.util.concurrent.atomic.AtomicLong downloadedBytes = new java.util.concurrent.atomic.AtomicLong();
-    private static final java.util.concurrent.ScheduledExecutorService DOWNLOAD_WATCHDOG = java.util.concurrent.Executors
+    private final AtomicLong downloadedBytes = new AtomicLong();
+    private static final ScheduledExecutorService DOWNLOAD_WATCHDOG = Executors
         .newScheduledThreadPool(2, Thread.ofPlatform().daemon(true).name("download-watchdog-", 0).factory());
 
     public long downloadedBytes() {
@@ -67,7 +74,7 @@ public final class HttpTransport {
         if (downloadUrl == null) {
             return DownloadMirrors.candidates(downloadSource, url, metadata);
         }
-        return java.util.stream.Stream.of(downloadUrl.apply(url), url).distinct().toList();
+        return Stream.of(downloadUrl.apply(url), url).distinct().toList();
     }
 
     public static final class HttpStatusException extends IOException {
@@ -221,7 +228,7 @@ public final class HttpTransport {
                         }
                         long total;
                         if (status == 206) {
-                            var range = java.util.regex.Pattern.compile("bytes (\\d+)-(\\d+)/(\\d+)")
+                            var range = Pattern.compile("bytes (\\d+)-(\\d+)/(\\d+)")
                                 .matcher(response.headers().firstValue("Content-Range").orElse(""));
                             if (offset == 0 || !range.matches() || Long.parseLong(range.group(1)) != offset
                                 || Long.parseLong(range.group(2)) < offset
@@ -253,8 +260,8 @@ public final class HttpTransport {
                                 throw new IllegalStateException(ex);
                             }
                         }
-                        var lastRead = new java.util.concurrent.atomic.AtomicLong(System.nanoTime());
-                        var stalled = new java.util.concurrent.atomic.AtomicBoolean();
+                        var lastRead = new AtomicLong(System.nanoTime());
+                        var stalled = new AtomicBoolean();
                         Thread worker = Thread.currentThread();
                         var watchdog = DOWNLOAD_WATCHDOG.scheduleAtFixedRate(() -> {
                             if (worker.isInterrupted() || task.cancelled()
@@ -265,7 +272,7 @@ public final class HttpTransport {
                                 } catch (IOException ignored) {
                                 }
                             }
-                        }, 1, 1, java.util.concurrent.TimeUnit.SECONDS);
+                        }, 1, 1, TimeUnit.SECONDS);
                         long received = offset;
                         long start = System.nanoTime(), lastReport = start;
                         try (OutputStream output = Files.newOutputStream(partial, StandardOpenOption.WRITE,
@@ -333,7 +340,7 @@ public final class HttpTransport {
                 int count;
                 while ((count = input.read(buffer)) != -1) {
                     if (Thread.currentThread().isInterrupted()) {
-                        throw new java.io.InterruptedIOException("文件校验已取消");
+                        throw new InterruptedIOException("文件校验已取消");
                     }
                     digest.update(buffer, 0, count);
                 }

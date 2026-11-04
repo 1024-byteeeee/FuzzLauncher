@@ -15,6 +15,7 @@ import java.awt.Color;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -50,9 +51,9 @@ class SkinAvatarsTest {
             if (exchange.getRequestURI().getPath().equals("/profile")) {
                 profiles.incrementAndGet();
                 String texture = Base64.getEncoder().encodeToString(
-                    ("{\"textures\":{\"SKIN\":{\"url\":\"" + A + "\"}}}").getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    ("{\"textures\":{\"SKIN\":{\"url\":\"" + A + "\"}}}").getBytes(StandardCharsets.UTF_8));
                 bytes = ("{\"properties\":[{\"name\":\"textures\",\"value\":\"" + texture + "\"}]}")
-                    .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    .getBytes(StandardCharsets.UTF_8);
             } else {
                 images.incrementAndGet();
                 bytes = exchange.getRequestURI().getPath().equals("/a") ? first : second;

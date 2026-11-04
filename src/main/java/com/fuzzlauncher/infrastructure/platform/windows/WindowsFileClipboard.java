@@ -5,6 +5,8 @@ import com.sun.jna.platform.win32.BaseTSD.SIZE_T;
 import com.sun.jna.win32.StdCallLibrary;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
@@ -92,11 +94,11 @@ public final class WindowsFileClipboard {
             String names = String.join("\0", paths.stream().map(path -> path.toAbsolutePath().normalize().toString()).toList()) + "\0\0";
             byte[] text = names.getBytes(StandardCharsets.UTF_16LE);
             byte[] drop = new byte[20 + text.length];
-            java.nio.ByteBuffer.wrap(drop).order(java.nio.ByteOrder.LITTLE_ENDIAN).putInt(0, 20).putInt(16, 1);
+            ByteBuffer.wrap(drop).order(ByteOrder.LITTLE_ENDIAN).putInt(0, 20).putInt(16, 1);
             System.arraycopy(text, 0, drop, 20, text.length);
             publish(CF_HDROP, drop);
             publish(EFFECT,
-                java.nio.ByteBuffer.allocate(4).order(java.nio.ByteOrder.LITTLE_ENDIAN).putInt(move ? DROP_MOVE : DROP_COPY).array());
+                ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(move ? DROP_MOVE : DROP_COPY).array());
         } finally {
             USER.CloseClipboard();
         }

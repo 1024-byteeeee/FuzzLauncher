@@ -2,11 +2,15 @@ package com.fuzzlauncher;
 
 import com.fuzzlauncher.infrastructure.filesystem.BrowserFiles;
 
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinNT;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.nio.file.attribute.DosFileAttributes;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -61,13 +65,13 @@ class BrowserFilesTest {
         Files.setAttribute(readOnly, "dos:readonly", true);
         Path locked = Files.writeString(source.resolve("z-locked.txt"), "locked");
         Path destination = Files.createDirectory(temp.resolve("locked-destination"));
-        var kernel = com.sun.jna.platform.win32.Kernel32.INSTANCE;
-        var handle = kernel.CreateFile(locked.toString(), com.sun.jna.platform.win32.WinNT.GENERIC_READ, 0, null,
-            com.sun.jna.platform.win32.WinNT.OPEN_EXISTING, com.sun.jna.platform.win32.WinNT.FILE_ATTRIBUTE_NORMAL, null);
-        assertNotEquals(com.sun.jna.platform.win32.WinBase.INVALID_HANDLE_VALUE, handle);
+        var kernel = Kernel32.INSTANCE;
+        var handle = kernel.CreateFile(locked.toString(), WinNT.GENERIC_READ, 0, null,
+            WinNT.OPEN_EXISTING, WinNT.FILE_ATTRIBUTE_NORMAL, null);
+        assertNotEquals(WinBase.INVALID_HANDLE_VALUE, handle);
         try {
             assertThrows(IOException.class, () -> BrowserFiles.paste(source, destination, false, false));
-            assertTrue(Files.readAttributes(readOnly, java.nio.file.attribute.DosFileAttributes.class).isReadOnly());
+            assertTrue(Files.readAttributes(readOnly, DosFileAttributes.class).isReadOnly());
             try (var entries = Files.list(destination)) {
                 assertEquals(0, entries.count());
             }

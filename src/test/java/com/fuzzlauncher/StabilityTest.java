@@ -27,10 +27,13 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.*;
 import java.net.InetSocketAddress;
+import java.net.URISyntaxException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
+import java.util.function.BooleanSupplier;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -40,7 +43,7 @@ class StabilityTest {
 
     private final TaskContext task = task(() -> false);
 
-    private static TaskContext task(java.util.function.BooleanSupplier cancelled) {
+    private static TaskContext task(BooleanSupplier cancelled) {
         return new TaskContext() {
             public void report(String text, double value) {
             }
@@ -313,10 +316,10 @@ class StabilityTest {
     void recoverySurvivesForcedTerminationOfASeparateProcess() throws Exception {
         Files.writeString(temp.resolve("value"), "before");
         String classpath = String.join(File.pathSeparator,
-            java.util.stream.Stream.of(CrashProbe.class, OperationJournal.class, Gson.class, Native.class, Kernel32.class).map(type -> {
+            Stream.of(CrashProbe.class, OperationJournal.class, Gson.class, Native.class, Kernel32.class).map(type -> {
                 try {
                     return Path.of(type.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
-                } catch (java.net.URISyntaxException ex) {
+                } catch (URISyntaxException ex) {
                     throw new IllegalStateException(ex);
                 }
             }).distinct().toList());

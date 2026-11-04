@@ -10,13 +10,14 @@ import com.fuzzlauncher.domain.settings.LauncherSettings;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 
 /** Resolves the same game directory as launch before delegating local mod operations. */
 public final class ManageMods {
     private final ModRepository files;
 
     public ManageMods(ModRepository files) {
-        this.files = java.util.Objects.requireNonNull(files);
+        this.files = Objects.requireNonNull(files);
     }
 
     public Path directory(LauncherSettings settings, GameInstance instance) {

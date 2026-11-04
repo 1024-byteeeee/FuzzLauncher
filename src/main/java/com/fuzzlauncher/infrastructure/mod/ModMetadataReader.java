@@ -8,6 +8,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.CancellationException;
 import java.util.jar.Manifest;
 import java.util.zip.*;
 import javax.imageio.ImageIO;
@@ -53,7 +54,7 @@ public final class ModMetadataReader {
                     String text = new String(bytes(archive, entry, METADATA_LIMIT, task), StandardCharsets.UTF_8);
                     parser.parse(text, jarVersion, metadata, icons);
                 } catch (IOException | RuntimeException ex) {
-                    if (ex instanceof java.util.concurrent.CancellationException cancelled) {
+                    if (ex instanceof CancellationException cancelled) {
                         throw cancelled;
                     }
                     problems.add(entry + "：" + Objects.toString(ex.getMessage(), "元数据无效"));

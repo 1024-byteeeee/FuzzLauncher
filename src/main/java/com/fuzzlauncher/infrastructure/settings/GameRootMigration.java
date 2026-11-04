@@ -5,9 +5,14 @@ import com.fuzzlauncher.infrastructure.filesystem.CancellableFiles;
 import com.fuzzlauncher.infrastructure.filesystem.PhysicalPaths;
 import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
 
+import com.sun.jna.platform.win32.Kernel32;
+import com.sun.jna.platform.win32.WinBase;
+import com.sun.jna.platform.win32.WinNT;
+
 import java.io.IOException;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.DosFileAttributeView;
 import java.util.*;
 
 /** A verified, reversible copy until settings commit; source deletion only follows that commit. */
@@ -198,9 +203,9 @@ public final class GameRootMigration implements AutoCloseable {
     }
 
     private static void requireOrdinary(Path path) throws IOException {
-        int flags = com.sun.jna.platform.win32.Kernel32.INSTANCE.GetFileAttributes(path.toString());
-        if (flags == com.sun.jna.platform.win32.WinBase.INVALID_FILE_ATTRIBUTES
-            || (flags & com.sun.jna.platform.win32.WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+        int flags = Kernel32.INSTANCE.GetFileAttributes(path.toString());
+        if (flags == WinBase.INVALID_FILE_ATTRIBUTES
+            || (flags & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
             throw new IOException("无法迁移链接或读取文件属性：" + path);
         }
     }
@@ -225,7 +230,7 @@ public final class GameRootMigration implements AutoCloseable {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 requireOrdinary(file);
-                var dos = Files.getFileAttributeView(file, java.nio.file.attribute.DosFileAttributeView.class);
+                var dos = Files.getFileAttributeView(file, DosFileAttributeView.class);
                 if (dos != null && dos.readAttributes().isReadOnly()) {
                     dos.setReadOnly(false);
                 }

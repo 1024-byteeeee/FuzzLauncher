@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -25,7 +26,7 @@ class GameFilesConcurrencyTest {
         int count = Math.min(12, GameFiles.DOWNLOAD_CONCURRENCY);
         CountDownLatch entered = new CountDownLatch(count);
         AtomicInteger active = new AtomicInteger(), peak = new AtomicInteger(), requests = new AtomicInteger();
-        byte[] body = "library-fixture".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] body = "library-fixture".getBytes(StandardCharsets.UTF_8);
         Path reference = temp.resolve("reference");
         Files.write(reference, body);
         String sha = HttpTransport.digest(reference, "SHA-1");

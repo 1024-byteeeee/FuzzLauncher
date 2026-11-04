@@ -9,6 +9,8 @@ import com.fuzzlauncher.infrastructure.config.LauncherConfig;
 import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
 import com.fuzzlauncher.infrastructure.platform.LauncherPaths;
 
+import com.google.gson.JsonObject;
+
 import java.io.IOException;
 import java.nio.file.*;
 
@@ -36,7 +38,7 @@ public final class SettingsStore implements SettingsRepository {
         RecoverableJson.write(directory.resolve("settings.json"), settings, SettingsStore::decode);
     }
 
-    private static LauncherSettings decode(com.google.gson.JsonObject json) {
+    private static LauncherSettings decode(JsonObject json) {
         RecoverableJson.enumField(json, "isolation", IsolationMode.class, "");
         RecoverableJson.enumField(json, "downloadSource", DownloadSource.class, "");
         RecoverableJson.enumField(json, "launcherVisibility", LauncherVisibility.class, "");

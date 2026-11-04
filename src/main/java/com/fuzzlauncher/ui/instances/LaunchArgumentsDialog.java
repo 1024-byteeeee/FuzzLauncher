@@ -6,14 +6,20 @@ import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.ui.common.RetroDialogs;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
+import javafx.application.Platform;
+import javafx.event.ActionEvent;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
+import javafx.scene.text.Font;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
 
 /** Per-instance launch argument editor; -Xms/-Xmx edits stay synchronized with the detail page. */
 public final class LaunchArgumentsDialog extends Dialog<ButtonType> {
@@ -47,10 +53,10 @@ public final class LaunchArgumentsDialog extends Dialog<ButtonType> {
         };
         jvm.textProperty().addListener((observable, before, after) -> updatePreview.run());
         var work = vm.gamesModel().jvmPreview(instance);
-        java.util.concurrent.FutureTask<JvmArgumentPreview> load = new java.util.concurrent.FutureTask<>(work) {
+        FutureTask<JvmArgumentPreview> load = new FutureTask<>(work) {
             @Override
             protected void done() {
-                javafx.application.Platform.runLater(() -> {
+                Platform.runLater(() -> {
                     if (isCancelled() || !isShowing()) {
                         return;
                     }
@@ -59,7 +65,7 @@ public final class LaunchArgumentsDialog extends Dialog<ButtonType> {
                         updatePreview.run();
                     } catch (InterruptedException ex) {
                         Thread.currentThread().interrupt();
-                    } catch (java.util.concurrent.ExecutionException ex) {
+                    } catch (ExecutionException ex) {
                         automatic.setText("无法预览自动参数：" + ex.getCause().getMessage());
                     }
                 });
@@ -79,12 +85,12 @@ public final class LaunchArgumentsDialog extends Dialog<ButtonType> {
         ((ButtonBar) getDialogPane().lookup(".button-bar")).setButtonOrder("+UOC");
         Button resetButton = (Button) getDialogPane().lookupButton(reset);
         resetButton.setId("restore-default-arguments");
-        resetButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+        resetButton.addEventFilter(ActionEvent.ACTION, event -> {
             jvm.setText(defaultJvm(instance, vm.options().jvmArguments()));
             game.clear();
             event.consume();
         });
-        ((Button) getDialogPane().lookupButton(ok)).addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+        ((Button) getDialogPane().lookupButton(ok)).addEventFilter(ActionEvent.ACTION, event -> {
             try {
                 LaunchParameters.MemoryArguments parsed = LaunchParameters.parseMemory(jvm.getText(), vm.options().jvmArguments());
                 int minimum = parsed.minimum() != null ? parsed.minimum() : instance.minMemoryMb();
@@ -100,7 +106,7 @@ public final class LaunchArgumentsDialog extends Dialog<ButtonType> {
         });
     }
 
-    private static String defaultJvm(GameInstance instance, java.util.List<String> defaults) {
+    private static String defaultJvm(GameInstance instance, List<String> defaults) {
         return LaunchParameters.display(LaunchParameters.defaultJvm(instance, defaults));
     }
 
@@ -108,7 +114,7 @@ public final class LaunchArgumentsDialog extends Dialog<ButtonType> {
         TextArea area = new TextArea(text);
         area.setWrapText(true);
         area.setPrefRowCount(5);
-        area.setFont(new javafx.scene.text.Font("Courier New", 16));
+        area.setFont(new Font("Courier New", 16));
         return area;
     }
 
