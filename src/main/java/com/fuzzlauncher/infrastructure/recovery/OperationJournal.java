@@ -1,9 +1,11 @@
 package com.fuzzlauncher.infrastructure.recovery;
 
+import com.fuzzlauncher.application.task.TaskContext;
 import com.fuzzlauncher.infrastructure.filesystem.PhysicalPaths;
 import com.fuzzlauncher.infrastructure.network.HttpTransport;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 import com.fuzzlauncher.infrastructure.persistence.RecoverableJson;
+import com.fuzzlauncher.infrastructure.platform.windows.WindowsPaths;
 
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.WinBase;
@@ -192,14 +194,28 @@ public final class OperationJournal {
     }
 
     public void tree(Path target, Path staged, boolean keepRoot) throws IOException {
+        tree(target, staged, keepRoot, null);
+    }
+
+    public void tree(Path target, Path staged, boolean keepRoot, TaskContext task) throws IOException {
         target = checked(target);
         Map<String, String> manifest = new LinkedHashMap<>();
         try (var files = Files.walk(staged)) {
-            for (Path file : files.toList()) {
+            var iterator = files.iterator();
+            while (iterator.hasNext()) {
+                if (task != null) {
+                    task.checkCancelled();
+                    task.report("校验待发布文件 · " + manifest.size() + " 项", -1);
+                }
+                Path file = iterator.next();
                 ordinary(file);
                 manifest.put(staged.relativize(file).toString(),
                     Files.isDirectory(file) ? "directory" : HttpTransport.digest(file, "SHA-256"));
             }
+        }
+        if (task != null) {
+            task.checkCancelled();
+            task.report("保存操作恢复记录", -1);
         }
         state.changes.add(new Change(target.toString(), null, null, new ArrayList<>(), manifest, keepRoot));
         save();
@@ -326,7 +342,7 @@ public final class OperationJournal {
     }
 
     private static void ordinary(Path path) throws IOException {
-        int flags = Kernel32.INSTANCE.GetFileAttributes(path.toString());
+        int flags = Kernel32.INSTANCE.GetFileAttributes(WindowsPaths.extended(path));
         if (flags == WinBase.INVALID_FILE_ATTRIBUTES
             || (flags & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
             throw new IOException("恢复路径是链接或无法读取：" + path);

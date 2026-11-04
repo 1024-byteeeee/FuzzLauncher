@@ -7,6 +7,7 @@ import com.fuzzlauncher.domain.mod.ModFile;
 import com.fuzzlauncher.domain.mod.ModFileNames;
 import com.fuzzlauncher.infrastructure.filesystem.BrowserFiles;
 import com.fuzzlauncher.infrastructure.filesystem.CancellableFiles;
+import com.fuzzlauncher.infrastructure.platform.windows.WindowsPaths;
 
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.WinBase;
@@ -296,7 +297,7 @@ public final class ModFiles implements ModRepository {
     }
 
     private static void ordinary(Path path) throws IOException {
-        int flags = Kernel32.INSTANCE.GetFileAttributes(path.toString());
+        int flags = Kernel32.INSTANCE.GetFileAttributes(WindowsPaths.extended(path));
         if (flags == WinBase.INVALID_FILE_ATTRIBUTES
             || (flags & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
             throw new IOException("路径是链接或无法读取：" + path);

@@ -101,9 +101,13 @@ public final class LocalGameInstallation implements GameInstallation {
             Path stagedVersion = staging.resolve("profile");
             Files.createDirectories(stagedVersion);
             if (content != null) {
+                task.report("复制整合包文件", -1);
                 try (var paths = Files.walk(content)) {
-                    for (Path source : paths.toList()) {
+                    var iterator = paths.iterator();
+                    int copied = 0;
+                    while (iterator.hasNext()) {
                         task.checkCancelled();
+                        Path source = iterator.next();
                         if (Files.isSymbolicLink(source)) {
                             throw new IOException("整合包包含目录链接");
                         }
@@ -113,15 +117,17 @@ public final class LocalGameInstallation implements GameInstallation {
                         } else {
                             CancellableFiles.copy(source, target, task);
                         }
+                        task.report("复制整合包文件 · " + ++copied + " 项", -1);
                     }
                 }
             }
+            task.report("保存实例安装描述", -1);
             JsonFiles.write(stagedVersion.resolve(InstanceDirectories.PROFILE), profile);
             InstanceDirectories.checkAvailable(root, instance, instances.findAll());
             createdDirectory = !Files.exists(pending);
             if (createdDirectory) {
                 if (journal != null) {
-                    journal.tree(pending, stagedVersion, false);
+                    journal.tree(pending, stagedVersion, false, task);
                 }
                 Files.move(stagedVersion, pending);
             } else if (content == null) {

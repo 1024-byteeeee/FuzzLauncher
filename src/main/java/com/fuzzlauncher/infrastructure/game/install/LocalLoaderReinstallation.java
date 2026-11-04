@@ -11,6 +11,7 @@ import com.fuzzlauncher.infrastructure.filesystem.InstanceDirectories;
 import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 import com.fuzzlauncher.infrastructure.platform.LauncherLog;
+import com.fuzzlauncher.infrastructure.platform.windows.WindowsPaths;
 import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
 
 import com.google.gson.*;
@@ -343,7 +344,7 @@ public final class LocalLoaderReinstallation {
             throw new IOException("加载器路径指向游戏目录之外");
         }
         for (Path current = existing; current != null && current.startsWith(root); current = current.getParent()) {
-            int flags = Kernel32.INSTANCE.GetFileAttributes(current.toString());
+            int flags = Kernel32.INSTANCE.GetFileAttributes(WindowsPaths.extended(current));
             if (flags == WinBase.INVALID_FILE_ATTRIBUTES
                 || (flags & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
                 throw new IOException("加载器路径包含目录链接或无法读取的文件");

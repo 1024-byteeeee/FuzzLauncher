@@ -7,6 +7,7 @@ import com.fuzzlauncher.domain.game.LoaderType;
 import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.instance.IsolationOverride;
 import com.fuzzlauncher.domain.modpack.ModpackFormat;
+import com.fuzzlauncher.infrastructure.filesystem.BaseVersions;
 import com.fuzzlauncher.infrastructure.filesystem.InstanceDirectories;
 import com.fuzzlauncher.infrastructure.game.catalog.VersionResolver;
 import com.fuzzlauncher.infrastructure.game.install.GameFiles;
@@ -17,6 +18,7 @@ import com.fuzzlauncher.infrastructure.modpack.ModpackArchive;
 import com.fuzzlauncher.infrastructure.network.HttpTransport;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
 import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
+import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
 
 import com.google.gson.*;
 import com.sun.net.httpserver.HttpServer;
@@ -85,6 +87,50 @@ class ModpacksTest {
             .getAsJsonObject();
         return new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(),
             Map.of(LoaderType.FABRIC, loader));
+    }
+
+    @Test
+    void importingLongDataPackPathsWithRecoveryReportsCopyAndVerificationStages() throws Exception {
+        GameVersion game = game("base");
+        Path source = Files.createDirectories(temp.resolve("source"));
+        String relative = "saves/world/datapacks/中文数据包/data/minecraft/advancements/recipes/building_blocks/"
+            + "nested-data-pack-directory/".repeat(5)
+            + "waxed_exposed_chiseled_copper_from_waxed_exposed_copper_stonecutting.json";
+        Path file = source.resolve(relative);
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, "{}");
+        GameInstance original = new GameInstance("export", "pack", "base", LoaderType.FABRIC, "0.16.0", IsolationOverride.INHERIT, 4096);
+        Path archive = temp.resolve("long-pack.zip");
+        ModpackArchive.export(source, original, ModpackFormat.MCBBS, "pack", "1", "author", "description", base,
+            Set.of("saves"), archive, false, task);
+        Path data = temp.resolve("data"), root = temp.resolve("game");
+        var repository = new JsonInstanceRepository(data);
+        HttpTransport http = new HttpTransport();
+        BaseVersions bases = new BaseVersions(temp.resolve("bases"));
+        LoaderInstaller loader = (gameRoot, staging, version, loaderVersion, context) -> {
+            context.report("生成 Fabric 安装描述", -1);
+            return new JsonObject();
+        };
+        var installer = new LocalGameInstallation(repository, new GameFiles(http, bases), new VersionResolver(bases),
+            Map.of(LoaderType.FABRIC, loader), new OperationJournal.Store(temp.resolve("operations"), data));
+        var service = new LocalModpacks(http, () -> List.of(game), installer, repository);
+        List<String> messages = new ArrayList<>();
+        TaskContext progress = new TaskContext() {
+            public void report(String message, double value) {
+                messages.add(message);
+            }
+
+            public boolean cancelled() {
+                return false;
+            }
+        };
+        GameInstance imported = service.importPack(root, archive, "long pack", true, progress);
+        assertEquals("{}", Files.readString(InstanceDirectories.directory(root, imported).resolve(relative)));
+        assertEquals(List.of(imported), repository.findAll());
+        int fabric = messages.indexOf("生成 Fabric 安装描述"), copying = messages.indexOf("复制整合包文件");
+        assertTrue(fabric >= 0 && copying > fabric);
+        assertTrue(messages.stream().skip(copying).anyMatch(message -> message.startsWith("校验待发布文件")));
+        assertTrue(OperationJournal.pending(temp.resolve("operations")).isEmpty());
     }
 
     @Test

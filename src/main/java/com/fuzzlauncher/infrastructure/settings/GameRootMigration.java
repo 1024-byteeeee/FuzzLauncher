@@ -3,6 +3,7 @@ package com.fuzzlauncher.infrastructure.settings;
 import com.fuzzlauncher.application.task.TaskContext;
 import com.fuzzlauncher.infrastructure.filesystem.CancellableFiles;
 import com.fuzzlauncher.infrastructure.filesystem.PhysicalPaths;
+import com.fuzzlauncher.infrastructure.platform.windows.WindowsPaths;
 import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
 
 import com.sun.jna.platform.win32.Kernel32;
@@ -91,7 +92,7 @@ public final class GameRootMigration implements AutoCloseable {
             migration.copy(task);
             task.checkCancelled();
             if (journal != null) {
-                journal.tree(target, workspace.resolve("content"), exists);
+                journal.tree(target, workspace.resolve("content"), exists, task);
             }
             if (exists) {
                 Files.delete(target);
@@ -203,7 +204,7 @@ public final class GameRootMigration implements AutoCloseable {
     }
 
     private static void requireOrdinary(Path path) throws IOException {
-        int flags = Kernel32.INSTANCE.GetFileAttributes(path.toString());
+        int flags = Kernel32.INSTANCE.GetFileAttributes(WindowsPaths.extended(path));
         if (flags == WinBase.INVALID_FILE_ATTRIBUTES
             || (flags & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
             throw new IOException("无法迁移链接或读取文件属性：" + path);

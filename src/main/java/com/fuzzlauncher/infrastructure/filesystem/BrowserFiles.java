@@ -1,5 +1,7 @@
 package com.fuzzlauncher.infrastructure.filesystem;
 
+import com.fuzzlauncher.infrastructure.platform.windows.WindowsPaths;
+
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.WinBase;
 import com.sun.jna.platform.win32.WinNT;
@@ -144,7 +146,7 @@ public final class BrowserFiles {
         Files.walkFileTree(source, new SimpleFileVisitor<>() {
             @Override
             public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes) throws IOException {
-                int flags = Kernel32.INSTANCE.GetFileAttributes(directory.toString());
+                int flags = Kernel32.INSTANCE.GetFileAttributes(WindowsPaths.extended(directory));
                 if (flags == WinBase.INVALID_FILE_ATTRIBUTES) {
                     throw new IOException("无法读取目录属性：" + directory);
                 }
