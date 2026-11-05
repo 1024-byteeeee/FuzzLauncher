@@ -61,12 +61,32 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{app}\{#MyAppExeName}"; Description: "运行 {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+const
+  GWL_STYLE = -16;
+  PBS_SMOOTH = 1;
+  PBM_SETBARCOLOR = $0409;
+  PBM_SETBKCOLOR = $2001;
+
 // Use the classic Windows control rendering without changing the user's theme.
 function SetWindowTheme(hwnd: HWND; subAppName, subIdList: String): Integer;
   external 'SetWindowTheme@uxtheme.dll stdcall';
 function DwmSetWindowAttribute(hwnd: HWND; attribute: Integer;
   var value: Cardinal; valueSize: Integer): Integer;
   external 'DwmSetWindowAttribute@dwmapi.dll stdcall';
+function GetWindowLong(hwnd: HWND; index: Integer): LongInt;
+  external 'GetWindowLongW@user32.dll stdcall';
+function SetWindowLong(hwnd: HWND; index: Integer; value: LongInt): LongInt;
+  external 'SetWindowLongW@user32.dll stdcall';
+
+procedure ClassicProgress(Window: HWND);
+begin
+  SetWindowTheme(Window, ' ', ' ');
+  // Inno creates smooth bars by default. The classic native control draws
+  // segmented blocks when PBS_SMOOTH is cleared.
+  SetWindowLong(Window, GWL_STYLE, GetWindowLong(Window, GWL_STYLE) and not PBS_SMOOTH);
+  SendMessage(Window, PBM_SETBARCOLOR, 0, $00800000);
+  SendMessage(Window, PBM_SETBKCOLOR, 0, $00C0C0C0);
+end;
 
 procedure ClassicWindow(Window: HWND);
 var
@@ -88,12 +108,16 @@ begin
   SetWindowTheme(WizardForm.CancelButton.Handle, ' ', ' ');
   SetWindowTheme(WizardForm.DirBrowseButton.Handle, ' ', ' ');
   SetWindowTheme(WizardForm.GroupBrowseButton.Handle, ' ', ' ');
-  SetWindowTheme(WizardForm.ProgressGauge.Handle, ' ', ' ');
+  SetWindowTheme(WizardForm.TasksList.Handle, ' ', ' ');
+  WizardForm.TasksList.Flat := False;
+  SetWindowTheme(WizardForm.RunList.Handle, ' ', ' ');
+  WizardForm.RunList.Flat := False;
+  ClassicProgress(WizardForm.ProgressGauge.Handle);
 end;
 
 procedure InitializeUninstallProgressForm;
 begin
   ClassicWindow(UninstallProgressForm.Handle);
   SetWindowTheme(UninstallProgressForm.CancelButton.Handle, ' ', ' ');
-  SetWindowTheme(UninstallProgressForm.ProgressBar.Handle, ' ', ' ');
+  ClassicProgress(UninstallProgressForm.ProgressBar.Handle);
 end;
