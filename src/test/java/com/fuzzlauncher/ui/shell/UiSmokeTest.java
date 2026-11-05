@@ -19,7 +19,7 @@ import com.fuzzlauncher.domain.game.LoaderType;
 import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.instance.IsolationMode;
 import com.fuzzlauncher.domain.instance.IsolationOverride;
-import com.fuzzlauncher.domain.mod.ModFile;
+import com.fuzzlauncher.domain.content.ContentFile;
 import com.fuzzlauncher.domain.modpack.ModpackFormat;
 import com.fuzzlauncher.domain.settings.DownloadSource;
 import com.fuzzlauncher.domain.settings.LauncherSettings;
@@ -138,6 +138,7 @@ class UiSmokeTest {
         Platform.runLater(() -> {
             FuzzApplication app = new FuzzApplication();
             Stage stage = new Stage();
+            Throwable failure = null;
             try {
                 app.start(stage);
                 LauncherView view = (LauncherView) stage.getScene().getRoot();
@@ -157,7 +158,7 @@ class UiSmokeTest {
                     .anyMatch(field -> field.getText().equals("1.21.1")));
                 verifyInstanceSelectionSync(view);
                 Files.createDirectories(Path.of("build/ui-check"));
-                for (int page = 0; page < 6; page++) {
+                for (int page = 0; page < 8; page++) {
                     view.showPage(page);
                     view.applyCss();
                     view.layout();
@@ -173,6 +174,8 @@ class UiSmokeTest {
                 verifyLocalMods(stage, view);
                 verifyDropdownHighlight(view);
                 verifyDisabledMenuHighlight(stage);
+                verifyResourcePacks(stage, view);
+                verifySchematics(stage, view);
                 verifyLauncherVisibility(stage, view, app);
                 verifyTestGame(stage);
                 verifyInstanceEditingLock(view, app, repository);
@@ -185,13 +188,17 @@ class UiSmokeTest {
                 verifyLoaderReinstallation(stage);
                 verifyImportedInstanceSelection(stage);
                 verifyStartupRecovery(stage);
-                result.complete(null);
             } catch (Throwable ex) {
-                result.completeExceptionally(ex);
+                failure = ex;
             } finally {
                 app.stop();
                 stage.close();
                 Platform.exit();
+            }
+            if (failure == null) {
+                result.complete(null);
+            } else {
+                result.completeExceptionally(failure);
             }
         });
         try {
@@ -1211,10 +1218,61 @@ class UiSmokeTest {
         }
     }
 
+    private static void verifyResourcePacks(Stage stage, LauncherView view) throws Exception {
+        var vm = view.viewModel();
+        GameInstance instance = vm.selectedProperty().get();
+        assertNotNull(instance);
+        Path folder = vm.resourcePacksModel().directory(vm.settingsProperty().get(), instance);
+        Path archive = ModFixtures.jar(folder.resolve("复古材质.zip"),
+            Map.of("pack.mcmeta", "{\"pack\":{\"pack_format\":34,\"description\":\"测试资源包\"}}"));
+        assertEquals(vm.modsModel().directory(vm.settingsProperty().get(), instance).resolveSibling("resourcepacks"), folder);
+        view.showPage(6);
+        @SuppressWarnings("unchecked")
+        ListView<ContentFile> packs = (ListView<ContentFile>) view.lookup("#resource-pack-list");
+        assertNotNull(packs);
+        waitForFx(() -> packs.getItems().stream().anyMatch(pack -> pack.path().equals(archive)));
+        assertEquals("复古材质", packs.getItems().getFirst().name());
+        assertEquals("格式 34", packs.getItems().getFirst().version());
+        packs.getSelectionModel().selectFirst();
+        Button disable = (Button) view.lookup("#disable-resource-packs");
+        assertFalse(disable.isDisabled());
+        ImageIO.write(SwingFXUtils.fromFXImage(stage.getScene().snapshot(null), null), "png",
+            Path.of("build/ui-check/resource-packs.png").toFile());
+        disable.fire();
+        waitForFx(() -> !vm.busyProperty().get() && packs.getItems().stream()
+            .anyMatch(pack -> pack.path().getFileName().toString().equals("复古材质.zip.disabled") && !pack.enabled()));
+        assertTrue(Files.isRegularFile(folder.resolve("复古材质.zip.disabled")));
+    }
+
+    private static void verifySchematics(Stage stage, LauncherView view) throws Exception {
+        var vm = view.viewModel();
+        Path root = vm.schematicsModel().directory(vm.settingsProperty().get(), vm.selectedProperty().get());
+        Path folder = Files.createDirectories(root.resolve("建筑"));
+        Path file = Files.writeString(folder.resolve("村庄.litematic"), "fixture");
+        Files.writeString(root.resolve("道路.schem"), "fixture");
+        view.showPage(7);
+        @SuppressWarnings("unchecked")
+        ListView<ContentFile> list = (ListView<ContentFile>) view.lookup("#schematic-list");
+        waitForFx(() -> list.getItems().stream().anyMatch(item -> item.path().equals(folder) && item.directory()));
+        assertNotNull(view.lookup("#import-schematics"));
+        assertNotNull(view.lookup("#schematics-create-folder"));
+        assertNull(view.lookup("#enable-schematics"));
+        ImageIO.write(SwingFXUtils.fromFXImage(stage.getScene().snapshot(null), null), "png",
+            Path.of("build/ui-check/schematic-folders.png").toFile());
+        list.getSelectionModel().selectFirst();
+        Event.fireEvent(list, new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED, "", "",
+            javafx.scene.input.KeyCode.ENTER, false, false, false, false));
+        waitForFx(() -> list.getItems().stream().anyMatch(item -> item.path().equals(file)));
+        ImageIO.write(SwingFXUtils.fromFXImage(stage.getScene().snapshot(null), null), "png",
+            Path.of("build/ui-check/schematics.png").toFile());
+        ((Button) view.lookup("#schematics-back")).fire();
+        waitForFx(() -> list.getItems().stream().anyMatch(item -> item.path().equals(folder) && item.directory()));
+    }
+
     private static void verifyNavigationLayout(LauncherView view) throws Exception {
         VBox sidebar = (VBox) view.lookup(".navigation");
         var buttons = sidebar.getChildren().stream().filter(Button.class::isInstance).map(Button.class::cast).toList();
-        assertEquals(6, buttons.size());
+        assertEquals(List.of("游戏实例", "账号", "下载", "模组", "资源包", "原理图", "设置", "关于"), buttons.stream().map(Button::getText).toList());
         assertEquals("关于", buttons.getLast().getText());
         double gap = buttons.get(1).getBoundsInParent().getMinY() - buttons.getFirst().getBoundsInParent().getMaxY();
         for (int i = 1; i < buttons.size(); i++) {
@@ -1224,7 +1282,12 @@ class UiSmokeTest {
         double visibleLeft = view.localToScene(view.getBoundsInLocal()).getMinX() + view.getBorder().getInsets().getLeft();
         double visibleRight = column.getMaxX() - sidebar.getBorder().getInsets().getRight();
         var rendered = view.snapshot(null, null);
+        Button first = buttons.getFirst();
+        double iconX = first.getGraphic().getBoundsInParent().getMinX();
+        double textX = first.lookup(".text").getBoundsInParent().getMinX();
         for (Button button : buttons) {
+            assertEquals(iconX, button.getGraphic().getBoundsInParent().getMinX(), 0.5, button.getText() + "图标对齐");
+            assertEquals(textX, button.lookup(".text").getBoundsInParent().getMinX(), 0.5, button.getText() + "文字对齐");
             var bounds = button.localToScene(button.getBoundsInLocal());
             double left = bounds.getMinX() - visibleLeft;
             double right = visibleRight - bounds.getMaxX();
@@ -1275,15 +1338,15 @@ class UiSmokeTest {
         waitForFx(() -> !vm.busyProperty().get());
         GameInstance first = vm.selectedProperty().get();
         GameInstance second = vm.instances().stream().filter(instance -> !instance.equals(first)).findFirst().orElseThrow();
-        Path directory = vm.modsModel().modDirectory(first);
+        Path directory = vm.modsModel().directory(vm.settingsProperty().get(), first);
         ModFixtures.fabricWithLogo(directory.resolve("alpha.jar"), "alpha", 0xff32aa68);
         ModFixtures.fabric(directory.resolve("beta.jar"), "beta");
-        ModFixtures.fabric(vm.modsModel().modDirectory(second).resolve("other.jar"), "other");
+        ModFixtures.fabric(vm.modsModel().directory(vm.settingsProperty().get(), second).resolve("other.jar"), "other");
         view.showPage(4);
         view.applyCss();
         view.layout();
         @SuppressWarnings("unchecked")
-        ListView<ModFile> table = (ListView<ModFile>) view.lookup("#mod-list");
+        ListView<ContentFile> table = (ListView<ContentFile>) view.lookup("#mod-list");
         @SuppressWarnings("unchecked")
         ComboBox<GameInstance> instance = (ComboBox<GameInstance>) view.lookup("#mod-instance");
         waitForFx(() -> table.getItems().size() == 2 && !view.lookup("#import-mods").isDisabled());
@@ -1297,7 +1360,7 @@ class UiSmokeTest {
         assertNotSame(RetroPage.image("forge-retro"), RetroPage.image("mods"));
         Button modNavigation = view.lookupAll(".nav-button").stream().filter(Button.class::isInstance).map(Button.class::cast)
             .filter(button -> button.getText().equals("模组")).findFirst().orElseThrow();
-        assertSame(RetroPage.image("mods"), ((ImageView) modNavigation.getGraphic()).getImage());
+        assertSame(RetroPage.image("mods"), ((ImageView) modNavigation.getGraphic().lookup(".image-view")).getImage());
         assertEquals(Color.TRANSPARENT, RetroPage.image("mods").getPixelReader().getColor(0, 0));
         assertNotNull(firstRow.lookup(".mod-entry-name"));
         assertNotNull(firstRow.lookup(".mod-entry-version"));
@@ -1325,7 +1388,7 @@ class UiSmokeTest {
         assertTrue(Files.isRegularFile(directory.resolve("alpha.jar.disabled")));
         waitForFx(() -> !view.lookup("#enable-mods").isDisabled());
         ((Button) view.lookup("#enable-mods")).fire();
-        waitForFx(() -> !vm.busyProperty().get() && table.getItems().size() == 2 && table.getItems().stream().allMatch(ModFile::enabled));
+        waitForFx(() -> !vm.busyProperty().get() && table.getItems().size() == 2 && table.getItems().stream().allMatch(ContentFile::enabled));
         TextField search = (TextField) view.lookup("#mod-search");
         search.setText("no-match-fixture");
         assertTrue(table.getItems().isEmpty());
@@ -1350,7 +1413,7 @@ class UiSmokeTest {
                 assertTrue(view.lookup("#" + id).isDisabled());
             }
             assertTrue(table.lookupAll(".mod-enabled").stream().allMatch(Node::isDisabled));
-            vm.modsModel().setModsEnabled(first, List.copyOf(table.getItems()), false, () -> {
+            vm.modsModel().setEnabled(directory, List.copyOf(table.getItems()), false, () -> {
                 throw new AssertionError();
             });
             assertFalse(vm.busyProperty().get());

@@ -6,6 +6,7 @@ import com.microsoft.aad.msal4j.*;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.*;
@@ -22,7 +23,10 @@ public final class BrowserSignIn {
     static IAuthenticationResult acquire(PublicClientApplication app, Set<String> scopes, TaskContext task, OpenBrowserAction browser)
         throws Exception {
         task.checkCancelled();
-        var options = SystemBrowserOptions.builder().htmlMessageSuccess(page("微软授权已返回", "请返回 FuzzLauncher，等待游戏账号验证。此页面可以关闭。")).htmlMessageError(page("微软授权未完成", "请返回 FuzzLauncher 查看提示并重新登录。"));
+        String template = callbackTemplate();
+        var options = SystemBrowserOptions.builder()
+            .htmlMessageSuccess(page(template, true, "微软授权已返回", "请返回 FuzzLauncher，等待游戏账号验证。"))
+            .htmlMessageError(page(template, false, "微软授权未完成", "请返回 FuzzLauncher 查看提示并重新登录。"));
         if (browser != null) {
             options.openBrowserAction(browser);
         }
@@ -70,7 +74,19 @@ public final class BrowserSignIn {
         }
     }
 
-    private static String page(String title, String message) {
-        return "<!doctype html><html lang=\"zh-CN\"><meta charset=\"utf-8\"><title>" + title + "</title><body><h1>" + title + "</h1><p>" + message + "</p></body></html>";
+    private static String callbackTemplate() throws IOException {
+        try (var input = BrowserSignIn.class.getResourceAsStream("/com/fuzzlauncher/auth/browser-callback.html")) {
+            if (input == null) {
+                throw new IOException("无法读取微软授权回调页面");
+            }
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static String page(String template, boolean success, String title, String message) {
+        return template.replace("{{state}}", success ? "success" : "error")
+            .replace("{{symbol}}", success ? "✓" : "!")
+            .replace("{{title}}", title)
+            .replace("{{message}}", message);
     }
 }

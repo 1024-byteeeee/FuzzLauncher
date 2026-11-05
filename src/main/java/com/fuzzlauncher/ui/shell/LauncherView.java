@@ -4,10 +4,11 @@ import com.fuzzlauncher.application.model.LauncherInfo;
 import com.fuzzlauncher.ui.about.AboutPage;
 import com.fuzzlauncher.ui.accounts.AccountsPage;
 import com.fuzzlauncher.ui.common.RetroPage;
+import com.fuzzlauncher.ui.common.WindowDrag;
 import com.fuzzlauncher.ui.common.WindowResize;
 import com.fuzzlauncher.ui.downloads.DownloadsPage;
 import com.fuzzlauncher.ui.instances.InstancesPage;
-import com.fuzzlauncher.ui.mods.ModsPage;
+import com.fuzzlauncher.ui.mods.ContentPage;
 import com.fuzzlauncher.ui.settings.SettingsPage;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
@@ -28,7 +29,6 @@ public final class LauncherView extends RetroPage {
     private final BorderPane workspace = new BorderPane();
     private final List<Button> navigation = new ArrayList<>();
     private final Label title = new Label("游戏实例");
-    private double dragX, dragY;
     private InstallProgressDialog installDialog;
     private BrowserLoginDialog loginDialog;
     private GameLogDialog gameLogDialog;
@@ -107,16 +107,7 @@ public final class LauncherView extends RetroPage {
         for (Button b : List.of(min, max, close)) {
             bar.getChildren().add(b);
         }
-        bar.setOnMousePressed(e -> {
-            dragX = e.getScreenX() - stage.getX();
-            dragY = e.getScreenY() - stage.getY();
-        });
-        bar.setOnMouseDragged(e -> {
-            if (!stage.isMaximized()) {
-                stage.setX(e.getScreenX() - dragX);
-                stage.setY(e.getScreenY() - dragY);
-            }
-        });
+        WindowDrag.install(bar, stage);
         return bar;
     }
 
@@ -141,13 +132,19 @@ public final class LauncherView extends RetroPage {
         box.getStyleClass().add("navigation");
         box.setPrefWidth(215);
         box.setMinWidth(215);
-        String[] names = { "游戏实例", "下载", "模组", "账号", "设置", "关于" }, icons = { "grass", "globe", "mods", "player", "wrench", "about" };
-        int[] pages = { 0, 1, 4, 2, 3, 5 };
+        String[] names = { "游戏实例", "账号", "下载", "模组", "资源包", "原理图", "设置", "关于" };
+        String[] icons = { "nav-grass", "player", "nav-globe", "mods", "resource-packs", "schematics", "wrench", "about" };
+        int[] pages = { 0, 2, 1, 4, 6, 7, 3, 5 };
         for (int i = 0; i < names.length; i++) {
             int page = pages[i];
             Button b = button(names[i], () -> showPage(page));
             b.setUserData(page);
-            b.setGraphic(icon(icons[i], 36));
+            StackPane iconSlot = new StackPane(icon(icons[i], 36));
+            iconSlot.setAlignment(Pos.CENTER_LEFT);
+            iconSlot.setMinSize(36, 36);
+            iconSlot.setPrefSize(36, 36);
+            iconSlot.setMaxSize(36, 36);
+            b.setGraphic(iconSlot);
             b.setGraphicTextGap(12);
             b.setAlignment(Pos.CENTER_LEFT);
             b.setMaxWidth(Double.MAX_VALUE);
@@ -169,13 +166,15 @@ public final class LauncherView extends RetroPage {
                 navigation.get(i).getStyleClass().add("selected-nav");
             }
         }
-        title.setText(new String[] { "游戏实例", "下载游戏", "微软账号", "启动器设置", "模组管理", "关于" }[page]);
+        title.setText(new String[] { "游戏实例", "下载游戏", "微软账号", "启动器设置", "模组管理", "关于", "资源包管理", "原理图管理" }[page]);
         workspace.setCenter(switch (page) {
             case 1 -> new DownloadsPage(stage, vm, this::showPage);
             case 2 -> new AccountsPage(stage, vm, this::showPage);
             case 3 -> new SettingsPage(stage, vm, this::showPage);
-            case 4 -> new ModsPage(stage, vm, this::showPage);
+            case 4 -> new ContentPage(stage, vm, vm.modsModel(), this::showPage);
             case 5 -> new AboutPage(stage, vm, this::showPage);
+            case 6 -> new ContentPage(stage, vm, vm.resourcePacksModel(), this::showPage);
+            case 7 -> new ContentPage(stage, vm, vm.schematicsModel(), this::showPage);
             default -> new InstancesPage(stage, vm, this::showPage);
         });
     }

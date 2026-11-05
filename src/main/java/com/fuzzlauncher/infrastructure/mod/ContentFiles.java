@@ -1,9 +1,10 @@
 package com.fuzzlauncher.infrastructure.mod;
 
 import com.fuzzlauncher.application.model.FileOperationResult;
-import com.fuzzlauncher.application.port.ModRepository;
+import com.fuzzlauncher.application.port.ContentRepository;
 import com.fuzzlauncher.application.task.TaskContext;
-import com.fuzzlauncher.domain.mod.ModFile;
+import com.fuzzlauncher.domain.content.ContentFile;
+import com.fuzzlauncher.domain.content.ContentKind;
 import com.fuzzlauncher.domain.mod.ModFileNames;
 import com.fuzzlauncher.infrastructure.filesystem.BrowserFiles;
 import com.fuzzlauncher.infrastructure.filesystem.CancellableFiles;
@@ -20,23 +21,33 @@ import java.nio.file.attribute.DosFileAttributes;
 import java.util.*;
 
 /** Local archive operations. Every publication refuses to overwrite an existing file. */
-public final class ModFiles implements ModRepository {
+public final class ContentFiles implements ContentRepository {
     private static final String DISABLED = ".disabled";
     private static final int CACHE_CAPACITY = 1024;
     private final ModMetadataReader reader = new ModMetadataReader();
-    private final Map<Path, ModFile> cache = new LinkedHashMap<>(32, 0.75f, true);
+    private final Map<Path, ContentFile> cache = new LinkedHashMap<>(32, 0.75f, true);
     private final Recycler recycler;
+    private final ContentKind kind;
 
     @FunctionalInterface
     public interface Recycler {
         void recycle(Path path) throws IOException;
     }
 
-    public ModFiles() {
+    public ContentFiles() {
         this(BrowserFiles::recycle);
     }
 
-    public ModFiles(Recycler recycler) {
+    public ContentFiles(Recycler recycler) {
+        this(ContentKind.MODS, recycler);
+    }
+
+    public ContentFiles(ContentKind kind) {
+        this(kind, BrowserFiles::recycle);
+    }
+
+    private ContentFiles(ContentKind kind, Recycler recycler) {
+        this.kind = Objects.requireNonNull(kind);
         this.recycler = Objects.requireNonNull(recycler);
     }
 
@@ -51,46 +62,52 @@ public final class ModFiles implements ModRepository {
         return ModFileNames.logicalName(name);
     }
 
-    public List<ModFile> scan(Path directory, TaskContext task) throws IOException {
+    @Override
+    public Path directory(Path gameDirectory, ContentKind contentKind) {
+        Path fallback = ContentRepository.super.directory(gameDirectory, contentKind);
+        return kind == ContentKind.SCHEMATICS ? SchematicDirectory.resolve(gameDirectory, fallback) : fallback;
+    }
+
+    public List<ContentFile> scan(Path directory, TaskContext task) throws IOException {
         task.checkCancelled();
         checkAncestors(directory);
         if (!Files.exists(directory)) {
             return List.of();
         }
-        List<ModFile> result = new ArrayList<>();
+        List<ContentFile> result = new ArrayList<>();
         try (var entries = Files.newDirectoryStream(directory)) {
             for (Path path : entries) {
                 task.checkCancelled();
-                if (!supported(path) || Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+                if (!accepts(path)) {
                     continue;
                 }
                 try {
                     ordinary(path);
                     result.add(inspect(path, task));
                 } catch (IOException | IllegalArgumentException ex) {
-                    result.add(new ModFile(path, !disabled(path), false, 0, 0, "", List.of(), "文件无法读取：" + ex.getMessage(), null));
+                    result.add(new ContentFile(path, !disabled(path), false, 0, 0, "", List.of(), "文件无法读取：" + ex.getMessage(), null, false));
                 }
             }
         }
-        result.sort(Comparator.comparing(ModFile::name, String.CASE_INSENSITIVE_ORDER)
+        result.sort(Comparator.comparing(ContentFile::name, String.CASE_INSENSITIVE_ORDER)
             .thenComparing(mod -> mod.path().getFileName().toString(), String.CASE_INSENSITIVE_ORDER));
         return List.copyOf(result);
     }
 
-    private ModFile inspect(Path path, TaskContext task) throws IOException {
+    private ContentFile inspect(Path path, TaskContext task) throws IOException {
         BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
         String identity = identity(attributes);
         synchronized (cache) {
-            ModFile cached = cache.get(path);
-            if (cached != null && cached.identity().equals(identity) && cached.size() == attributes.size()) {
+            ContentFile cached = cache.get(path);
+            if (!attributes.isDirectory() && cached != null && cached.identity().equals(identity) && cached.size() == attributes.size()) {
                 return cached;
             }
         }
-        var parsed = reader.read(path, task);
+        var parsed = read(path, path.getFileName().toString(), task);
         task.checkCancelled();
-        var result = new ModFile(path, !disabled(path), parsed.readable(), attributes.size(), attributes.lastModifiedTime().toMillis(),
-            identity, parsed.metadata(), parsed.problem(), parsed.icon());
-        if (identity.equals(identity(Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS)))) {
+        var result = new ContentFile(path, enabled(path), parsed.readable(), attributes.size(), attributes.lastModifiedTime().toMillis(),
+            identity, parsed.metadata(), parsed.problem(), parsed.icon(), attributes.isDirectory());
+        if (!attributes.isDirectory() && identity.equals(identity(Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS)))) {
             synchronized (cache) {
                 cache.put(path, result);
                 while (cache.size() > CACHE_CAPACITY) {
@@ -101,9 +118,47 @@ public final class ModFiles implements ModRepository {
         return result;
     }
 
-    public FileOperationResult setEnabled(Path directory, List<ModFile> selected, boolean enabled, TaskContext task) throws Exception {
+    private ContentInspection read(Path path, String name, TaskContext task) throws IOException {
+        return switch (kind) {
+            case MODS -> reader.read(path, task);
+            case RESOURCE_PACKS -> ResourcePackMetadataReader.read(path, name, task);
+            case SCHEMATICS -> ContentInspection.WITHOUT_METADATA;
+        };
+    }
+
+    private boolean accepts(Path path) {
+        if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+            if (kind == ContentKind.SCHEMATICS) {
+                return true;
+            }
+            return kind.supportsFolders() && (Files.exists(path.resolve(ResourcePackMetadataReader.METADATA), LinkOption.NOFOLLOW_LINKS)
+                || Files.exists(path.resolve(ResourcePackMetadataReader.DISABLED_METADATA), LinkOption.NOFOLLOW_LINKS));
+        }
+        return kind.supportsArchive(path);
+    }
+
+    private static boolean enabled(Path path) {
+        return Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)
+            ? Files.isRegularFile(path.resolve(ResourcePackMetadataReader.METADATA), LinkOption.NOFOLLOW_LINKS) : !disabled(path);
+    }
+
+    public FileOperationResult setEnabled(Path directory, List<ContentFile> selected, boolean enabled, TaskContext task) throws Exception {
+        if (kind == ContentKind.SCHEMATICS) {
+            throw new IOException("原理图没有启用状态");
+        }
         return change(directory, selected, task, mod -> {
             if (mod.enabled() == enabled) {
+                return;
+            }
+            if (Files.isDirectory(mod.path(), LinkOption.NOFOLLOW_LINKS)) {
+                Path active = mod.path().resolve(ResourcePackMetadataReader.METADATA);
+                Path inactive = mod.path().resolve(ResourcePackMetadataReader.DISABLED_METADATA);
+                Path source = enabled ? inactive : active;
+                ordinary(source);
+                if (!Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
+                    throw new IOException("资源包描述不是普通文件");
+                }
+                Files.move(source, enabled ? active : inactive);
                 return;
             }
             String name = mod.path().getFileName().toString();
@@ -112,23 +167,31 @@ public final class ModFiles implements ModRepository {
         });
     }
 
-    public FileOperationResult delete(Path directory, List<ModFile> selected, TaskContext task) throws Exception {
+    public FileOperationResult delete(Path directory, List<ContentFile> selected, TaskContext task) throws Exception {
         return change(directory, selected, task, mod -> recycler.recycle(mod.path()));
+    }
+
+    public void createFolder(Path directory, String name, TaskContext task) throws Exception {
+        task.commit(() -> {
+            checkAncestors(directory);
+            Files.createDirectories(directory);
+            BrowserFiles.createFolder(directory, name);
+        });
     }
 
     @FunctionalInterface
     private interface FileChange {
-        void apply(ModFile mod) throws IOException;
+        void apply(ContentFile mod) throws IOException;
     }
 
-    private FileOperationResult change(Path directory, List<ModFile> selected, TaskContext task, FileChange action) throws Exception {
+    private FileOperationResult change(Path directory, List<ContentFile> selected, TaskContext task, FileChange action) throws Exception {
         task.checkCancelled();
         checkAncestors(directory);
         Path real = directory.toRealPath();
         List<String> failures = new ArrayList<>();
         int[] completed = { 0 };
         task.commit(() -> {
-            for (ModFile mod : selected) {
+            for (ContentFile mod : selected) {
                 task.report("处理 " + mod.path().getFileName(), (double) completed[0] / Math.max(1, selected.size()));
                 try {
                     verify(real, mod);
@@ -169,19 +232,26 @@ public final class ModFiles implements ModRepository {
                 task.checkCancelled();
                 try {
                     ordinary(source);
-                    if (!supported(source) || !Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS)) {
-                        throw new IOException("请选择模组 JAR 或 ZIP 文件");
+                    boolean folder = Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS);
+                    if (!accepts(source) || (folder ? !kind.supportsFolders() : !Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS))) {
+                        throw new IOException("请选择受支持的文件或文件夹");
                     }
-                    if (source.toRealPath().getParent().equals(real)) {
-                        throw new IOException("文件已经位于此模组目录");
+                    Path sourceReal = source.toRealPath();
+                    if (real.equals(sourceReal.getParent()) || (folder && real.startsWith(sourceReal))) {
+                        throw new IOException("来源与目标目录重叠");
                     }
-                    Path target = destination(real, source.getFileName().toString(), reserved, renameCollisions);
+                    Path target = destination(real, source.getFileName().toString(), reserved, renameCollisions, folder);
                     Path copy = staging.resolve(Integer.toString(temporaryFiles.size()));
                     temporaryFiles.add(copy);
                     task.report("导入 " + source.getFileName(), (double) prepared.size() / Math.max(1, sources.size()));
-                    CancellableFiles.copy(source, copy, task);
-                    if (!reader.read(copy, task).readable()) {
-                        throw new IOException("压缩文件损坏");
+                    if (folder) {
+                        copyFolder(sourceReal, copy, temporaryFiles, task);
+                    } else {
+                        CancellableFiles.copy(source, copy, task);
+                    }
+                    var metadata = read(copy, source.getFileName().toString(), task);
+                    if (!metadata.readable()) {
+                        throw new IOException(metadata.problem());
                     }
                     prepared.add(new Prepared(copy, target));
                     reserved.add(logicalName(target.getFileName().toString()));
@@ -209,7 +279,7 @@ public final class ModFiles implements ModRepository {
             throw ex;
         } finally {
             IOException failure = null;
-            for (Path path : temporaryFiles) {
+            for (Path path : temporaryFiles.reversed()) {
                 try {
                     if (Files.exists(path) && Files.readAttributes(path, DosFileAttributes.class).isReadOnly()) {
                         Files.setAttribute(path, "dos:readonly", false);
@@ -233,7 +303,7 @@ public final class ModFiles implements ModRepository {
                 }
             }
             if (failure != null) {
-                IOException cleanup = new IOException("无法清理模组导入临时目录：" + staging, failure);
+                IOException cleanup = new IOException("无法清理导入临时目录：" + staging, failure);
                 if (primaryFailure != null) {
                     primaryFailure.addSuppressed(cleanup);
                 } else {
@@ -243,17 +313,45 @@ public final class ModFiles implements ModRepository {
         }
     }
 
-    private static Path destination(Path directory, String name, Set<String> reserved, boolean rename) throws IOException {
+    private static void copyFolder(Path source, Path target, List<Path> temporaryFiles, TaskContext task) throws IOException {
+        Files.walkFileTree(source, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attributes) throws IOException {
+                task.checkCancelled();
+                ordinary(path);
+                Path copy = target.resolve(source.relativize(path));
+                if (!path.equals(source)) {
+                    temporaryFiles.add(copy);
+                }
+                Files.createDirectory(copy);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path path, BasicFileAttributes attributes) throws IOException {
+                ordinary(path);
+                if (!attributes.isRegularFile()) {
+                    throw new IOException("资源包包含非普通文件：" + path);
+                }
+                Path copy = target.resolve(source.relativize(path));
+                temporaryFiles.add(copy);
+                CancellableFiles.copy(path, copy, task);
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    private static Path destination(Path directory, String name, Set<String> reserved, boolean rename, boolean folder) throws IOException {
         Path target = BrowserFiles.child(directory, name);
         if (!reserved.contains(logicalName(name))) {
             return target;
         }
         if (!rename) {
-            throw new FileAlreadyExistsException("同名模组已存在，已跳过");
+            throw new FileAlreadyExistsException("同名条目已存在，已跳过");
         }
         boolean disabled = disabled(target);
         String archive = disabled ? name.substring(0, name.length() - DISABLED.length()) : name;
-        int dot = archive.lastIndexOf('.');
+        int dot = folder ? archive.length() : archive.lastIndexOf('.');
         for (int i = 2; i < Integer.MAX_VALUE; i++) {
             String candidate = archive.substring(0, dot) + " (" + i + ")" + archive.substring(dot) + (disabled ? DISABLED : "");
             if (!reserved.contains(logicalName(candidate))) {
@@ -272,14 +370,15 @@ public final class ModFiles implements ModRepository {
         return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(DISABLED);
     }
 
-    private static void verify(Path directory, ModFile mod) throws IOException {
+    private void verify(Path directory, ContentFile mod) throws IOException {
         Path path = mod.path().toAbsolutePath().normalize();
         ordinary(path);
-        if (!path.toRealPath().getParent().equals(directory) || !supported(path)) {
-            throw new IOException("文件不属于当前模组目录");
+        if (!path.toRealPath().getParent().equals(directory) || !accepts(path)) {
+            throw new IOException("条目不属于当前管理目录");
         }
         var attributes = Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
-        if (!attributes.isRegularFile() || attributes.size() != mod.size() || !identity(attributes).equals(mod.identity())) {
+        if ((!attributes.isRegularFile() && !attributes.isDirectory()) || attributes.size() != mod.size()
+            || !identity(attributes).equals(mod.identity()) || enabled(path) != mod.enabled()) {
             throw new IOException("文件已发生变化，请刷新列表后重试");
         }
     }
@@ -296,7 +395,7 @@ public final class ModFiles implements ModRepository {
         }
     }
 
-    private static void ordinary(Path path) throws IOException {
+    static void ordinary(Path path) throws IOException {
         int flags = Kernel32.INSTANCE.GetFileAttributes(WindowsPaths.extended(path));
         if (flags == WinBase.INVALID_FILE_ATTRIBUTES
             || (flags & WinNT.FILE_ATTRIBUTE_REPARSE_POINT) != 0) {

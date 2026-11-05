@@ -1,6 +1,6 @@
 package com.fuzzlauncher.infrastructure.mod;
 
-import com.fuzzlauncher.domain.mod.ModFile;
+import com.fuzzlauncher.domain.content.ContentFile;
 
 import com.google.gson.*;
 
@@ -14,7 +14,7 @@ final class LegacyForgeMetadataParser implements ModMetadataParser {
     }
 
     @Override
-    public void parse(String text, String jarVersion, List<ModFile.Metadata> output, List<String> icons) {
+    public void parse(String text, String jarVersion, List<ContentFile.Metadata> output, List<String> icons) {
         JsonElement json = JsonParser.parseString(text);
         JsonArray mods = json.isJsonArray() ? json.getAsJsonArray() : json.getAsJsonObject().getAsJsonArray("modList");
         if (mods == null || mods.isEmpty()) {
@@ -23,8 +23,7 @@ final class LegacyForgeMetadataParser implements ModMetadataParser {
         for (JsonElement value : mods) {
             JsonObject mod = value.getAsJsonObject();
             String id = required(mod, "modid");
-            output.add(new ModFile.Metadata(id, string(mod, "name", id), string(mod, "version", "未知"), people(mod.get("authorList")),
-                string(mod, "description", ""), Set.of("Forge")));
+            output.add(new ContentFile.Metadata(id, string(mod, "name", id), string(mod, "version", "未知"), people(mod.get("authorList")), string(mod, "description", ""), Set.of("Forge")));
             icon(mod.get("logoFile"), icons);
         }
     }

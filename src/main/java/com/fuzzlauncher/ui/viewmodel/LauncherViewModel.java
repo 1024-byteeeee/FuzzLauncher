@@ -35,7 +35,9 @@ public final class LauncherViewModel implements AutoCloseable {
         loggingIn = state.loggingIn, savingSettings = state.savingSettings;
     private final DoubleProperty progress = tasks.progressProperty();
     private final StringProperty status = tasks.statusProperty(), error = tasks.errorProperty();
-    private final ModsViewModel modsViewModel;
+    private final ContentViewModel modsViewModel;
+    private final ContentViewModel resourcePacksViewModel;
+    private final ContentViewModel schematicsViewModel;
     private final AccountsViewModel accountsViewModel;
     private final CatalogViewModel catalogViewModel;
     private final InstancesViewModel instancesViewModel;
@@ -57,7 +59,9 @@ public final class LauncherViewModel implements AutoCloseable {
         if (!instances.isEmpty()) {
             selected.set(instances.getFirst());
         }
-        modsViewModel = new ModsViewModel(state, tasks, services.mods());
+        modsViewModel = new ContentViewModel(state, tasks, services.mods());
+        resourcePacksViewModel = new ContentViewModel(state, tasks, services.resourcePacks());
+        schematicsViewModel = new ContentViewModel(state, tasks, services.schematics());
         accountsViewModel = new AccountsViewModel(state, tasks, services.authentication(), services.avatars());
         catalogViewModel = new CatalogViewModel(state, tasks, services.catalog());
         instancesViewModel = new InstancesViewModel(state, tasks, services.instances());
@@ -150,8 +154,16 @@ public final class LauncherViewModel implements AutoCloseable {
         tasks.cancelCatalogRequests(owner);
     }
 
-    public ModsViewModel modsModel() {
+    public ContentViewModel modsModel() {
         return modsViewModel;
+    }
+
+    public ContentViewModel resourcePacksModel() {
+        return resourcePacksViewModel;
+    }
+
+    public ContentViewModel schematicsModel() {
+        return schematicsViewModel;
     }
 
     public AccountsViewModel accountsModel() {

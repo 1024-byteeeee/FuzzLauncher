@@ -17,9 +17,10 @@ AppId={{F9EBDB38-42A1-4BDB-8756-D66737E29DDC}
 AppName={#MyAppName}
 AppVersion={#AppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={localappdata}\Programs\FuzzLauncher
+DefaultDirName={autopf}\FuzzLauncher
 DefaultGroupName=FuzzLauncher
-PrivilegesRequired=lowest
+PrivilegesRequired=admin
+PrivilegesRequiredOverridesAllowed=commandline
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutputDir}
@@ -47,11 +48,12 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; Flags: unchecked
 
 [Files]
 Source: "{#SrcDir}\*"; DestDir: "{app}"; Excludes: "data\*,game\*,baseVerisons\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "packaging\all-users.install"; DestDir: "{app}"; Flags: ignoreversion; Check: IsAdminInstallMode
 
 [Dirs]
-Name: "{app}\baseVerisons"
-Name: "{app}\game"
-Name: "{app}\data"
+Name: "{app}\baseVerisons"; Check: not IsAdminInstallMode
+Name: "{app}\game"; Check: not IsAdminInstallMode
+Name: "{app}\data"; Check: not IsAdminInstallMode
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -66,6 +68,27 @@ const
   PBS_SMOOTH = 1;
   PBM_SETBARCOLOR = $0409;
   PBM_SETBKCOLOR = $2001;
+
+function InitializeSetup: Boolean;
+var
+  Scope, ResultCode: Integer;
+begin
+  Result := True;
+  if (not IsAdminInstallMode) or WizardSilent then
+    Exit;
+
+  Scope := TaskDialogMsgBox('选择安装范围', '安装器已获得管理员权限。请选择哪些用户可以使用 FuzzLauncher。',
+    mbConfirmation, MB_YESNOCANCEL, ['为所有用户安装'#13#10'在这台电脑上为所有用户安装 FuzzLauncher。',
+     '仅为当前用户安装'#13#10'安装到启动安装器的 Windows 用户帐户。', '取消'], 0);
+  Result := Scope = IDYES;
+  // Keep the elevated entry point while letting Inno register a per-user install
+  // in the original user's profile, including after a credential prompt.
+  if Scope = IDNO then
+  begin
+    if not ExecAsOriginalUser(ExpandConstant('{srcexe}'), '/CURRENTUSER', '', SW_SHOWNORMAL, ewNoWait, ResultCode) then
+      MsgBox('无法继续当前用户安装：' + SysErrorMessage(ResultCode), mbError, MB_OK);
+  end;
+end;
 
 // Use the classic Windows control rendering without changing the user's theme.
 function SetWindowTheme(hwnd: HWND; subAppName, subIdList: String): Integer;

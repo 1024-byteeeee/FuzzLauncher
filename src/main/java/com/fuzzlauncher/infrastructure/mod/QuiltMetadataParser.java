@@ -1,6 +1,6 @@
 package com.fuzzlauncher.infrastructure.mod;
 
-import com.fuzzlauncher.domain.mod.ModFile;
+import com.fuzzlauncher.domain.content.ContentFile;
 
 import com.google.gson.*;
 
@@ -14,14 +14,13 @@ final class QuiltMetadataParser implements ModMetadataParser {
     }
 
     @Override
-    public void parse(String text, String jarVersion, List<ModFile.Metadata> output, List<String> icons) {
+    public void parse(String text, String jarVersion, List<ContentFile.Metadata> output, List<String> icons) {
         JsonObject json = JsonParser.parseString(text).getAsJsonObject();
         JsonObject loader = json.getAsJsonObject("quilt_loader");
         String id = required(loader, "id");
         JsonObject metadata = loader.has("metadata") ? loader.getAsJsonObject("metadata") : new JsonObject();
         String authors = metadata.has("contributors") ? String.join(", ", metadata.getAsJsonObject("contributors").keySet()) : "";
-        output.add(new ModFile.Metadata(id, string(metadata, "name", id), string(loader, "version", "未知"), authors,
-            string(metadata, "description", ""), Set.of("Quilt")));
+        output.add(new ContentFile.Metadata(id, string(metadata, "name", id), string(loader, "version", "未知"), authors, string(metadata, "description", ""), Set.of("Quilt")));
         icon(metadata.get("icon"), icons);
     }
 }

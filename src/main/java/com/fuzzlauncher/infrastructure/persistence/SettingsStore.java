@@ -28,7 +28,7 @@ public final class SettingsStore implements SettingsRepository {
     public LauncherSettings load() throws IOException {
         Path file = directory.resolve("settings.json");
         if (!Files.exists(file) && !Files.exists(RecoverableJson.backup(file))) {
-            return SettingsDefaults.create(LauncherPaths.directory().resolve(LauncherConfig.get().defaults().gameDirectory()).toString(),
+            return SettingsDefaults.create(LauncherPaths.gameStorageDirectory().resolve(LauncherConfig.get().defaults().gameDirectory()).toString(),
                 LauncherConfig.get().defaults().isolation());
         }
         return RecoverableJson.read(file, SettingsStore::decode);

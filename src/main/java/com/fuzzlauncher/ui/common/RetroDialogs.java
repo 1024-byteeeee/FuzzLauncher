@@ -42,17 +42,7 @@ public final class RetroDialogs {
         HBox bar = new HBox(9, RetroPage.icon("grass", 28), RetroPage.label(title, "title"), space, close);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.getStyleClass().add("title-bar");
-        double[] drag = new double[2];
-        bar.setOnMousePressed(event -> {
-            Window window = pane.getScene().getWindow();
-            drag[0] = event.getScreenX() - window.getX();
-            drag[1] = event.getScreenY() - window.getY();
-        });
-        bar.setOnMouseDragged(event -> {
-            Window window = pane.getScene().getWindow();
-            window.setX(event.getScreenX() - drag[0]);
-            window.setY(event.getScreenY() - drag[1]);
-        });
+        WindowDrag.install(bar, owner);
         pane.setHeader(bar);
         dialog.setOnShown(event -> ((Stage) pane.getScene().getWindow()).getIcons().setAll(RetroPage.image("launcher")));
     }

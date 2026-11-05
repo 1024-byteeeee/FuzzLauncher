@@ -24,9 +24,7 @@ public final class DataLocations {
     }
 
     public static Path bootstrapDirectory() {
-        String override = System.getProperty("fuzz.dataDir");
-        return (override == null ? Path.of(Objects.toString(System.getenv("LOCALAPPDATA"), System.getProperty("user.home")), "FuzzLauncher")
-            : Path.of(override)).toAbsolutePath().normalize();
+        return LauncherPaths.bootstrapDirectory();
     }
 
     public static Path resolve() throws IOException {
@@ -39,7 +37,7 @@ public final class DataLocations {
 
     /** Defaults to local data, while preserving explicit selections and existing legacy settings. */
     public static Path resolve(Path bootstrap, Path launcherDirectory) throws IOException {
-        if (Files.exists(bootstrap.resolve(LOCATION))) {
+        if (Files.exists(bootstrap.resolve(LOCATION)) || LauncherPaths.allUsersInstallation(launcherDirectory)) {
             return resolve(bootstrap);
         }
         Path local = launcherDirectory.toAbsolutePath().normalize().resolve("data");

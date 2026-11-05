@@ -67,14 +67,20 @@
 .nav-button {
     -fx-pref-height: 78;
     -fx-font-size: 21;
-    -fx-padding: 8 12;
+    -fx-padding: 5 9;
+    /* Reserve the focus-ring inset in every state so the button label never shifts. */
+    -fx-border-width: 2, 1, 1;
+    -fx-border-insets: 0, 2, 5;
+    -fx-border-style: solid, solid, dotted;
+    -fx-border-color: white #202020 #202020 white, #dfdfdf #808080 #808080 #dfdfdf, transparent;
 }
-.selected-nav {
+.nav-button:pressed {
+    -fx-border-color: #202020 white white #202020, #808080 #dfdfdf #dfdfdf #808080, transparent;
+}
+.nav-button.selected-nav,
+.nav-button.selected-nav:pressed {
     -fx-background-color: #b7b8d7;
-    -fx-border-color: #202020 white white #202020, white;
-    -fx-border-insets: 0, 5;
-    -fx-border-width: 2, 1;
-    -fx-border-style: solid, dotted;
+    -fx-border-color: #202020 white white #202020, transparent, white;
 }
 .instances {
     -fx-padding: 0 14 0 0;

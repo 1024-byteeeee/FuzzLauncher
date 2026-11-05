@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}} · FuzzLauncher</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; padding: 20px;
+      display: grid; place-items: center;
+      background: #008080; color: #111;
+      font: 16px/1.55 "Tahoma", "Microsoft YaHei UI", sans-serif;
+    }
+    .window {
+      width: min(100%, 540px); padding: 4px;
+      background: #c0c0c0; border: 2px solid;
+      border-color: #fff #202020 #202020 #fff;
+      box-shadow: inset -1px -1px #808080, 4px 4px #004848;
+    }
+    header {
+      display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+      background: #000080; color: white; font-weight: bold;
+    }
+    header svg { flex: none; }
+    .body { padding: 24px 20px 20px; }
+    .message { display: flex; align-items: flex-start; gap: 16px; }
+    .signal {
+      flex: 0 0 38px; display: grid; place-items: center; height: 38px;
+      border: 2px solid; border-color: #fff #444 #444 #fff;
+      background: #000080; color: #fff; font: bold 26px/1 Tahoma, sans-serif;
+    }
+    .error .signal { background: #800000; }
+    h1 { margin: 0 0 6px; font-size: 21px; line-height: 1.4; }
+    p { margin: 0; overflow-wrap: anywhere; }
+    footer {
+      margin-top: 22px; padding: 7px 9px; display: flex; flex-wrap: wrap;
+      align-items: center; gap: 5px 10px;
+      border: 1px solid; border-color: #808080 #fff #fff #808080;
+      font-size: 13px;
+    }
+    kbd {
+      padding: 1px 5px; border: 1px solid; border-color: #fff #555 #555 #fff;
+      background: #dcdcdc; font: 12px Consolas, monospace;
+    }
+    @media (max-width: 420px) {
+      body { padding: 12px; }
+      .body { padding: 16px 12px; }
+      .message { gap: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="window {{state}}" aria-labelledby="callback-title">
+    <header>
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" shape-rendering="crispEdges">
+        <path fill="#252819" d="M1 6 12 1 23 6v12l-11 5L1 18z"/>
+        <path fill="#8ab54b" d="m2 6 10-4 10 4-10 5z"/>
+        <path fill="#a5764b" d="m2 8 10 5v9L2 17z"/>
+        <path fill="#674529" d="m12 13 10-5v9l-10 5z"/>
+        <path fill="#54862f" d="m2 7 10 5v4l-4-2v1l-6-3zm10 5 10-5v4l-5 3v-1l-5 3z"/>
+      </svg>
+      FuzzLauncher · 微软登录
+    </header>
+    <div class="body">
+      <div class="message">
+        <span class="signal" aria-hidden="true">{{symbol}}</span>
+        <div>
+          <h1 id="callback-title">{{title}}</h1>
+          <p>{{message}}</p>
+        </div>
+      </div>
+      <footer><kbd>Ctrl</kbd><span>+</span><kbd>W</kbd><span>关闭此标签页</span></footer>
+    </div>
+  </main>
+</body>
+</html>

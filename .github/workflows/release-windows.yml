@@ -65,9 +65,7 @@ jobs:
 
       - name: Build and test Windows packages
         id: build
-        env:
-          RELEASE_VERSION: ${{ steps.release.outputs.version }}
-        run: ./build.ps1 -Installer -JdkPath $env:JAVA_HOME -Version $env:RELEASE_VERSION
+        run: ./gradlew.bat packageWindowsInstaller
 
       - name: Prepare release assets
         env:

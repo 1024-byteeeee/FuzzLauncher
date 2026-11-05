@@ -43,11 +43,9 @@ Minecraft Services 准入申请已提交，当前登录曾返回 HTTP 403，尚�
 ```powershell
 .\gradlew.bat build           # 编译、运行核心测试并生成 JAR 和应用分发包
 .\gradlew.bat run             # 从源码启动
-.\build.ps1                  # 同样执行 Gradle build
-.\build.ps1 -Preview         # 编译并导出实际 JavaFX 截图
-.\build.ps1 -Package         # jlink + jpackage，生成新时间目录，不覆盖旧包
-.\build.ps1 -Installer       # 额外生成当前用户安装程序；需要 Inno Setup 的 ISCC 在 PATH 中
-.\build.ps1 -Integration     # 额外联网安装测试；需要较多下载流量
+.\gradlew.bat run '-Dfuzz.snapshot=true'  # 导出实际 JavaFX 截图
+.\gradlew.bat packageWindows              # 测试并生成便携版
+.\gradlew.bat packageWindowsInstaller     # 同时生成 Windows 安装程序
 
 # 单独执行完整安装和 UI 冒烟测试
 $env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21'
@@ -57,7 +55,7 @@ $env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21'
 `-Dfuzz.forceInstall=true` 可要求重新执行加载器处理器；默认联网测试复用之前验证过的安装。
 联网测试数据在 `build/integration`，不会安装到用户的游戏目录，也不会登录或使用伪造账号启动游戏。
 测试报告位于 `build/reports/tests/test/index.html`；UI 测试截图位于 `build/ui-check`。
-便携包使用 `jlink` 和 `jpackage`，打包时请使用 JDK 21：`.\build.ps1 -Package -JdkPath '你的JDK21目录'`。
+Windows 打包使用完整 JDK 21 的 `jlink` 和 `jpackage`，每次生成新的 `dist/` 时间目录。生成安装程序需要将 Inno Setup 的 `ISCC.exe` 加入 PATH，也可传入 `'-PisccPath=C:\路径\ISCC.exe'`。
 
 `build/`、`dist/`、旧 Maven 的 `target/`、本地 `tools/`、IDE 配置、截图和账号凭据不提交到仓库。
 
@@ -72,7 +70,7 @@ $env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21'
 
 工作流检出该标签的源码，在 Windows x64 上使用 Zulu JDK 21 和经 SHA-256 校验的 Inno Setup 6.5.4，执行构建及核心测试，然后上传到同一个 Release：
 
-- `FuzzLauncher-<版本>-windows-x64-setup.exe`：简体中文当前用户安装程序，发布者为 `1024_byteeeee`，内置启动器所需的 Java/JavaFX，支持选择安装目录、开始菜单和桌面快捷方式，默认安装到 `%LOCALAPPDATA%\Programs\FuzzLauncher`，无需管理员权限。游戏和数据默认位于程序旁的 `game`、`data` 目录。已有安装的数据不会由安装器迁移或删除。
+- `FuzzLauncher-<版本>-windows-x64-setup.exe`：简体中文安装程序，发布者为 `1024_byteeeee`，内置启动器所需的 Java/JavaFX。双击安装器后先请求管理员权限，再选择安装范围。为所有用户安装时，程序默认安装到 `%ProgramFiles%\FuzzLauncher`，每位用户的游戏、配置和基础版本默认保存在自己的 `%LOCALAPPDATA%\FuzzLauncher`。仅为当前用户安装时，向导以启动安装器的用户身份继续，默认安装到 `%LOCALAPPDATA%\Programs\FuzzLauncher`，游戏和数据默认保存在程序旁。安装器保留已有数据。
 - `FuzzLauncher-<版本>-windows-x64-portable.zip`：解压后运行的便携版，需保留完整目录。
 - `SHA256SUMS.txt`：以上文件的 SHA-256 校验值。
 
@@ -81,7 +79,7 @@ $env:JAVA_HOME = 'C:\Program Files\Zulu\zulu-21'
 默认运行本地核心测试，不自动进行账号授权、联网安装或桌面交互测试。安装包尚未配置代码签名。
 
 无需添加个人令牌或 Secret，上传使用该仓库的 `GITHUB_TOKEN` 和 `contents: write` 权限。失败后可在 Actions 里重跑，或手动运行 **Windows release** 并输入已有的已发布标签；同名附件会替换。
-标签必须指向已包含工作流与新版打包脚本的提交。若仓库启用了不可变 Release，发布后不允许添加附件，需要先关闭该设置，或改用先上传草稿附件再发布的流程。
+标签必须指向已包含发布工作流与对应 Gradle 打包任务的提交。若仓库启用了不可变 Release，发布后不允许添加附件，需要先关闭该设置，或改用先上传草稿附件再发布的流程。
 
 参考：[GitHub Release 事件](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#release)、[jpackage](https://docs.oracle.com/en/java/javase/21/docs/specs/man/jpackage.html)、[Release 附件上传](https://cli.github.com/manual/gh_release_upload)。
 

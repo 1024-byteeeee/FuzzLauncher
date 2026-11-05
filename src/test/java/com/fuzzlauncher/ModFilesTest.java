@@ -1,15 +1,16 @@
 package com.fuzzlauncher;
 
 import com.fuzzlauncher.application.task.TaskContext;
-import com.fuzzlauncher.application.usecase.mod.ManageMods;
+import com.fuzzlauncher.application.usecase.mod.ManageContent;
 import com.fuzzlauncher.domain.game.LoaderType;
 import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.instance.IsolationMode;
 import com.fuzzlauncher.domain.instance.IsolationOverride;
-import com.fuzzlauncher.domain.mod.ModFile;
+import com.fuzzlauncher.domain.content.ContentFile;
+import com.fuzzlauncher.domain.content.ContentKind;
 import com.fuzzlauncher.domain.settings.LauncherSettings;
 import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
-import com.fuzzlauncher.infrastructure.mod.ModFiles;
+import com.fuzzlauncher.infrastructure.mod.ContentFiles;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -27,7 +28,78 @@ import static org.junit.jupiter.api.Assertions.*;
 class ModFilesTest {
     @TempDir
     Path temp;
-    private final ModFiles files = new ModFiles();
+    private final ContentFiles files = new ContentFiles();
+
+    @Test
+    void schematicDirectoryUsesLitematicaOverrideAndListsOnlySupportedFilesAndFolders() throws Exception {
+        var repository = new ContentFiles(ContentKind.SCHEMATICS);
+        var service = new ManageContent(ContentKind.SCHEMATICS, repository);
+        var instance = new GameInstance("fixture", "隔离实例", "1.21.1", LoaderType.FABRIC, "1",
+            IsolationOverride.ISOLATED, 4096);
+        var settings = SettingsDefaults.create(temp.toString(), IsolationMode.ALL);
+        Path gameDirectory = temp.resolve("versions/隔离实例");
+        Path fallback = gameDirectory.resolve("schematics");
+        assertEquals(fallback, service.directory(settings, instance));
+        Path config = gameDirectory.resolve("config/litematica.json");
+        Files.createDirectories(config.getParent());
+        Files.writeString(config, "invalid JSON");
+        assertEquals(fallback, service.directory(settings, instance));
+        Files.writeString(config, """
+            {"Generic":{"customSchematicBaseDirectoryEnabled":true,"customSchematicBaseDirectory":"投影/蓝图"}}
+            """);
+        Path custom = gameDirectory.resolve("投影/蓝图");
+        assertEquals(custom, service.directory(settings, instance));
+        Files.createDirectories(custom);
+        repository.createFolder(custom, "建筑", TASK);
+        Path source = Files.writeString(temp.resolve("房子.litematic"), "opaque fixture");
+        assertEquals(1, service.importFiles(custom, List.of(source), false, TASK).completed());
+        Files.writeString(custom.resolve("ignore.txt"), "not a schematic");
+        var entries = service.scan(custom, TASK);
+        assertEquals(Set.of("建筑", "房子.litematic"), entries.stream().map(ContentFile::name).collect(Collectors.toSet()));
+        assertTrue(entries.stream().anyMatch(ContentFile::directory));
+        assertEquals("opaque fixture", Files.readString(custom.resolve("房子.litematic")));
+        Files.writeString(config, """
+            {"Generic":{"customSchematicBaseDirectoryEnabled":true,"customSchematicBaseDirectory":%s}}
+            """.formatted(new com.google.gson.Gson().toJson(temp.resolve("外部投影").toString())));
+        assertEquals(temp.resolve("外部投影"), service.directory(settings, instance));
+    }
+
+    @Test
+    void resourcePackArchivesAndFoldersShareSafeImportAndToggleOperations() throws Exception {
+        var packs = new ContentFiles(ContentKind.RESOURCE_PACKS);
+        Path directory = temp.resolve("resourcepacks");
+        String metadata = """
+            {"pack":{"pack_format":34,"description":{"text":"复古","extra":[{"text":"材质"}]}}}
+            """;
+        Path archive = jar(temp.resolve("source/像素.zip"), Map.of("pack.mcmeta", metadata));
+        Path folder = Files.createDirectories(temp.resolve("source/草地方块"));
+        Files.writeString(folder.resolve("pack.mcmeta"), metadata);
+        Files.createDirectories(folder.resolve("assets/minecraft"));
+        Files.writeString(folder.resolve("assets/minecraft/fixture.txt"), "keep");
+        Path invalid = jar(temp.resolve("source/invalid.zip"), Map.of("pack.mcmeta", "{\"pack\":5}"));
+        var imported = packs.importFiles(directory, List.of(archive, folder, invalid), false, TASK);
+        assertEquals(2, imported.completed());
+        assertEquals(1, imported.failures().size());
+        assertFalse(Files.exists(directory.resolve("invalid.zip")));
+        var entries = packs.scan(directory, TASK);
+        assertEquals(2, entries.size());
+        assertTrue(entries.stream().allMatch(entry -> entry.enabled() && entry.version().equals("格式 34")
+            && entry.metadata().getFirst().description().equals("复古材质")));
+        assertEquals(2, packs.setEnabled(directory, entries, false, TASK).completed());
+        assertTrue(Files.exists(directory.resolve("像素.zip.disabled")));
+        assertTrue(Files.exists(directory.resolve("草地方块/pack.mcmeta.disabled")));
+        assertFalse(Files.exists(directory.resolve("草地方块/pack.mcmeta")));
+        var disabled = packs.scan(directory, TASK);
+        assertEquals(2, disabled.size());
+        assertTrue(disabled.stream().noneMatch(ContentFile::enabled));
+        assertEquals(2, packs.setEnabled(directory, disabled, true, TASK).completed());
+        assertEquals("keep", Files.readString(directory.resolve("草地方块/assets/minecraft/fixture.txt")));
+        assertEquals(metadata, Files.readString(directory.resolve("草地方块/pack.mcmeta")));
+        assertEquals(0, packs.importFiles(directory, List.of(archive, folder), false, TASK).completed());
+        assertEquals(2, packs.importFiles(directory, List.of(archive, folder), true, TASK).completed());
+        assertTrue(Files.isRegularFile(directory.resolve("像素 (2).zip")));
+        assertTrue(Files.isRegularFile(directory.resolve("草地方块 (2)/pack.mcmeta")));
+    }
 
     @Test
     void enabledDisabledBrokenAndUnknownFilesAreListedAndCanBeToggled() throws Exception {
@@ -37,7 +109,7 @@ class ModFilesTest {
         Files.writeString(mods.resolve("broken.jar"), "broken");
         jar(mods.resolve("unknown.zip"), Map.of("fixture.txt", "fixture"));
         Files.writeString(mods.resolve("ignore.txt"), "ignore");
-        List<ModFile> scanned = files.scan(mods, TASK);
+        List<ContentFile> scanned = files.scan(mods, TASK);
         assertEquals(4, scanned.size());
         assertEquals(1, scanned.stream().filter(mod -> !mod.enabled()).count());
         var selected = scanned.stream().filter(mod -> mod.path().equals(enabled)).findFirst().orElseThrow();
@@ -144,7 +216,7 @@ class ModFilesTest {
         Path mods = temp.resolve("mods"), trash = Files.createDirectory(temp.resolve("trash"));
         Path first = fabric(mods.resolve("first.jar"), "first");
         Path second = fabric(mods.resolve("second.jar.disabled"), "second");
-        ModFiles service = new ModFiles(path -> {
+        ContentFiles service = new ContentFiles(path -> {
             if (path.getFileName().toString().equals("second.jar.disabled")) {
                 throw new IOException("fixture recycle failure");
             }
@@ -180,11 +252,11 @@ class ModFilesTest {
         LauncherSettings settings = SettingsDefaults.create(root.toString(), IsolationMode.ALL);
         var isolated = new GameInstance("isolated", "My Instance", "1.21", LoaderType.FABRIC, "0.16.0", IsolationOverride.INHERIT, 4096);
         var shared = new GameInstance("shared", "Shared", "1.21", LoaderType.FABRIC, "0.16.0", IsolationOverride.SHARED, 4096);
-        ManageMods service = new ManageMods(new ModFiles());
+        ManageContent service = new ManageContent(new ContentFiles());
         assertEquals(root.resolve("versions/My Instance/mods").toAbsolutePath(), service.directory(settings, isolated));
         assertEquals(root.resolve("mods").toAbsolutePath(), service.directory(settings, shared));
-        assertFalse(ModFiles.supported(root.getRoot()));
-        assertFalse(ModFiles.supported(null));
+        assertFalse(ContentFiles.supported(root.getRoot()));
+        assertFalse(ContentFiles.supported(null));
     }
 
     private static void assertNoTemporaryDirectories(Path directory) throws Exception {

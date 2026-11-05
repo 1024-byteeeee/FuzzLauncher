@@ -1,7 +1,7 @@
 package com.fuzzlauncher.ui.common;
 
 import com.fuzzlauncher.application.port.FileBrowser;
-import com.fuzzlauncher.domain.mod.ModFileNames;
+import com.fuzzlauncher.domain.content.ContentKind;
 
 import javafx.application.Platform;
 import javafx.beans.property.*;
@@ -175,7 +175,7 @@ public final class RetroPathDialog extends Dialog<Path> {
                     List<Path> selection = files.getSelectionModel().getSelectedItems();
                     chosenFiles = selection.contains(selected) ? List.copyOf(selection) : List.of(selected);
                     if (chosenFiles.stream().anyMatch(path -> !fileFilter.test(path))) {
-                        error.setText("请选择受支持的模组文件");
+                        error.setText("请选择受支持的条目");
                         event.consume();
                         return;
                     }
@@ -211,9 +211,18 @@ public final class RetroPathDialog extends Dialog<Path> {
             browser).showAndWait();
     }
 
-    public static List<Path> mods(Window owner, Path initial, FileBrowser browser) {
-        RetroPathDialog dialog = new RetroPathDialog(owner, "选择模组文件", initial, false,
-            path -> Files.isRegularFile(path) && ModFileNames.supported(path), browser);
+    public static List<Path> content(Window owner, Path initial, FileBrowser browser, ContentKind kind) {
+        String title = switch (kind) {
+            case MODS -> "选择模组文件";
+            case RESOURCE_PACKS -> "选择资源包（ZIP 或文件夹）";
+            case SCHEMATICS -> "选择原理图文件";
+        };
+        RetroPathDialog dialog = new RetroPathDialog(owner, title, initial, false,
+            path -> Files.isDirectory(path) ? kind.supportsFolders()
+                : Files.isRegularFile(path) && kind.supportsArchive(path), browser);
+        if (kind.supportsFolders()) {
+            ((Button) dialog.getDialogPane().lookupButton(ButtonType.OK)).setText("选择资源包");
+        }
         dialog.multipleFiles = true;
         return dialog.showAndWait().map(path -> dialog.chosenFiles.isEmpty() ? List.of(path) : dialog.chosenFiles).orElse(List.of());
     }

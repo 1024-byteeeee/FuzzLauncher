@@ -27,7 +27,7 @@ flowchart TD
 | `domain.account` | 账号类型、身份与游戏会话 |
 | `domain.instance` | 实例、隔离选项、隔离目录策略与路径规则 |
 | `domain.game` | 游戏版本与加载器类型 |
-| `domain.mod` / `domain.modpack` | 模组元数据、文件名规则与整合包格式 |
+| `domain.content` / `domain.mod` / `domain.modpack` | 可管理内容的类型和元数据、模组文件名规则与整合包格式 |
 | `domain.settings` | 已校验的启动器设置、下载源标识和可见性策略 |
 | `application.port` | 认证、仓储、版本目录、游戏安装与启动、设置、文件浏览等操作契约 |
 | `application.model` | 不含协议 JSON 的界面读模型、操作结果和产品版本信息 |
@@ -55,7 +55,7 @@ flowchart TD
 
 ## 展示层与后台任务
 
-`LauncherViewModel` 保留共享状态、业务 ViewModel 的组合与关闭流程，业务命令分别放在 `AccountsViewModel`、`CatalogViewModel`、`InstancesViewModel`、`SettingsViewModel`、`GamesViewModel`、`ModsViewModel` 和 `ModpacksViewModel` 中。页面显式调用对应的业务对象，不再由一个类同时承担所有操作。
+`LauncherViewModel` 保留共享状态、业务 ViewModel 的组合与关闭流程，业务命令分别放在 `AccountsViewModel`、`CatalogViewModel`、`InstancesViewModel`、`SettingsViewModel`、`GamesViewModel`、`ContentViewModel` 和 `ModpacksViewModel` 中。模组、资源包和原理图各自装配一个 `ContentViewModel`，复用 `ContentPage` 的布局及后台目录解析和扫描流程。
 
 各业务对象共享同一个 `PresentationState` 和 `FxTaskCoordinator`，因此拆分后仍只有一个全局操作门禁。页面切换仅取消属于该页面的目录请求；旧任务的完成回调不能清理新任务状态。提交阶段与取消操作通过同一把锁协调，退出时等待事务和头像任务释放资源。文件浏览、模组扫描和参数预览继续保留各自的后台读取及过期结果检查。
 
@@ -63,7 +63,7 @@ flowchart TD
 
 ## 策略、适配与扩展
 
-- `IsolationPolicy` 统一决定启动和模组管理使用的游戏目录。
+- `IsolationPolicy` 统一决定启动和内容管理使用的游戏目录。`ManageContent` 通过 `ContentRepository` 解析各类内容目录并调用文件操作。基础设施负责读取模组和资源包元数据，以及解析 Litematica 配置中的自定义原理图目录。
 - `InstanceRepository` 隔离登记存储；JSON、备份和原子写入属于持久化实现。
 - 加载器安装器通过 `Map<LoaderType, LoaderInstaller>` 明确注册，Fabric 与 Forge/NeoForge 分别适配各自协议。协议 JSON 留在基础设施层。
 - 模组元数据按 `ModMetadataParser` 注册。Fabric、Quilt、Forge/NeoForge TOML 和旧 Forge 各有解析器；总读取器统一负责 ZIP 读取上限、取消、合并、图标边界和缩略图生成。重复条目注册会直接拒绝，增加格式无需修改入口分支。
@@ -81,9 +81,9 @@ flowchart TD
 
 ## 数据与兼容性
 
-默认游戏目录为程序旁的 `game`，默认数据目录为程序旁的 `data`。不可写安装目录仍沿用现有的目录选择/权限处理。切换游戏目录或数据目录后按原有流程重启，迁移前保留确认和恢复记录。
+便携版和当前用户安装版默认使用程序旁的 `game` 和 `data`。所有用户安装版由安装标记识别，默认使用各自的 `%LOCALAPPDATA%\FuzzLauncher` 存放数据，其下的 `game` 存放游戏。切换游戏目录或数据目录后按原有流程重启，迁移前保留确认和恢复记录。
 
-游戏目录共享 `assets`、`libraries`。每个实例拥有稳定 ID，实际目录按实例名保存为 `versions/<实例名>/`，实例描述是 `.fuzz-instance.json`。启动工作目录和 `--gameDir` 使用同一隔离策略；共享模式下使用游戏根目录。旧 UUID 实例目录继续通过身份校验后迁移，拒绝覆盖、名称冲突和目录链接。共享基础版本仍保存在程序旁的 `baseVerisons`，本次不更改这个既有目录名。
+游戏目录共享 `assets`、`libraries`。每个实例拥有稳定 ID，实际目录按实例名保存为 `versions/<实例名>/`，实例描述是 `.fuzz-instance.json`。启动工作目录和 `--gameDir` 使用同一隔离策略；共享模式下使用游戏根目录。旧 UUID 实例目录继续通过身份校验后迁移，拒绝覆盖、名称冲突和目录链接。共享基础版本保存在 `baseVerisons`，便携版和当前用户安装版位于程序旁，所有用户安装版位于各自的 `%LOCALAPPDATA%\FuzzLauncher`。
 
 原有设置、账号、实例、MSAL 缓存、操作日志及整合包描述不因 Java 包变化而迁移。JSON 序列化不包含 Java 类名。旧设置缺少的字段在反序列化适配器中补全，再构造已校验的领域对象；旧下载源 `BMCLAPI`、`NJU` 继续映射为 `MIRROR`。新设置写入稳定枚举标识。
 

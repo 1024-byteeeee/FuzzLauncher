@@ -4,6 +4,7 @@ import com.fuzzlauncher.domain.instance.IsolationMode;
 import com.fuzzlauncher.domain.settings.DownloadSource;
 import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
 import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
+import com.fuzzlauncher.infrastructure.platform.LauncherPaths;
 import com.fuzzlauncher.infrastructure.settings.DataLocations;
 
 import org.junit.jupiter.api.Test;
@@ -32,6 +33,10 @@ class DataLocationsTest {
             Path override = temp.resolve("override");
             System.setProperty("fuzz.dataDir", override.toString());
             assertEquals(override, DataLocations.resolve());
+            assertEquals(launcher, LauncherPaths.gameStorageDirectory());
+            Files.writeString(launcher.resolve("all-users.install"), "scope=all-users");
+            assertEquals(bootstrap, DataLocations.resolve(bootstrap, launcher));
+            assertEquals(override, LauncherPaths.gameStorageDirectory());
         } finally {
             if (previousExecutable == null) {
                 System.clearProperty("jpackage.app-path");

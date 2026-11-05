@@ -1,6 +1,6 @@
 package com.fuzzlauncher.infrastructure.mod;
 
-import com.fuzzlauncher.domain.mod.ModFile;
+import com.fuzzlauncher.domain.content.ContentFile;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -26,8 +26,8 @@ class MetadataParserRegistryTest {
                 return "custom.info";
             }
 
-            public void parse(String text, String jarVersion, List<ModFile.Metadata> output, List<String> icons) {
-                output.add(new ModFile.Metadata(text, text, jarVersion, "", "", Set.of("Custom")));
+            public void parse(String text, String jarVersion, List<ContentFile.Metadata> output, List<String> icons) {
+                output.add(new ContentFile.Metadata(text, text, jarVersion, "", "", Set.of("Custom")));
             }
         };
         Path archive = jar(temp.resolve("custom.jar"),
@@ -51,7 +51,7 @@ class MetadataParserRegistryTest {
                 return "custom.info";
             }
 
-            public void parse(String text, String jarVersion, List<ModFile.Metadata> output, List<String> icons) {
+            public void parse(String text, String jarVersion, List<ContentFile.Metadata> output, List<String> icons) {
                 throw new CancellationException();
             }
         };

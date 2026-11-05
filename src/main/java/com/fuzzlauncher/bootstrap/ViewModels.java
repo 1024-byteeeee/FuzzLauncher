@@ -1,12 +1,14 @@
 package com.fuzzlauncher.bootstrap;
 
+import com.fuzzlauncher.domain.content.ContentKind;
+
 import com.fuzzlauncher.application.model.LauncherOptions;
 import com.fuzzlauncher.application.port.AccountAuthenticator;
 import com.fuzzlauncher.application.port.AccountAvatars;
 import com.fuzzlauncher.application.port.FileBrowser;
 import com.fuzzlauncher.application.port.GameLauncher;
 import com.fuzzlauncher.application.port.InstanceRepository;
-import com.fuzzlauncher.application.usecase.mod.ManageMods;
+import com.fuzzlauncher.application.usecase.mod.ManageContent;
 import com.fuzzlauncher.domain.settings.DownloadSource;
 import com.fuzzlauncher.infrastructure.browser.LocalFileBrowser;
 import com.fuzzlauncher.infrastructure.config.LauncherConfig;
@@ -14,7 +16,7 @@ import com.fuzzlauncher.infrastructure.filesystem.BaseVersions;
 import com.fuzzlauncher.infrastructure.game.catalog.VersionCatalog;
 import com.fuzzlauncher.infrastructure.game.install.LocalGameInstallation;
 import com.fuzzlauncher.infrastructure.instance.LocalInstanceOperations;
-import com.fuzzlauncher.infrastructure.mod.ModFiles;
+import com.fuzzlauncher.infrastructure.mod.ContentFiles;
 import com.fuzzlauncher.infrastructure.modpack.LocalModpackOperations;
 import com.fuzzlauncher.infrastructure.modpack.LocalModpacks;
 import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
@@ -59,7 +61,9 @@ public final class ViewModels {
             new LauncherViewModel(
                 new LauncherServices(settings, repository, catalog, auth, install, launch, avatars,
                 new LocalInstanceOperations(repository, versions), new LocalSettingsOperations(settings, repository, versions, recovery),
-                new LocalModpackOperations(modpacks), new ManageMods(new ModFiles()), options, fileBrowser())
+                new LocalModpackOperations(modpacks), new ManageContent(new ContentFiles()),
+                new ManageContent(ContentKind.RESOURCE_PACKS, new ContentFiles(ContentKind.RESOURCE_PACKS)),
+                new ManageContent(ContentKind.SCHEMATICS, new ContentFiles(ContentKind.SCHEMATICS)), options, fileBrowser())
             );
     }
 }

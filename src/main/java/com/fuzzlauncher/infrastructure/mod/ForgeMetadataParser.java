@@ -1,6 +1,6 @@
 package com.fuzzlauncher.infrastructure.mod;
 
-import com.fuzzlauncher.domain.mod.ModFile;
+import com.fuzzlauncher.domain.content.ContentFile;
 
 import org.tomlj.*;
 
@@ -21,7 +21,7 @@ final class ForgeMetadataParser implements ModMetadataParser {
     }
 
     @Override
-    public void parse(String text, String jarVersion, List<ModFile.Metadata> output, List<String> icons) throws IOException {
+    public void parse(String text, String jarVersion, List<ContentFile.Metadata> output, List<String> icons) throws IOException {
         TomlParseResult result = Toml.parse(text);
         if (result.hasErrors()) {
             throw new IOException(result.errors().getFirst().toString());
@@ -37,8 +37,7 @@ final class ForgeMetadataParser implements ModMetadataParser {
                 throw new IOException("缺少 modId");
             }
             String version = mod.getString("version", () -> "未知").replace("${file.jarVersion}", jarVersion);
-            output.add(new ModFile.Metadata(id, mod.getString("displayName", () -> id), version, mod.getString("authors", () -> ""),
-                mod.getString("description", () -> ""), Set.of(loader)));
+            output.add(new ContentFile.Metadata(id, mod.getString("displayName", () -> id), version, mod.getString("authors", () -> ""), mod.getString("description", () -> ""), Set.of(loader)));
             String logo = mod.getString("logoFile", () -> result.getString("logoFile", () -> ""));
             if (!logo.isBlank()) {
                 icons.add(logo);

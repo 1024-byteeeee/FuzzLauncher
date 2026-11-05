@@ -66,6 +66,27 @@ public class RetroPage extends BorderPane {
             if (key.equals("mods")) {
                 return ModIcon.create();
             }
+            if (key.equals("resource-packs")) {
+                return ResourcePackIcon.create();
+            }
+            if (key.equals("schematics")) {
+                return SchematicIcon.create();
+            }
+            if (key.equals("wrench")) {
+                return ClassicIcons.wrench();
+            }
+            if (key.equals("folder")) {
+                return ClassicIcons.folder();
+            }
+            if (key.equals("nav-grass")) {
+                return ClassicIcons.grassBlock();
+            }
+            if (key.equals("player")) {
+                return ClassicIcons.player();
+            }
+            if (key.equals("nav-globe")) {
+                return ClassicIcons.globe();
+            }
             if (key.equals("about")) {
                 return AboutIcon.create();
             }

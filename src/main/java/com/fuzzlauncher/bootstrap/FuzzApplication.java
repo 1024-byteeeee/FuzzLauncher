@@ -22,12 +22,15 @@ import com.fuzzlauncher.infrastructure.modpack.LocalModpacks;
 import com.fuzzlauncher.infrastructure.network.HttpTransport;
 import com.fuzzlauncher.infrastructure.persistence.JsonInstanceRepository;
 import com.fuzzlauncher.infrastructure.persistence.SettingsStore;
+import com.fuzzlauncher.infrastructure.persistence.WindowStateStore;
 import com.fuzzlauncher.infrastructure.platform.LauncherLog;
 import com.fuzzlauncher.infrastructure.platform.LauncherPaths;
 import com.fuzzlauncher.infrastructure.platform.LauncherRestart;
+import com.fuzzlauncher.infrastructure.platform.windows.WindowsWindowMove;
 import com.fuzzlauncher.infrastructure.recovery.OperationJournal;
 import com.fuzzlauncher.infrastructure.settings.DataLocations;
 import com.fuzzlauncher.ui.common.RetroDialogs;
+import com.fuzzlauncher.ui.common.WindowDrag;
 import com.fuzzlauncher.ui.shell.LauncherView;
 import com.fuzzlauncher.ui.shell.LauncherVisibilityController;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
@@ -51,7 +54,14 @@ import javax.imageio.ImageIO;
 
 /** Composition root. All dependencies are explicit constructor parameters. */
 public final class FuzzApplication extends Application {
+    private static final double MIN_WIDTH = 1100;
+    private static final double MIN_HEIGHT = 890;
+    private static final WindowStateStore.State DEFAULT_WINDOW = new WindowStateStore.State(MIN_WIDTH, MIN_HEIGHT, false);
     private LauncherViewModel viewModel;
+    private WindowStateStore windowStore;
+    private Stage mainStage;
+    private double normalWidth;
+    private double normalHeight;
     private FileChannel instanceChannel;
     private FileLock instanceLock;
     private FileChannel recoveryChannel;
@@ -60,6 +70,7 @@ public final class FuzzApplication extends Application {
 
     @Override
     public void start(Stage stage) {
+        WindowDrag.configure(stage, WindowsWindowMove::begin);
         try {
             Platform.setImplicitExit(false);
             Path bootstrap = DataLocations.bootstrapDirectory();
@@ -97,7 +108,7 @@ public final class FuzzApplication extends Application {
             http.setDownloadSource(settings.load().downloadSource());
             http.setDownloadConcurrency(settings.load().effectiveDownloadThreads(LauncherConfig.get().network().concurrency()));
             VersionCatalog catalog = new VersionCatalog(http, data.resolve("cache/catalogs"));
-            BaseVersions baseVersions = new BaseVersions(LauncherPaths.directory().resolve("baseVerisons"));
+            BaseVersions baseVersions = new BaseVersions(LauncherPaths.gameStorageDirectory().resolve("baseVerisons"));
             VersionResolver resolver = new VersionResolver(baseVersions);
             GameFiles files = new GameFiles(http, baseVersions);
             JavaRuntimeManager runtimes = new JavaRuntimeManager(data.resolve("runtimes"));
@@ -125,13 +136,18 @@ public final class FuzzApplication extends Application {
                 http.setDownloadConcurrency(newSettings.effectiveDownloadThreads(LauncherConfig.get().network().concurrency()));
             });
             stage.initStyle(StageStyle.UNDECORATED);
-            Scene scene = new Scene(new LauncherView(stage, viewModel), 1200, 860);
+            windowStore = new WindowStateStore(bootstrap);
+            WindowStateStore.State window = loadWindowState();
+            var screen = Screen.getPrimary().getVisualBounds();
+            normalWidth = Math.clamp(window.width(), MIN_WIDTH, Math.max(MIN_WIDTH, screen.getWidth()));
+            normalHeight = Math.clamp(window.height(), MIN_HEIGHT, Math.max(MIN_HEIGHT, screen.getHeight()));
+            Scene scene = new Scene(new LauncherView(stage, viewModel), normalWidth, normalHeight);
             scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("/com/fuzzlauncher/retro.css")).toExternalForm());
             stage.setScene(scene);
             stage.setTitle(LauncherInfo.TITLE);
             stage.getIcons().add(new Image(Objects.requireNonNull(getClass().getResourceAsStream("/com/fuzzlauncher/launcher.png"))));
-            stage.setMinWidth(1100);
-            stage.setMinHeight(780);
+            stage.setMinWidth(MIN_WIDTH);
+            stage.setMinHeight(MIN_HEIGHT);
             stage.setOnCloseRequest(event -> {
                 if (viewModel.savingSettingsProperty().get() || viewModel.isCommitting()) {
                     event.consume();
@@ -140,6 +156,20 @@ public final class FuzzApplication extends Application {
             LauncherVisibilityController visibility = new LauncherVisibilityController(stage, Platform::exit);
             viewModel.gamesModel().onGameLifecycle(visibility::started, visibility::exited);
             stage.show();
+            mainStage = stage;
+            stage.widthProperty().addListener((observable, old, width) -> {
+                if (!stage.isMaximized() && !stage.isIconified() && width.doubleValue() >= MIN_WIDTH) {
+                    normalWidth = width.doubleValue();
+                }
+            });
+            stage.heightProperty().addListener((observable, old, height) -> {
+                if (!stage.isMaximized() && !stage.isIconified() && height.doubleValue() >= MIN_HEIGHT) {
+                    normalHeight = height.doubleValue();
+                }
+            });
+            if (window.maximized()) {
+                stage.setMaximized(true);
+            }
             Platform.setImplicitExit(true);
             if (Boolean.getBoolean("fuzz.snapshot")) {
                 Platform.runLater(() -> {
@@ -157,8 +187,24 @@ public final class FuzzApplication extends Application {
         }
     }
 
+    private WindowStateStore.State loadWindowState() {
+        try {
+            return windowStore.load().orElse(DEFAULT_WINDOW);
+        } catch (IOException | com.google.gson.JsonParseException ex) {
+            LauncherLog.LOGGER.warning("无法读取主窗口尺寸：" + ex.getMessage());
+            return DEFAULT_WINDOW;
+        }
+    }
+
     @Override
     public void stop() {
+        if (mainStage != null && !Boolean.getBoolean("fuzz.snapshot")) {
+            try {
+                windowStore.save(new WindowStateStore.State(normalWidth, normalHeight, mainStage.isMaximized()));
+            } catch (IOException ex) {
+                LauncherLog.LOGGER.warning("无法保存主窗口尺寸：" + ex.getMessage());
+            }
+        }
         if (viewModel != null) {
             viewModel.close();
             if (!viewModel.awaitShutdown()) {

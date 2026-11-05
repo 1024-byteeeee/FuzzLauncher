@@ -2,7 +2,8 @@ package com.fuzzlauncher.ui.mods;
 
 import com.fuzzlauncher.application.task.TaskContext;
 import com.fuzzlauncher.domain.instance.GameInstance;
-import com.fuzzlauncher.domain.mod.ModFile;
+import com.fuzzlauncher.domain.content.ContentFile;
+import com.fuzzlauncher.domain.content.ContentKind;
 import com.fuzzlauncher.domain.mod.ModFileNames;
 import com.fuzzlauncher.domain.settings.LauncherSettings;
 import com.fuzzlauncher.ui.common.RetroComboBox;
@@ -10,6 +11,7 @@ import com.fuzzlauncher.ui.common.RetroDialogs;
 import com.fuzzlauncher.ui.common.RetroPage;
 import com.fuzzlauncher.ui.common.RetroPathDialog;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
+import com.fuzzlauncher.ui.viewmodel.ContentViewModel;
 
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -32,32 +34,43 @@ import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 import javafx.util.StringConverter;
 
-import java.awt.Desktop;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
-/** Local-only mod management. Scans belong to the page; mutations belong to the ViewModel. */
-public final class ModsPage extends RetroPage {
+/** Shared content layout. Scans belong to the page; mutations belong to the ViewModel. */
+public final class ContentPage extends RetroPage {
     private final LauncherViewModel vm;
+    private final ContentViewModel model;
+    private final ContentKind kind;
+    private final boolean schematics;
+    private final String contentLabel;
     private final ComboBox<GameInstance> instances;
-    private final ObservableList<ModFile> mods = FXCollections.observableArrayList();
-    private final ListView<ModFile> list = new ListView<>();
+    private final ObservableList<ContentFile> mods = FXCollections.observableArrayList();
+    private final ListView<ContentFile> list = new ListView<>();
     private final BooleanProperty scanning = new SimpleBooleanProperty();
     private final Label summary = new Label(), directory = new Label();
-    private Task<List<ModFile>> scan;
+    private final ObjectProperty<Path> subdirectory = new SimpleObjectProperty<>(Path.of(""));
+    private final ObjectProperty<Path> displayedDirectory = new SimpleObjectProperty<>();
+    private Task<List<ContentFile>> scan;
     private long generation;
     private final EventHandler<WindowEvent> windowHidden = event -> cancelScan();
 
-    public ModsPage(Stage stage, LauncherViewModel vm, Consumer<Integer> navigate) {
+    public ContentPage(Stage stage, LauncherViewModel vm, ContentViewModel model, Consumer<Integer> navigate) {
         super(stage, navigate);
         this.vm = vm;
+        this.model = model;
+        kind = model.kind();
+        schematics = kind == ContentKind.SCHEMATICS;
+        contentLabel = model.label();
         instances = new RetroComboBox<>(vm.instances());
-        instances.setId("mod-instance");
+        instances.setId(id("mod-instance"));
         instances.setMaxWidth(Double.MAX_VALUE);
         instances.setMinWidth(0);
         instances.setValue(vm.selectedProperty().get() != null ? vm.selectedProperty().get()
@@ -73,6 +86,7 @@ public final class ModsPage extends RetroPage {
         });
         instances.disableProperty().bind(vm.busyProperty());
         instances.valueProperty().addListener((observable, old, selected) -> {
+            subdirectory.set(Path.of(""));
             if (selected != null) {
                 vm.instancesModel().selectInstance(selected);
             }
@@ -102,38 +116,77 @@ public final class ModsPage extends RetroPage {
         });
     }
 
+    private String id(String modId) {
+        return switch (kind) {
+            case MODS -> modId;
+            case RESOURCE_PACKS -> modId.replace("mod", "resource-pack");
+            case SCHEMATICS -> modId.replace("mod", "schematic");
+        };
+    }
+
+    private Image defaultIcon(ContentFile item) {
+        return image(switch (kind) {
+            case MODS -> "mods";
+            case RESOURCE_PACKS -> "resource-packs";
+            case SCHEMATICS -> item.directory() ? "folder" : "schematics";
+        });
+    }
+    private boolean importable(Path path) {
+        return Files.isDirectory(path) ? kind.supportsFolders() : kind.supportsArchive(path);
+    }
+
     private Node build() {
-        var blocked = vm.busyProperty().or(vm.gameRunningProperty()).or(scanning).or(instances.valueProperty().isNull());
+        var blocked = vm.busyProperty().or(vm.gameRunningProperty()).or(scanning).or(displayedDirectory.isNull());
         var noSelection = Bindings.isEmpty(list.getSelectionModel().getSelectedItems());
-        Button add = button("导入", () -> importFiles(RetroPathDialog.mods(stage, Path.of(System.getProperty("user.home")), vm.browser())));
-        add.setId("import-mods");
+        Button add = button("导入", () -> importFiles(RetroPathDialog.content(stage, Path.of(System.getProperty("user.home")), vm.browser(), kind)));
+        add.setId(id("import-mods"));
         add.disableProperty().bind(blocked);
         Button refresh = button("刷新", this::refresh);
-        refresh.setId("refresh-mods");
+        refresh.setId(id("refresh-mods"));
         refresh.disableProperty().bind(vm.busyProperty().or(instances.valueProperty().isNull()));
         Button enable = button("启用", () -> setEnabled(true));
-        enable.setId("enable-mods");
+        enable.setId(id("enable-mods"));
         enable.disableProperty()
             .bind(blocked.or(noSelection).or(Bindings.createBooleanBinding(() -> selected().stream().noneMatch(mod -> !mod.enabled()),
                 list.getSelectionModel().getSelectedItems())));
         Button disable = button("禁用", () -> setEnabled(false));
-        disable.setId("disable-mods");
+        disable.setId(id("disable-mods"));
         disable.disableProperty().bind(blocked.or(noSelection).or(Bindings
-            .createBooleanBinding(() -> selected().stream().noneMatch(ModFile::enabled), list.getSelectionModel().getSelectedItems())));
+            .createBooleanBinding(() -> selected().stream().noneMatch(ContentFile::enabled), list.getSelectionModel().getSelectedItems())));
         Button delete = button("删除", this::deleteSelected);
-        delete.setId("delete-mods");
+        delete.setId(id("delete-mods"));
         delete.disableProperty().bind(blocked.or(noSelection));
-        Button folder = button("打开模组目录", () -> openFolder(vm.modsModel().modDirectory(instances.getValue())));
-        folder.setId("open-mods-directory");
-        folder.disableProperty().bind(vm.busyProperty().or(instances.valueProperty().isNull()));
-        HBox toolbar = new HBox(6, add, refresh, enable, disable, delete, folder);
+        Button folder = button("打开" + contentLabel + "目录", () -> {
+            if (displayedDirectory.get() != null) {
+                openFolder(displayedDirectory.get());
+            }
+        });
+        folder.setId(id("open-mods-directory"));
+        folder.disableProperty().bind(vm.busyProperty().or(displayedDirectory.isNull()));
+        HBox toolbar;
+        if (schematics) {
+            Button back = button("上一级", () -> {
+                Path parent = subdirectory.get().getParent();
+                subdirectory.set(parent == null ? Path.of("") : parent);
+                refresh();
+            });
+            back.setId("schematics-back");
+            back.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()).or(scanning)
+                .or(subdirectory.isEqualTo(Path.of(""))));
+            Button create = button("新建文件夹", this::createFolder);
+            create.setId("schematics-create-folder");
+            create.disableProperty().bind(blocked);
+            toolbar = new HBox(6, back, refresh, add, create, folder);
+        } else {
+            toolbar = new HBox(6, add, refresh, enable, disable, delete, folder);
+        }
         toolbar.setAlignment(Pos.CENTER_LEFT);
         TextField search = new TextField();
-        search.setId("mod-search");
-        search.setPromptText("搜索模组名称、ID 或文件名");
-        FilteredList<ModFile> filtered = new FilteredList<>(mods);
+        search.setId(id("mod-search"));
+        search.setPromptText(kind == ContentKind.MODS ? "搜索模组名称、ID 或文件名" : "搜索" + contentLabel + "名称或文件名");
+        FilteredList<ContentFile> filtered = new FilteredList<>(mods);
         ComboBox<String> state = new RetroComboBox<>();
-        state.setId("mod-state-filter");
+        state.setId(id("mod-state-filter"));
         state.getItems().setAll("全部", "已启用", "已禁用");
         state.setValue("全部");
         Runnable filter = () -> {
@@ -145,38 +198,39 @@ public final class ModsPage extends RetroPage {
                     default -> true;
                 };
                 return matches && (mod.name() + " " + mod.path().getFileName() + " "
-                    + mod.metadata().stream().map(ModFile.Metadata::id).collect(Collectors.joining(" "))).toLowerCase(Locale.ROOT)
+                    + mod.metadata().stream().map(ContentFile.Metadata::id).collect(Collectors.joining(" "))).toLowerCase(Locale.ROOT)
                     .contains(text);
             });
         };
         search.textProperty().addListener((o, old, value) -> filter.run());
         state.valueProperty().addListener((o, old, value) -> filter.run());
         HBox.setHgrow(search, Priority.ALWAYS);
-        HBox filters = new HBox(8, search, state);
-        list.setId("mod-list");
+        HBox filters = schematics ? new HBox(8, search) : new HBox(8, search, state);
+        list.setId(id("mod-list"));
         list.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         list.setCellFactory(ignored -> new ModCell(blocked));
         list.setFixedCellSize(64);
         ComboBox<String> order = new RetroComboBox<>();
-        order.setId("mod-sort");
-        order.getItems().setAll("按名称", "按文件名", "按启用状态");
+        order.setId(id("mod-sort"));
+        order.getItems().setAll(schematics ? List.of("按名称", "按文件名") : List.of("按名称", "按文件名", "按启用状态"));
         order.setValue("按名称");
-        SortedList<ModFile> sorted = new SortedList<>(filtered);
+        SortedList<ContentFile> sorted = new SortedList<>(filtered);
         Runnable sort = () -> {
-            Comparator<ModFile> byName = Comparator.comparing(ModFile::name, String.CASE_INSENSITIVE_ORDER);
-            sorted.setComparator(switch (order.getValue()) {
+            Comparator<ContentFile> byName = Comparator.comparing(ContentFile::name, String.CASE_INSENSITIVE_ORDER);
+            Comparator<ContentFile> ordering = switch (order.getValue()) {
                 case "按文件名" -> Comparator.comparing(mod -> mod.path().getFileName().toString(), String.CASE_INSENSITIVE_ORDER);
-                case "按启用状态" -> Comparator.comparing((ModFile mod) -> !mod.enabled()).thenComparing(byName);
+                case "按启用状态" -> Comparator.comparing((ContentFile mod) -> !mod.enabled()).thenComparing(byName);
                 default -> byName;
-            });
+            };
+            sorted.setComparator(schematics ? Comparator.comparing((ContentFile item) -> !item.directory()).thenComparing(ordering) : ordering);
         };
         order.valueProperty().addListener((o, old, value) -> sort.run());
         sort.run();
         filters.getChildren().add(order);
         list.setItems(sorted);
         Label empty = new Label();
-        empty.textProperty().bind(Bindings.when(scanning).then("正在读取模组…")
-            .otherwise(Bindings.when(instances.valueProperty().isNull()).then("请先创建游戏实例").otherwise("暂无匹配模组")));
+        empty.textProperty().bind(Bindings.when(scanning).then("正在读取" + contentLabel + "…")
+            .otherwise(Bindings.when(instances.valueProperty().isNull()).then("请先创建游戏实例").otherwise("暂无匹配" + contentLabel)));
         list.setPlaceholder(empty);
         list.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.DELETE && !delete.isDisabled()) {
@@ -185,10 +239,16 @@ public final class ModsPage extends RetroPage {
             } else if (event.getCode() == KeyCode.F5 && !refresh.isDisabled()) {
                 refresh.fire();
                 event.consume();
+            } else if (schematics && event.getCode() == KeyCode.ENTER && !blocked.get()) {
+                ContentFile item = list.getSelectionModel().getSelectedItem();
+                if (item != null && item.directory()) {
+                    enterFolder(item);
+                    event.consume();
+                }
             }
         });
         ContextMenu menu = new ContextMenu();
-        for (Button action : List.of(enable, disable, delete, refresh, folder)) {
+        for (Button action : schematics ? List.of(delete, refresh, folder) : List.of(enable, disable, delete, refresh, folder)) {
             MenuItem item = new MenuItem(action.getText());
             item.disableProperty().bind(action.disableProperty());
             item.setOnAction(event -> action.fire());
@@ -197,13 +257,13 @@ public final class ModsPage extends RetroPage {
         list.setContextMenu(menu);
         list.setOnDragOver(event -> {
             if (!blocked.get() && event.getDragboard().hasFiles()
-                && event.getDragboard().getFiles().stream().anyMatch(file -> ModFileNames.supported(file.toPath()))) {
+                && event.getDragboard().getFiles().stream().anyMatch(file -> importable(file.toPath()))) {
                 event.acceptTransferModes(TransferMode.COPY);
             }
             event.consume();
         });
         list.setOnDragDropped(event -> {
-            List<Path> sources = event.getDragboard().getFiles().stream().map(File::toPath).toList();
+            List<Path> sources = event.getDragboard().getFiles().stream().map(File::toPath).filter(this::importable).toList();
             boolean accepted = !blocked.get() && !sources.isEmpty();
             event.setDropCompleted(accepted);
             if (accepted) {
@@ -215,9 +275,9 @@ public final class ModsPage extends RetroPage {
         VBox.setVgrow(list, Priority.ALWAYS);
         directory.setWrapText(true);
         directory.setStyle("-fx-font-size: 14px;");
-        summary.setId("mod-summary");
+        summary.setId(id("mod-summary"));
         summary.setWrapText(true);
-        Label running = new Label("游戏运行中，模组修改已锁定");
+        Label running = new Label("游戏运行中，" + contentLabel + "修改已锁定");
         running.visibleProperty().bind(vm.gameRunningProperty());
         running.managedProperty().bind(running.visibleProperty());
         Label instanceLabel = new Label("选择实例：");
@@ -227,30 +287,30 @@ public final class ModsPage extends RetroPage {
         HBox.setHgrow(instances, Priority.ALWAYS);
         HBox instanceSelector = new HBox(10, instanceLabel, instances);
         instanceSelector.setAlignment(Pos.CENTER_LEFT);
-        VBox content = new VBox(12, label("模组管理", "section-title"), instanceSelector, directory, toolbar, filters, list, summary, running);
+        VBox content = new VBox(12, label(contentLabel + "管理", "section-title"), instanceSelector, directory, toolbar, filters, list, summary, running);
         content.getStyleClass().add("content");
         return content;
     }
 
-    private final class ModCell extends ListCell<ModFile> {
+    private final class ModCell extends ListCell<ContentFile> {
         private final CheckBox enabled = new CheckBox();
         private final ImageView icon = new ImageView();
         private final Label title = new Label(), version = new Label(), subtitle = new Label();
         private final HBox row;
-        private ModFile displayed;
+        private ContentFile displayed;
 
         private ModCell(BooleanExpression blocked) {
             enabled.getStyleClass().add("mod-enabled");
             enabled.setFocusTraversable(false);
-            enabled.setAccessibleText("启用模组");
+            enabled.setAccessibleText("启用" + contentLabel);
             enabled.disableProperty().bind(blocked);
             enabled.setOnAction(event -> {
-                ModFile mod = getItem();
+                ContentFile mod = getItem();
                 if (mod != null) {
                     boolean requested = enabled.isSelected();
                     enabled.setSelected(mod.enabled());
                     GameInstance instance = instances.getValue();
-                    vm.modsModel().setModsEnabled(instance, List.of(mod), requested, changed(instance));
+                    model.setEnabled(displayedDirectory.get(), List.of(mod), requested, changed(instance));
                 }
             });
             icon.setFitWidth(32);
@@ -277,12 +337,19 @@ public final class ModsPage extends RetroPage {
             text.setMinWidth(0);
             text.setAlignment(Pos.CENTER_LEFT);
             HBox.setHgrow(text, Priority.ALWAYS);
-            Button locate = entryButton("定位模组文件", "M1 4 H8 L10 6 H20 V18 H1 Z", () -> locate(getItem()));
+            Button locate = entryButton("定位" + contentLabel, "M1 4 H8 L10 6 H20 V18 H1 Z", () -> locate(getItem()));
             locate.getStyleClass().add("mod-locate");
             locate.disableProperty().bind(vm.busyProperty());
-            Button info = entryButton("模组详情", "M10 1 A9 9 0 1 0 10 19 A9 9 0 1 0 10 1 M10 8 V15 M10 5 V6", () -> details(getItem()));
+            Button info = entryButton(contentLabel + "详情", "M10 1 A9 9 0 1 0 10 19 A9 9 0 1 0 10 1 M10 8 V15 M10 5 V6", () -> details(getItem()));
             info.getStyleClass().add("mod-info");
-            row = new HBox(10, enabled, iconSlot, text, locate, info);
+            if (schematics) {
+                Button remove = entryButton("删除", "M4 5 H18 M7 5 V3 H15 V5 M6 5 L7 18 H15 L16 5 M10 8 V15 M13 8 V15",
+                    () -> deleteEntries(getItem() == null ? List.of() : List.of(getItem())));
+                remove.disableProperty().bind(blocked);
+                row = new HBox(10, iconSlot, text, locate, remove);
+            } else {
+                row = new HBox(10, enabled, iconSlot, text, locate, info);
+            }
             row.setAlignment(Pos.CENTER_LEFT);
             row.setMinWidth(0);
             row.prefWidthProperty().bind(Bindings.max(0, widthProperty().subtract(20)));
@@ -296,14 +363,18 @@ public final class ModsPage extends RetroPage {
                     }
                 }
                 if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2 && !isEmpty()) {
-                    details(getItem());
+                    if (schematics && getItem().directory() && !blocked.get()) {
+                        enterFolder(getItem());
+                    } else if (!schematics) {
+                        details(getItem());
+                    }
                     event.consume();
                 }
             });
         }
 
         @Override
-        protected void updateItem(ModFile mod, boolean empty) {
+        protected void updateItem(ContentFile mod, boolean empty) {
             super.updateItem(mod, empty);
             setText(null);
             if (empty || mod == null) {
@@ -320,10 +391,11 @@ public final class ModsPage extends RetroPage {
                 version.setText(mod.version());
                 version.setManaged(!mod.version().isBlank());
                 version.setVisible(version.isManaged());
-                String ids = mod.metadata().stream().map(ModFile.Metadata::id).collect(Collectors.joining(", "));
-                subtitle.setText((ids.isBlank() ? "" : ids + " | ") + mod.path().getFileName());
+                String ids = mod.metadata().stream().map(ContentFile.Metadata::id).collect(Collectors.joining(", "));
+                subtitle.setText(schematics ? (mod.directory() ? "文件夹" : "原理图文件")
+                    : (ids.isBlank() ? "" : ids + " | ") + mod.path().getFileName());
                 byte[] bytes = mod.icon();
-                icon.setImage(bytes == null ? image("mods") : new Image(new ByteArrayInputStream(bytes)));
+                icon.setImage(bytes == null ? defaultIcon(mod) : new Image(new ByteArrayInputStream(bytes)));
                 setTooltip(
                     new Tooltip(mod.name() + "\n" + mod.path().getFileName() + (mod.problem().isBlank() ? "" : "\n" + mod.problem())));
             }
@@ -353,20 +425,20 @@ public final class ModsPage extends RetroPage {
         return button;
     }
 
-    private void locate(ModFile mod) {
+    private void locate(ContentFile mod) {
         if (mod == null) {
             return;
         }
         try {
-            Desktop desktop = Desktop.getDesktop();
-            if (desktop.isSupported(Desktop.Action.BROWSE_FILE_DIR)) {
-                desktop.browseFileDirectory(mod.path().toFile());
-            } else {
-                desktop.open(mod.path().getParent().toFile());
-            }
-        } catch (Exception ex) {
-            message(Alert.AlertType.ERROR, "无法定位模组文件", ex.getMessage());
+            vm.browser().reveal(mod.path());
+        } catch (IOException ex) {
+            message(Alert.AlertType.ERROR, "无法定位" + contentLabel, ex.getMessage());
         }
+    }
+
+    private void enterFolder(ContentFile folder) {
+        subdirectory.set(subdirectory.get().resolve(folder.path().getFileName()));
+        refresh();
     }
 
     private void cancelScan() {
@@ -379,25 +451,28 @@ public final class ModsPage extends RetroPage {
     }
 
     private void refresh() {
-        Set<Path> selection = selected().stream().map(ModFile::path).collect(Collectors.toSet());
+        Set<Path> selection = selected().stream().map(ContentFile::path).collect(Collectors.toSet());
         cancelScan();
+        displayedDirectory.set(null);
+        directory.setText("");
         mods.clear();
         GameInstance instance = instances.getValue();
         if (getScene() == null || instance == null) {
-            directory.setText("");
             summary.setText(instance == null ? "尚无游戏实例" : "");
             return;
         }
-        Path path = vm.modsModel().modDirectory(instance);
-        Path gameRoot = Path.of(vm.settingsProperty().get().gameRoot()).toAbsolutePath().normalize();
-        directory.setText(path + (path.getParent().equals(gameRoot) ? "\n共享目录：修改会影响使用此目录的实例" : ""));
+        LauncherSettings settings = vm.settingsProperty().get();
+        Path relative = subdirectory.get();
         scanning.set(true);
-        summary.setText("正在读取模组…");
+        summary.setText("正在读取" + contentLabel + "…");
         long ticket = generation;
-        Task<List<ModFile>> task = new Task<>() {
+        class ScanTask extends Task<List<ContentFile>> {
+            private Path path;
+
             @Override
-            protected List<ModFile> call() throws Exception {
-                return vm.modsModel().scanMods(path, new TaskContext() {
+            protected List<ContentFile> call() throws Exception {
+                path = model.directory(settings, instance).resolve(relative);
+                return model.scan(path, new TaskContext() {
                     public void report(String message, double progress) {
                     }
 
@@ -406,20 +481,37 @@ public final class ModsPage extends RetroPage {
                     }
                 });
             }
-        };
-        task.setOnSucceeded(event -> publish(task.getValue(), 0, ticket, selection));
+        }
+        var task = new ScanTask();
+        task.setOnSucceeded(event -> {
+            if (ticket != generation || getScene() == null) {
+                return;
+            }
+            showDirectory(task.path, settings);
+            publish(task.getValue(), 0, ticket, selection);
+        });
         task.setOnFailed(event -> {
-            if (ticket == generation) {
+            if (ticket == generation && getScene() != null) {
+                showDirectory(task.path, settings);
                 scanning.set(false);
-                summary.setText("无法读取模组：" + task.getException().getMessage());
+                scan = null;
+                summary.setText("无法读取" + contentLabel + "：" + task.getException().getMessage());
                 Logger.getLogger("com.fuzzlauncher.launcher").warning(summary.getText());
             }
         });
         scan = task;
-        Thread.ofVirtual().name("mod-scan").start(task);
+        Thread.ofVirtual().name("content-scan").start(task);
     }
 
-    private void publish(List<ModFile> values, int offset, long ticket, Set<Path> selection) {
+    private void showDirectory(Path path, LauncherSettings settings) {
+        if (path != null) {
+            Path gameRoot = Path.of(settings.gameRoot()).toAbsolutePath().normalize();
+            displayedDirectory.set(path);
+            directory.setText(path + (gameRoot.equals(path.getParent()) ? "\n共享目录：修改会影响使用此目录的实例" : ""));
+        }
+    }
+
+    private void publish(List<ContentFile> values, int offset, long ticket, Set<Path> selection) {
         if (ticket != generation || getScene() == null) {
             return;
         }
@@ -430,7 +522,7 @@ public final class ModsPage extends RetroPage {
         } else {
             scanning.set(false);
             scan = null;
-            for (ModFile mod : list.getItems()) {
+            for (ContentFile mod : list.getItems()) {
                 if (selection.contains(mod.path())) {
                     list.getSelectionModel().select(mod);
                 }
@@ -438,12 +530,14 @@ public final class ModsPage extends RetroPage {
             if (list.getSelectionModel().isEmpty() && !list.getItems().isEmpty()) {
                 list.getSelectionModel().selectFirst();
             }
-            long enabled = values.stream().filter(ModFile::enabled).count();
-            summary.setText(values.size() + " 个模组文件 · 启用 " + enabled + " · 禁用 " + (values.size() - enabled));
+            long enabled = values.stream().filter(ContentFile::enabled).count();
+            summary.setText(schematics ? (values.size() - values.stream().filter(ContentFile::directory).count()) + " 个原理图"
+                : values.size() + (kind == ContentKind.MODS ? " 个模组文件" : " 个资源包")
+                    + " · 启用 " + enabled + " · 禁用 " + (values.size() - enabled));
         }
     }
 
-    private List<ModFile> selected() {
+    private List<ContentFile> selected() {
         return List.copyOf(list.getSelectionModel().getSelectedItems());
     }
 
@@ -465,7 +559,7 @@ public final class ModsPage extends RetroPage {
         Set<String> incoming = new HashSet<>();
         boolean collision = false;
         for (Path path : sources) {
-            if (ModFileNames.supported(path)) {
+            if (importable(path)) {
                 String name = ModFileNames.logicalName(path.getFileName().toString());
                 collision |= existing.contains(name) || !incoming.add(name);
             }
@@ -473,7 +567,7 @@ public final class ModsPage extends RetroPage {
         boolean rename = false;
         if (collision) {
             ChoiceDialog<String> choice = new ChoiceDialog<>("跳过同名文件", "跳过同名文件", "保留两份");
-            RetroDialogs.decorate(choice, stage, "同名模组");
+            RetroDialogs.decorate(choice, stage, "同名" + contentLabel);
             choice.setContentText("已存在同名启用或禁用文件，处理方式：");
             ((Button) choice.getDialogPane().lookupButton(ButtonType.OK)).setText("确定");
             ((Button) choice.getDialogPane().lookupButton(ButtonType.CANCEL)).setText("取消");
@@ -483,39 +577,52 @@ public final class ModsPage extends RetroPage {
             }
             rename = result.get().equals("保留两份");
         }
-        vm.modsModel().importMods(instance, sources, rename, changed(instance));
+        model.importFiles(displayedDirectory.get(), sources, rename, changed(instance));
     }
 
     private void setEnabled(boolean enabled) {
         GameInstance instance = instances.getValue();
-        vm.modsModel().setModsEnabled(instance, selected(), enabled, changed(instance));
+        model.setEnabled(displayedDirectory.get(), selected(), enabled, changed(instance));
     }
 
     private void deleteSelected() {
+        deleteEntries(selected());
+    }
+
+    private void deleteEntries(List<ContentFile> files) {
         GameInstance instance = instances.getValue();
-        List<ModFile> files = selected();
-        if (!files.isEmpty() && confirm("删除模组", "将选中的 " + files.size() + " 个模组文件移入回收站？")) {
-            vm.modsModel().deleteMods(instance, files, changed(instance));
+        if (!files.isEmpty() && confirm("删除" + contentLabel, "将选中的 " + files.size() + " 个条目移入回收站？")) {
+            model.delete(displayedDirectory.get(), files, changed(instance));
         }
     }
 
-    private void details(ModFile mod) {
+    private void createFolder() {
+        TextInputDialog dialog = new TextInputDialog();
+        RetroDialogs.decorate(dialog, stage, "新建文件夹");
+        dialog.setContentText("文件夹名称：");
+        ((Button) dialog.getDialogPane().lookupButton(ButtonType.OK)).setText("确定");
+        ((Button) dialog.getDialogPane().lookupButton(ButtonType.CANCEL)).setText("取消");
+        dialog.showAndWait().map(String::strip).filter(name -> !name.isEmpty())
+            .ifPresent(name -> model.createFolder(displayedDirectory.get(), name, changed(instances.getValue())));
+    }
+
+    private void details(ContentFile mod) {
         if (mod == null) {
             return;
         }
         Dialog<Void> dialog = new Dialog<>();
-        RetroDialogs.decorate(dialog, stage, "模组详情");
-        dialog.getDialogPane().setId("mod-details-dialog");
+        RetroDialogs.decorate(dialog, stage, contentLabel + "详情");
+        dialog.getDialogPane().setId(id("mod-details-dialog"));
         Label name = label(mod.name(), "section-title");
         name.setWrapText(true);
         byte[] bytes = mod.icon();
-        ImageView artwork = new ImageView(bytes == null ? image("mods") : new Image(new ByteArrayInputStream(bytes)));
+        ImageView artwork = new ImageView(bytes == null ? defaultIcon(mod) : new Image(new ByteArrayInputStream(bytes)));
         artwork.setFitWidth(48);
         artwork.setFitHeight(48);
         artwork.setPreserveRatio(true);
         artwork.setSmooth(false);
         TextArea description = new TextArea();
-        description.setId("mod-details");
+        description.setId(id("mod-details"));
         description.setEditable(false);
         description.setWrapText(true);
         description.setPrefRowCount(12);
@@ -531,11 +638,15 @@ public final class ModsPage extends RetroPage {
         ((Button) dialog.getDialogPane().lookupButton(ButtonType.CLOSE)).setText("关闭");
         List<String> parts = new ArrayList<>();
         for (var entry : mod.metadata()) {
+            if (kind == ContentKind.RESOURCE_PACKS) {
+                parts.add(String.join("\n", entry.name(), entry.version(), entry.description()).strip());
+                continue;
+            }
             parts.add(entry.name() + "\nID：" + entry.id() + "\n版本：" + entry.version() + "\n作者：" + entry.authors() + "\n加载器："
                 + String.join(" / ", new TreeSet<>(entry.loaders())) + "\n\n" + entry.description());
         }
         GameInstance instance = instances.getValue();
-        if (instance != null) {
+        if (kind == ContentKind.MODS && instance != null) {
             String expected = switch (instance.loader()) {
                 case FABRIC -> "Fabric";
                 case FORGE -> "Forge";
@@ -550,6 +661,9 @@ public final class ModsPage extends RetroPage {
         }
         if (!mod.problem().isBlank()) {
             parts.add(mod.problem());
+        }
+        if (kind == ContentKind.RESOURCE_PACKS) {
+            parts.add("启用后可在游戏的资源包菜单中选择。");
         }
         parts.add("文件：" + mod.path().getFileName());
         description.setText(String.join("\n\n", parts));

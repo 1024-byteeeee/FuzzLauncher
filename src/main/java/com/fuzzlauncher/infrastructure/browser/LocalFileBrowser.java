@@ -2,6 +2,7 @@ package com.fuzzlauncher.infrastructure.browser;
 
 import com.fuzzlauncher.application.port.FileBrowser;
 import com.fuzzlauncher.infrastructure.filesystem.BrowserFiles;
+import com.fuzzlauncher.infrastructure.platform.windows.WindowsExplorer;
 import com.fuzzlauncher.infrastructure.platform.windows.WindowsFileClipboard;
 
 import java.io.IOException;
@@ -40,5 +41,9 @@ public final class LocalFileBrowser implements FileBrowser {
 
     public void recycle(Path source) throws IOException {
         BrowserFiles.recycle(source);
+    }
+
+    public void reveal(Path source) throws IOException {
+        WindowsExplorer.reveal(source);
     }
 }

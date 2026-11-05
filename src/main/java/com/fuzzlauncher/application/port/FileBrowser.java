@@ -26,4 +26,6 @@ public interface FileBrowser {
     Path rename(Path source, String name) throws IOException;
 
     void recycle(Path source) throws IOException;
+
+    void reveal(Path source) throws IOException;
 }

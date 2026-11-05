@@ -1,3 +1,5 @@
+import javax.inject.Inject
+
 plugins {
     id("java")
     id("application")
@@ -104,5 +106,80 @@ tasks.register('prepareJavafx', Sync) {
         include('**/*.dll')
         eachFile { path = "bin/${name}" }
         includeEmptyDirs = false
+    }
+}
+
+abstract class WindowsPackagingServices {
+    @Inject abstract ExecOperations getProcesses()
+    @Inject abstract FileSystemOperations getFiles()
+}
+
+def packaging = objects.newInstance(WindowsPackagingServices)
+def windowsJdk = javaToolchains.compilerFor(java.toolchain).map { it.metadata.installationPath }
+def packageInput = layout.buildDirectory.dir('package-input')
+def javafxInput = layout.buildDirectory.dir('javafx')
+def archive = tasks.named('jar', Jar).flatMap { it.archiveFileName }
+def icon = layout.projectDirectory.file('src/main/resources/com/fuzzlauncher/launcher.ico')
+def installerScript = layout.projectDirectory.file('FuzzLauncher.iss')
+def installerCompiler = providers.gradleProperty('isccPath').orElse('ISCC.exe')
+def buildId = new Date().format('yyyyMMdd-HHmmss-SSS')
+def destination = layout.projectDirectory.dir("dist/${buildId}")
+def runtime = layout.buildDirectory.dir("runtime-${buildId}")
+def vendor = '1024_byteeeee'
+def nativeVersion = providers.provider {
+    def match = launcherDisplayVersion =~ /^(\d+)\.(\d+)\.(\d+)/
+    if (!match.find()) {
+        throw new GradleException('Windows packaging requires a MAJOR.MINOR.PATCH application version.')
+    }
+    def segments = (1..3).collect { new BigInteger(match.group(it)) }
+    if (segments[0] > 255 || segments[1] > 255 || segments[2] > 65535) {
+        throw new GradleException('Windows installer version requires major/minor <= 255 and patch <= 65535.')
+    }
+    match.group()
+}
+
+def packageWindows = tasks.register('packageWindows') {
+    group = 'distribution'
+    description = 'Builds and tests the Windows launcher, then creates a portable application image.'
+    dependsOn(tasks.named('build'), tasks.named('preparePackage'), tasks.named('prepareJavafx'))
+    doLast {
+        def version = nativeVersion.get()
+        def jdk = windowsJdk.get()
+        def javafx = javafxInput.get()
+        def image = runtime.get()
+        packaging.processes.exec {
+            executable = jdk.file('bin/jlink.exe').asFile
+            args '--module-path', "${jdk.dir('jmods').asFile};${javafx.dir('lib').asFile}",
+                '--add-modules', 'java.se,javafx.controls,javafx.swing,jdk.httpserver,jdk.crypto.ec,jdk.unsupported,jdk.management',
+                '--strip-debug', '--no-header-files', '--no-man-pages',
+                '--exclude-files', 'glob:**/legal/**,glob:**/README*,glob:**/readme*', '--output', image.asFile
+        }
+        packaging.files.copy {
+            from(javafx.dir('bin'))
+            into(image.dir('bin'))
+        }
+        packaging.processes.exec {
+            executable = jdk.file('bin/jpackage.exe').asFile
+            args '--type', 'app-image', '--name', 'FuzzLauncher', '--dest', destination.asFile,
+                '--input', packageInput.get().asFile, '--main-jar', archive.get(), '--main-class', 'com.fuzzlauncher.Launcher',
+                '--runtime-image', image.asFile, '--app-version', version, '--vendor', vendor, '--icon', icon.asFile,
+                '--java-options', '--add-modules=javafx.controls,javafx.swing,jdk.httpserver,jdk.management'
+        }
+        logger.lifecycle("Portable application: ${destination.file('FuzzLauncher/FuzzLauncher.exe').asFile}")
+    }
+}
+
+tasks.register('packageWindowsInstaller') {
+    group = 'distribution'
+    description = 'Creates the portable Windows application and compiles its Inno Setup installer.'
+    dependsOn(packageWindows)
+    doLast {
+        def output = destination.dir('installer').asFile
+        packaging.processes.exec {
+            executable = installerCompiler.get()
+            args "/DAppVersion=${nativeVersion.get()}", "/DSrcDir=${destination.dir('FuzzLauncher').asFile}",
+                "/DOutputDir=${output}", installerScript.asFile
+        }
+        logger.lifecycle("Windows installer: ${output}")
     }
 }
