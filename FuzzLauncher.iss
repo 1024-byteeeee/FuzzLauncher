@@ -117,3 +117,9 @@ begin
   SetWindowTheme(UninstallProgressForm.CancelButton.Handle, ' ', ' ');
   ClassicProgress(UninstallProgressForm.ProgressBar.Handle);
 end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = wpFinished then
+    WizardForm.NextButton.Left := WizardForm.CancelButton.Left + WizardForm.CancelButton.Width - WizardForm.NextButton.Width;
+end;
