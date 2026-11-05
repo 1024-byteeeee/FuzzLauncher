@@ -117,9 +117,9 @@ public final class LocalGameLauncher implements GameLauncher {
         }
         Process process = new ProcessBuilder(command).directory(gameDir.toFile()).redirectErrorStream(true).start();
         Thread.ofVirtual().name("game-log-" + process.pid()).start(() -> {
-            try (BufferedReader input = process.inputReader(outputEncoding);
+            try (var input = process.getInputStream();
                 BufferedWriter output = Files.newBufferedWriter(log, StandardCharsets.UTF_8)) {
-                GameLogText.transfer(input, output, token);
+                GameLogText.transfer(input, outputEncoding, output, token);
             } catch (IOException ex) {
                 System.err.println("游戏日志写入失败: " + ex.getClass().getSimpleName());
             }

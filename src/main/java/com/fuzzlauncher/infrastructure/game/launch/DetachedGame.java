@@ -96,8 +96,8 @@ public final class DetachedGame {
             Process game = new ProcessBuilder(command).directory(directory.toFile()).redirectErrorStream(true).start();
             System.out.println("STARTED");
             System.out.flush();
-            try (BufferedReader input = game.inputReader(encoding)) {
-                GameLogText.transfer(input, output, token);
+            try (InputStream input = game.getInputStream()) {
+                GameLogText.transfer(input, encoding, output, token);
             }
             code = game.waitFor();
         }

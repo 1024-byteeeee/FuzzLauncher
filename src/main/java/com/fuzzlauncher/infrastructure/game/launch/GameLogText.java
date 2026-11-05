@@ -4,9 +4,18 @@ import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import java.io.BufferedReader;
+import java.io.BufferedInputStream;
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.StringReader;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -23,6 +32,50 @@ final class GameLogText {
     }
 
     static void transfer(BufferedReader input, BufferedWriter output, String token) throws IOException {
+        transfer(input::readLine, output, token);
+    }
+
+    static void transfer(InputStream input, Charset consoleEncoding, BufferedWriter output, String token) throws IOException {
+        if (consoleEncoding.equals(StandardCharsets.UTF_8)
+            || !Arrays.equals("\r\n".getBytes(consoleEncoding), new byte[] {13, 10})) {
+            transfer(new BufferedReader(new InputStreamReader(input, consoleEncoding)), output, token);
+            return;
+        }
+        var stream = new BufferedInputStream(input);
+        var line = new ByteArrayOutputStream();
+        var utf8 = StandardCharsets.UTF_8.newDecoder();
+        transfer(() -> {
+            line.reset();
+            int next = stream.read();
+            if (next == -1) {
+                return null;
+            }
+            while (next != -1 && next != '\n' && next != '\r') {
+                line.write(next);
+                next = stream.read();
+            }
+            if (next == '\r') {
+                stream.mark(1);
+                if (stream.read() != '\n') {
+                    stream.reset();
+                }
+            }
+            byte[] bytes = line.toByteArray();
+            // Log4j can write UTF-8 bytes directly even when the JVM console uses GBK.
+            try {
+                return utf8.decode(ByteBuffer.wrap(bytes)).toString();
+            } catch (CharacterCodingException ex) {
+                return new String(bytes, consoleEncoding);
+            }
+        }, output, token);
+    }
+
+    @FunctionalInterface
+    private interface LineReader {
+        String readLine() throws IOException;
+    }
+
+    private static void transfer(LineReader input, BufferedWriter output, String token) throws IOException {
         XMLInputFactory factory = xmlFactory();
         StringBuilder event = new StringBuilder();
         boolean cdata = false;

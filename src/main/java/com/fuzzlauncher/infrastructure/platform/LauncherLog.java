@@ -4,6 +4,7 @@ import com.fuzzlauncher.application.model.FileOperationResult;
 import com.fuzzlauncher.application.task.TaskContext;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
@@ -28,6 +29,7 @@ public final class LauncherLog {
     private static void open(Path logs) throws IOException {
         FileHandler handler = new FileHandler(logs.resolve("launcher.log").toString(), 1024 * 1024, 3, true);
         handler.setFormatter(new SimpleFormatter());
+        handler.setEncoding(StandardCharsets.UTF_8.name());
         LOGGER.addHandler(handler);
     }
 

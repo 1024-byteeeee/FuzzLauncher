@@ -217,10 +217,10 @@ class UiSmokeTest {
                 throws Exception {
                 int number = launches.incrementAndGet();
                 Path log = data.resolve(number + ".log");
-                String java = Path.of(System.getProperty("java.home"), "bin", "java.exe").toString();
+                String executable = Path.of(System.getProperty("java.home"), "bin", "java.exe").toString();
                 String classes = Path.of(TestGameOutput.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toString();
-                Process relay = DetachedGame.start(List.of(java, "-cp", classes, TestGameOutput.class.getName(),
-                    Boolean.toString(number == 1)), data, log, "fixture-secret");
+                Process relay = DetachedGame.start(List.of(executable, "-cp", classes, TestGameOutput.class.getName(),
+                    Boolean.toString(number == 1)), data, log, "fixture-secret", java.nio.charset.Charset.forName("GBK"));
                 var game = new RunningGame(relay, log);
                 running.set(game);
                 return game;
@@ -272,9 +272,13 @@ class UiSmokeTest {
             ListView<GameLogEntry> output = (ListView<GameLogEntry>) pane.lookup("#test-game-log-output");
             waitForFx(() -> output.getItems().stream().anyMatch(entry -> entry.text().contains("last [REDACTED]")));
             assertTrue(output.getItems().stream().noneMatch(entry -> entry.text().contains("fixture-secret")));
+            assertTrue(output.getItems().stream().anyMatch(entry -> entry.text().contains("旧版控制台中文")));
+            assertTrue(output.getItems().stream().anyMatch(entry -> entry.text().contains("游戏中文日志")));
             assertTrue(output.getItems().stream().noneMatch(entry -> entry.text().contains("<log4j:")));
             String savedLog = Files.readString(running.get().log());
             assertTrue(savedLog.contains("[Render thread/WARN]: last [REDACTED]"));
+            assertTrue(savedLog.contains("旧版控制台中文"));
+            assertTrue(savedLog.contains("游戏中文日志"));
             assertFalse(savedLog.contains("log4j:"));
             assertFalse(savedLog.contains("fixture-secret"));
             assertTrue(Files.size(running.get().log()) > 128 * 1024);
@@ -282,6 +286,7 @@ class UiSmokeTest {
             ToggleButton warn = (ToggleButton) pane.lookup("#game-log-warn-filter");
             assertEquals("WARN 1", warn.getText());
             assertEquals(GameLogEntry.Level.WARN, output.getItems().getLast().level());
+            output.scrollTo(output.getItems().size() - 1);
             waitForFx(() -> output.lookupAll(".list-cell.game-log-warn").stream()
                 .filter(ListCell.class::isInstance).map(ListCell.class::cast)
                 .anyMatch(cell -> cell.getBackground() != null && cell.getBackground().getFills().stream()
@@ -358,11 +363,12 @@ class UiSmokeTest {
                 System.out.println("fixture line " + i + " " + "x".repeat(100));
             }
             System.out.println("[15:45:19] [Render thread/ERROR]: ordinary error");
-            System.err.println("""
+            System.out.writeBytes("旧版控制台中文\n".getBytes(java.nio.charset.Charset.forName("GBK")));
+            System.err.writeBytes("""
                 <log4j:Event logger="fixture" timestamp="1793864770320" level="WARN" thread="Render thread">
-                  <log4j:Message><![CDATA[last fixture-secret]]></log4j:Message>
+                  <log4j:Message><![CDATA[last fixture-secret 游戏中文日志]]></log4j:Message>
                 </log4j:Event>
-                """);
+                """.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             if (Boolean.parseBoolean(args[0])) {
                 Thread.sleep(20_000);
             }
