@@ -70,7 +70,7 @@ Windows 打包使用完整 JDK 21 的 `jlink` 和 `jpackage`，每次生成新�
 
 工作流检出该标签的源码，在 Windows x64 上使用 Zulu JDK 21 和经 SHA-256 校验的 Inno Setup 6.5.4，执行构建及核心测试，然后上传到同一个 Release：
 
-- `FuzzLauncher-<版本>-windows-x64-setup.exe`：简体中文安装程序，发布者为 `1024_byteeeee`，内置启动器所需的 Java/JavaFX。双击安装器后先请求管理员权限，再选择安装范围。为所有用户安装时，程序默认安装到 `%ProgramFiles%\FuzzLauncher`，每位用户的游戏、配置和基础版本默认保存在自己的 `%LOCALAPPDATA%\FuzzLauncher`。仅为当前用户安装时，向导以启动安装器的用户身份继续，默认安装到 `%LOCALAPPDATA%\Programs\FuzzLauncher`，游戏和数据默认保存在程序旁。安装器保留已有数据。
+- `FuzzLauncher-<版本>-windows-x64-setup.exe`：简体中文安装程序，发布者为 `1024_byteeeee`，内置启动器所需的 Java/JavaFX。安装需要管理员权限，为所有用户安装，默认目录为 `%ProgramFiles%\FuzzLauncher`。每位用户的游戏、配置和基础版本默认保存在自己的 `%LOCALAPPDATA%\FuzzLauncher`。安装器保留已有数据。
 - `FuzzLauncher-<版本>-windows-x64-portable.zip`：解压后运行的便携版，需保留完整目录。
 - `SHA256SUMS.txt`：以上文件的 SHA-256 校验值。
 
