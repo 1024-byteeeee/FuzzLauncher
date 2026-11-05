@@ -97,6 +97,31 @@ class BaseVersionsTest {
     }
 
     @Test
+    void existingInstanceResolvesAfterCacheMovesToUserDirectory() throws Exception {
+        Path root = temp.resolve("game");
+        Path previous = temp.resolve("launcher/baseVerisons");
+        Path current = temp.resolve("user/baseVerisons");
+        String version = "1.21.8";
+        Path oldJson = previous.resolve(version).resolve(version + ".json");
+        Path oldJar = previous.resolve(version).resolve(version + ".jar");
+        JsonFiles.write(oldJson, Map.of("id", version, "mainClass", "Main"));
+        Files.writeString(oldJar, "client");
+        var instance = new GameInstance("id", "现有实例", version, LoaderType.FABRIC, "1", IsolationOverride.ISOLATED, 4096);
+        JsonFiles.write(InstanceDirectories.profile(root, instance), Map.of("id", "id", "inheritsFrom", version));
+
+        var cache = new BaseVersions(current, previous);
+        var resolver = new VersionResolver(cache);
+        assertEquals("Main", resolver.resolveInstance(root, instance).get("mainClass").getAsString());
+        assertEquals("client", Files.readString(cache.client(root, version)));
+        assertTrue(Files.isRegularFile(oldJson));
+        assertEquals("client", Files.readString(oldJar));
+
+        Files.writeString(cache.client(root, version), "new client");
+        cache.migrate(root, version);
+        assertEquals("new client", Files.readString(cache.client(root, version)));
+    }
+
+    @Test
     void legacyBaseMovesOutOfVersionsWithoutMovingOwnedInstanceData() throws Exception {
         Path root = temp.resolve("game");
         Path folder = root.resolve("versions/1.21.8");

@@ -108,7 +108,8 @@ public final class FuzzApplication extends Application {
             http.setDownloadSource(settings.load().downloadSource());
             http.setDownloadConcurrency(settings.load().effectiveDownloadThreads(LauncherConfig.get().network().concurrency()));
             VersionCatalog catalog = new VersionCatalog(http, data.resolve("cache/catalogs"));
-            BaseVersions baseVersions = new BaseVersions(LauncherPaths.gameStorageDirectory().resolve("baseVerisons"));
+            BaseVersions baseVersions = new BaseVersions(LauncherPaths.gameStorageDirectory().resolve("baseVerisons"),
+                LauncherPaths.directory().resolve("baseVerisons"));
             VersionResolver resolver = new VersionResolver(baseVersions);
             GameFiles files = new GameFiles(http, baseVersions);
             JavaRuntimeManager runtimes = new JavaRuntimeManager(data.resolve("runtimes"));
