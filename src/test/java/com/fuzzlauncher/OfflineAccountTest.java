@@ -86,6 +86,7 @@ class OfflineAccountTest {
               public static void main(String[] args) throws Exception {
                 java.nio.file.Files.writeString(java.nio.file.Path.of("received.txt"), String.join("\\n", args));
                 System.out.println("offline-probe-0");
+                System.out.println("<log4j:Event thread='main' level='WARN'><log4j:Message>log-format-probe</log4j:Message></log4j:Event>");
               }
             }
             """);
@@ -139,11 +140,19 @@ class OfflineAccountTest {
             assertTrue(received.contains("--uuid\n" + account.uuid()));
             assertTrue(received.contains("--accessToken\n0"));
             assertTrue(received.contains("--userType\nlegacy"));
-            for (int attempt = 0; attempt < 30
-                && (!Files.exists(running.log()) || !Files.readString(running.log()).contains("offline-probe-0")); attempt++) {
+            String output = "";
+            for (int attempt = 0; attempt < 30 && !output.contains("log-format-probe"); attempt++) {
+                if (Files.exists(running.log())) {
+                    output = Files.readString(running.log());
+                }
+                if (output.contains("log-format-probe")) {
+                    break;
+                }
                 Thread.sleep(50);
             }
-            assertTrue(Files.readString(running.log()).contains("offline-probe-0"));
+            assertTrue(output.contains("offline-probe-0"));
+            assertTrue(output.contains("[main/WARN]: log-format-probe"));
+            assertFalse(output.contains("log4j:"));
         } finally {
             running.process().destroyForcibly();
         }

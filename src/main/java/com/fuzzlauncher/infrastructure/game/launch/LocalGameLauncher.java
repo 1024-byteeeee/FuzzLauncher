@@ -109,23 +109,17 @@ public final class LocalGameLauncher implements GameLauncher {
         Files.createDirectories(logs);
         Path log = logs.resolve(instance.id() + "-" + System.currentTimeMillis() + ".log");
         task.report("正在启动 " + instance.name(), -1);
+        String token = account.isOffline() ? "" : session.accessToken();
         if (settings.launcherVisibility() == LauncherVisibility.EXIT) {
-            Process detached = DetachedGame.start(command, gameDir, log, account.isOffline() ? "" : session.accessToken(), outputEncoding);
+            Process detached = DetachedGame.start(command, gameDir, log, token, outputEncoding);
             task.report("游戏已启动", 1);
             return new RunningGame(detached, log);
         }
         Process process = new ProcessBuilder(command).directory(gameDir.toFile()).redirectErrorStream(true).start();
-        String token = session.accessToken();
-        boolean redactToken = !account.isOffline();
         Thread.ofVirtual().name("game-log-" + process.pid()).start(() -> {
             try (BufferedReader input = process.inputReader(outputEncoding);
                 BufferedWriter output = Files.newBufferedWriter(log, StandardCharsets.UTF_8)) {
-                String line;
-                while ((line = input.readLine()) != null) {
-                    output.write(redactToken ? line.replace(token, "[REDACTED]") : line);
-                    output.newLine();
-                    output.flush();
-                }
+                GameLogText.transfer(input, output, token);
             } catch (IOException ex) {
                 System.err.println("游戏日志写入失败: " + ex.getClass().getSimpleName());
             }

@@ -282,6 +282,10 @@ class UiSmokeTest {
             ToggleButton warn = (ToggleButton) pane.lookup("#game-log-warn-filter");
             assertEquals("WARN 1", warn.getText());
             assertEquals(GameLogEntry.Level.WARN, output.getItems().getLast().level());
+            waitForFx(() -> output.lookupAll(".list-cell.game-log-warn").stream()
+                .filter(ListCell.class::isInstance).map(ListCell.class::cast)
+                .anyMatch(cell -> cell.getBackground() != null && cell.getBackground().getFills().stream()
+                    .anyMatch(fill -> Color.web("#fff2c7").equals(fill.getFill()))));
             warn.fire();
             assertTrue(output.getItems().stream().noneMatch(entry -> entry.level() == GameLogEntry.Level.WARN));
             assertEquals("WARN 1", warn.getText());
