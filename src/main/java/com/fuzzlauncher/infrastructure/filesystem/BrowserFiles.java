@@ -187,8 +187,7 @@ public final class BrowserFiles {
                 // COPY_ATTRIBUTES may have copied the DOS read-only flag into our private
                 // workspace.
                 if (workspace && !Files.isSymbolicLink(file)) {
-                    var dos = Files.getFileAttributeView(file, DosFileAttributeView.class,
-                        LinkOption.NOFOLLOW_LINKS);
+                    var dos = Files.getFileAttributeView(file, DosFileAttributeView.class, LinkOption.NOFOLLOW_LINKS);
                     if (dos != null && dos.readAttributes().isReadOnly()) {
                         dos.setReadOnly(false);
                     }

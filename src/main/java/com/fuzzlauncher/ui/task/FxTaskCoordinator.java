@@ -17,8 +17,7 @@ public final class FxTaskCoordinator implements AutoCloseable {
         T execute(TaskContext context) throws Exception;
     }
 
-    private final ExecutorService executor = Executors
-        .newSingleThreadExecutor(Thread.ofPlatform().name("fuzz-operations").daemon(true).factory());
+    private final ExecutorService executor = Executors.newSingleThreadExecutor(Thread.ofPlatform().name("fuzz-operations").daemon(true).factory());
     private Task<?> active;
     private final Object commitGate = new Object();
     private boolean committing;

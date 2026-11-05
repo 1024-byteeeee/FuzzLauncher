@@ -33,8 +33,7 @@ public final class LoaderVersionDialog extends Dialog<ButtonType> {
         Button refresh = new Button("刷新");
         refresh.setId("refresh-loader-versions");
         refresh.disableProperty().bind(vm.busyProperty());
-        refresh.setOnAction(event -> vm.catalogModel().loadLoaders(instance.loader(),
-            new GameVersion(instance.gameVersion(), "release", "", ""), this, true));
+        refresh.setOnAction(event -> vm.catalogModel().loadLoaders(instance.loader(), new GameVersion(instance.gameVersion(), "release", "", ""), this, true));
         refresh.setMinWidth(Region.USE_PREF_SIZE);
         refresh.minHeightProperty().bind(versions.heightProperty());
         refresh.prefHeightProperty().bind(versions.heightProperty());

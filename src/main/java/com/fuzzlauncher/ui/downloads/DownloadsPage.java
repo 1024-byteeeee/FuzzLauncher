@@ -137,14 +137,12 @@ public final class DownloadsPage extends RetroPage {
         refresh.prefHeightProperty().bind(type.heightProperty());
         refresh.maxHeightProperty().bind(type.heightProperty());
         refresh.disableProperty().bind(vm.busyProperty());
-        Button refreshLoader = button("刷新加载器",
-            () -> vm.catalogModel().loadLoaders(loader.getValue(), games.getSelectionModel().getSelectedItem(), this, true));
+        Button refreshLoader = button("刷新加载器", () -> vm.catalogModel().loadLoaders(loader.getValue(), games.getSelectionModel().getSelectedItem(), this, true));
         refreshLoader.disableProperty().bind(vm.busyProperty().or(games.getSelectionModel().selectedItemProperty().isNull())
             .or(loader.valueProperty().isEqualTo(LoaderType.VANILLA)));
         Button install = button("下载并安装", () -> vm.gamesModel().install(games.getSelectionModel().getSelectedItem(), loader.getValue(),
             loaderVersion.getValue(), name.getText()));
-        install.disableProperty()
-            .bind(vm.busyProperty().or(games.getSelectionModel().selectedItemProperty().isNull()).or(name.textProperty().isEmpty()));
+        install.disableProperty().bind(vm.busyProperty().or(games.getSelectionModel().selectedItemProperty().isNull()).or(name.textProperty().isEmpty()));
         games.disableProperty().bind(vm.busyProperty());
         loader.disableProperty().bind(vm.busyProperty());
         type.disableProperty().bind(vm.busyProperty());

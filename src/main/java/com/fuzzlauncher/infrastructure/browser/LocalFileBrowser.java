@@ -23,8 +23,7 @@ public final class LocalFileBrowser implements FileBrowser {
     }
 
     public void completeCut(ClipboardContents contents, List<Path> completed) throws IOException {
-        WindowsFileClipboard.completeCut(new WindowsFileClipboard.Contents(contents.paths(), contents.move(), contents.sequence()),
-            completed);
+        WindowsFileClipboard.completeCut(new WindowsFileClipboard.Contents(contents.paths(), contents.move(), contents.sequence()), completed);
     }
 
     public Path paste(Path source, Path destination, boolean move, boolean rename) throws IOException {

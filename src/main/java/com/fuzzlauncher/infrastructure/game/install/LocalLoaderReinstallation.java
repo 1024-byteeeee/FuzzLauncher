@@ -34,8 +34,7 @@ public final class LocalLoaderReinstallation {
     private final Map<LoaderType, LoaderInstaller> installers;
     private final OperationJournal.Store recovery;
 
-    public LocalLoaderReinstallation(InstanceRepository repository, GameFiles files, VersionResolver resolver,
-        Map<LoaderType, LoaderInstaller> installers) {
+    public LocalLoaderReinstallation(InstanceRepository repository, GameFiles files, VersionResolver resolver, Map<LoaderType, LoaderInstaller> installers) {
         this(repository, files, resolver, installers, null);
     }
 
@@ -179,8 +178,7 @@ public final class LocalLoaderReinstallation {
                         List<GameInstance> previous = repository.findAll();
                         List<GameInstance> next = previous.stream()
                             .map(instance -> instance.id().equals(original.id()) ? replacement : instance).toList();
-                        operation.configuration(recovery.dataDirectory().resolve("instances.json"), Map.of("instances", next),
-                            Map.of("instances", previous));
+                        operation.configuration(recovery.dataDirectory().resolve("instances.json"), Map.of("instances", next), Map.of("instances", previous));
                     }
                     JsonFiles.write(profile, fresh);
                     repository.save(replacement);
@@ -310,8 +308,7 @@ public final class LocalLoaderReinstallation {
                         artifacts.add(downloads.getAsJsonObject("artifact"));
                     }
                     if (downloads.has("classifiers")) {
-                        downloads.getAsJsonObject("classifiers").entrySet()
-                            .forEach(entry -> artifacts.add(entry.getValue().getAsJsonObject()));
+                        downloads.getAsJsonObject("classifiers").entrySet().forEach(entry -> artifacts.add(entry.getValue().getAsJsonObject()));
                     }
                     for (JsonObject artifact : artifacts) {
                         result.add(root.relativize(JsonFiles.safeResolve(root.resolve("libraries"), artifact.get("path").getAsString())));

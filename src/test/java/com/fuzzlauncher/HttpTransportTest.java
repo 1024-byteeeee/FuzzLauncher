@@ -46,8 +46,7 @@ class HttpTransportTest {
             Thread responder = Thread.startVirtualThread(() -> {
                 while (!server.isClosed()) {
                     try (var socket = server.accept()) {
-                        socket.getOutputStream()
-                            .write("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
+                        socket.getOutputStream().write("HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
                     } catch (IOException ignored) {
                         return;
                     }

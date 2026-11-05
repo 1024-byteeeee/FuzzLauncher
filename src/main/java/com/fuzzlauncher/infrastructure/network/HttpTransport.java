@@ -228,8 +228,7 @@ public final class HttpTransport {
                         }
                         long total;
                         if (status == 206) {
-                            var range = Pattern.compile("bytes (\\d+)-(\\d+)/(\\d+)")
-                                .matcher(response.headers().firstValue("Content-Range").orElse(""));
+                            var range = Pattern.compile("bytes (\\d+)-(\\d+)/(\\d+)").matcher(response.headers().firstValue("Content-Range").orElse(""));
                             if (offset == 0 || !range.matches() || Long.parseLong(range.group(1)) != offset
                                 || Long.parseLong(range.group(2)) < offset
                                 || Long.parseLong(range.group(3)) <= Long.parseLong(range.group(2))) {

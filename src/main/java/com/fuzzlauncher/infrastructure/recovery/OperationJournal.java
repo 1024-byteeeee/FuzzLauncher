@@ -36,8 +36,7 @@ public final class OperationJournal {
             allowed.add(PhysicalPaths.physical(dataDirectory).toString());
             Path work = Files.createDirectories(directory).resolve(UUID.randomUUID().toString());
             Files.createDirectory(work);
-            OperationJournal journal = new OperationJournal(work,
-                new State(1, kind, "PENDING", allowed, new ArrayList<>(), new ArrayList<>()));
+            OperationJournal journal = new OperationJournal(work, new State(1, kind, "PENDING", allowed, new ArrayList<>(), new ArrayList<>()));
             journal.save();
             return journal;
         }

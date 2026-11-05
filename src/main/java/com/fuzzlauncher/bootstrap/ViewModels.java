@@ -4,6 +4,7 @@ import com.fuzzlauncher.application.model.LauncherOptions;
 import com.fuzzlauncher.application.port.AccountAuthenticator;
 import com.fuzzlauncher.application.port.AccountAvatars;
 import com.fuzzlauncher.application.port.FileBrowser;
+import com.fuzzlauncher.application.port.GameLauncher;
 import com.fuzzlauncher.application.port.InstanceRepository;
 import com.fuzzlauncher.application.usecase.mod.ManageMods;
 import com.fuzzlauncher.domain.settings.DownloadSource;
@@ -12,7 +13,6 @@ import com.fuzzlauncher.infrastructure.config.LauncherConfig;
 import com.fuzzlauncher.infrastructure.filesystem.BaseVersions;
 import com.fuzzlauncher.infrastructure.game.catalog.VersionCatalog;
 import com.fuzzlauncher.infrastructure.game.install.LocalGameInstallation;
-import com.fuzzlauncher.infrastructure.game.launch.LocalGameLauncher;
 import com.fuzzlauncher.infrastructure.instance.LocalInstanceOperations;
 import com.fuzzlauncher.infrastructure.mod.ModFiles;
 import com.fuzzlauncher.infrastructure.modpack.LocalModpackOperations;
@@ -35,17 +35,17 @@ public final class ViewModels {
     }
 
     public static LauncherViewModel create(SettingsStore settings, InstanceRepository repository, VersionCatalog catalog,
-        AccountAuthenticator auth, LocalGameInstallation install, LocalGameLauncher launch) throws IOException {
+        AccountAuthenticator auth, LocalGameInstallation install, GameLauncher launch) throws IOException {
         return create(settings, repository, catalog, auth, install, launch, null);
     }
 
     public static LauncherViewModel create(SettingsStore settings, InstanceRepository repository, VersionCatalog catalog,
-        AccountAuthenticator auth, LocalGameInstallation install, LocalGameLauncher launch, AccountAvatars avatars) throws IOException {
+        AccountAuthenticator auth, LocalGameInstallation install, GameLauncher launch, AccountAvatars avatars) throws IOException {
         return create(settings, repository, catalog, auth, install, launch, avatars, null, null);
     }
 
     public static LauncherViewModel create(SettingsStore settings, InstanceRepository repository, VersionCatalog catalog,
-        AccountAuthenticator auth, LocalGameInstallation install, LocalGameLauncher launch, AccountAvatars avatars, LocalModpacks modpacks,
+        AccountAuthenticator auth, LocalGameInstallation install, GameLauncher launch, AccountAvatars avatars, LocalModpacks modpacks,
         OperationJournal.Store recovery) throws IOException {
         BaseVersions versions = install == null ? new BaseVersions() : install.baseVersions();
         Map<DownloadSource, LauncherOptions.Source> sources = new EnumMap<>(DownloadSource.class);
@@ -54,10 +54,12 @@ public final class ViewModels {
             var entry = config.downloads().sources().get(source.name());
             sources.put(source, new LauncherOptions.Source(entry.label(), entry.website()));
         }
-        LauncherOptions options = new LauncherOptions(config.network().concurrency(), config.defaults().maxMemoryMb(),
-            config.defaults().jvmArguments(), sources);
-        return new LauncherViewModel(new LauncherServices(settings, repository, catalog, auth, install, launch, avatars,
-            new LocalInstanceOperations(repository, versions), new LocalSettingsOperations(settings, repository, versions, recovery),
-            new LocalModpackOperations(modpacks), new ManageMods(new ModFiles()), options, fileBrowser()));
+        LauncherOptions options = new LauncherOptions(config.network().concurrency(), config.defaults().maxMemoryMb(), config.defaults().jvmArguments(), sources);
+        return
+            new LauncherViewModel(
+                new LauncherServices(settings, repository, catalog, auth, install, launch, avatars,
+                new LocalInstanceOperations(repository, versions), new LocalSettingsOperations(settings, repository, versions, recovery),
+                new LocalModpackOperations(modpacks), new ManageMods(new ModFiles()), options, fileBrowser())
+            );
     }
 }

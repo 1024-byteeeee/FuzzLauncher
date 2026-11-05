@@ -157,8 +157,7 @@ public final class LocalModpacks {
             List<String> publish = new ArrayList<>(changes);
             publish.add(ModpackArchive.STATE);
             if (components) {
-                JsonFiles.write(staged.resolve(InstanceDirectories.PROFILE),
-                    installer.prepareModpackProfile(root, updated, game(updated.gameVersion()), task));
+                JsonFiles.write(staged.resolve(InstanceDirectories.PROFILE), installer.prepareModpackProfile(root, updated, game(updated.gameVersion()), task));
                 publish.add(InstanceDirectories.PROFILE);
             }
             List<String> backedUp = new ArrayList<>(), installed = new ArrayList<>();

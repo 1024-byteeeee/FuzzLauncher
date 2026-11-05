@@ -66,8 +66,7 @@ class LauncherVisibilityTest {
         } finally {
             parent.destroyForcibly();
         }
-        assertThrows(IOException.class,
-            () -> DetachedGame.start(List.of(temp.resolve("missing.exe").toString()), temp, temp.resolve("failed.log"), ""));
+        assertThrows(IOException.class, () -> DetachedGame.start(List.of(temp.resolve("missing.exe").toString()), temp, temp.resolve("failed.log"), ""));
         Process failedGame = DetachedGame.start(List.of(executable, "-cp", classes, Fixture.class.getName(), "0", "7"), temp,
             temp.resolve("nonzero.log"), "private-token");
         try {

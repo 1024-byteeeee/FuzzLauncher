@@ -22,8 +22,11 @@ public final class JvmDefaults {
         boolean customProxy = existing.stream()
             .anyMatch(argument -> argument.startsWith("-Djava.net.useSystemProxies") || argument.startsWith("-Dhttp.proxy")
                 || argument.startsWith("-Dhttps.proxy") || argument.startsWith("-DsocksProxy") || argument.startsWith("-Djava.net.socks."));
-        String encoding = existing.stream().filter(argument -> argument.startsWith("-Dfile.encoding=")).reduce((first, last) -> last)
-            .map(argument -> argument.substring("-Dfile.encoding=".length())).filter(value -> !value.equals("COMPAT"))
+        String encoding = existing.stream()
+            .filter(argument -> argument.startsWith("-Dfile.encoding="))
+            .reduce((first, last) -> last)
+            .map(argument -> argument.substring("-Dfile.encoding=".length()))
+            .filter(value -> !value.equals("COMPAT"))
             .orElse(environment.encoding());
         List<String> result = new ArrayList<>();
         for (var rule : LauncherConfig.get().jvmRules()) {

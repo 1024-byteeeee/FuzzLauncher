@@ -88,8 +88,7 @@ class ModpacksTest {
             .parseString(broken ? "{\"inheritsFrom\":\"base\",\"libraries\":[{\"name\":\"missing:generated:1\",\"url\":\"\"}]}"
                 : "{\"inheritsFrom\":\"" + game.id() + "\"}")
             .getAsJsonObject();
-        return new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(),
-            Map.of(LoaderType.FABRIC, loader));
+        return new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of(LoaderType.FABRIC, loader));
     }
 
     @Test
@@ -105,11 +104,9 @@ class ModpacksTest {
             for (int i = 0; i < count; i++) {
                 Files.write(source.resolve("mods/fixture-" + i + ".jar"), bytes);
             }
-            GameInstance original = new GameInstance("export", name, game.id(), LoaderType.FABRIC, "0.16.0",
-                IsolationOverride.INHERIT, 4096);
+            GameInstance original = new GameInstance("export", name, game.id(), LoaderType.FABRIC, "0.16.0", IsolationOverride.INHERIT, 4096);
             Path archive = temp.resolve(name + "/pack.zip");
-            ModpackArchive.export(source, original, ModpackFormat.MCBBS, name, "1", "author", "description", base,
-                Set.of("mods"), archive, false, task);
+            ModpackArchive.export(source, original, ModpackFormat.MCBBS, name, "1", "author", "description", base, Set.of("mods"), archive, false, task);
             Path data = temp.resolve(name + "/data"), root = temp.resolve(name + "/game");
             var repository = new JsonInstanceRepository(data);
             HttpTransport http = new HttpTransport();
@@ -122,8 +119,7 @@ class ModpacksTest {
             GameInstance imported = service.importPack(root, archive, name, true, task);
             long millis = (System.nanoTime() - started) / 1_000_000;
             assertEquals(bytes.length, Files.size(InstanceDirectories.directory(root, imported).resolve("mods/fixture-0.jar")));
-            System.out.printf(Locale.ROOT, "Import benchmark %s: %d files, %d bytes, %d ms%n", name, count,
-                (long) count * bytes.length, millis);
+            System.out.printf(Locale.ROOT, "Import benchmark %s: %d files, %d bytes, %d ms%n", name, count, (long) count * bytes.length, millis);
         }
     }
 
@@ -139,8 +135,7 @@ class ModpacksTest {
         Files.writeString(file, "{}");
         GameInstance original = new GameInstance("export", "pack", "base", LoaderType.FABRIC, "0.16.0", IsolationOverride.INHERIT, 4096);
         Path archive = temp.resolve("long-pack.zip");
-        ModpackArchive.export(source, original, ModpackFormat.MCBBS, "pack", "1", "author", "description", base,
-            Set.of("saves"), archive, false, task);
+        ModpackArchive.export(source, original, ModpackFormat.MCBBS, "pack", "1", "author", "description", base, Set.of("saves"), archive, false, task);
         Path data = temp.resolve("data"), root = temp.resolve("game");
         var repository = new JsonInstanceRepository(data);
         HttpTransport http = new HttpTransport();

@@ -19,16 +19,34 @@ import javafx.util.StringConverter;
 
 import java.io.IOException;
 import java.nio.file.*;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 /** SettingsPage presentation; all application operations are delegated to the ViewModel. */
 public final class SettingsPage extends RetroPage {
     private final LauncherViewModel vm;
+    private BooleanSupplier unsavedChanges;
 
     public SettingsPage(Stage stage, LauncherViewModel vm, Consumer<Integer> navigate) {
         super(stage, navigate);
         this.vm = vm;
         setCenter(build());
+    }
+
+    public boolean confirmLeave() {
+        if (vm.savingSettingsProperty().get()) {
+            return false;
+        }
+        if (!unsavedChanges.getAsBoolean()) {
+            return true;
+        }
+        ButtonType discard = new ButtonType("放弃更改", ButtonBar.ButtonData.NO);
+        ButtonType edit = new ButtonType("继续编辑", ButtonBar.ButtonData.CANCEL_CLOSE);
+        Alert question = RetroDialogs.alert(stage, Alert.AlertType.CONFIRMATION, "未保存的设置", "设置有未保存的更改。是否放弃更改并离开设置页？");
+        question.getDialogPane().setId("unsaved-settings-question");
+        question.getButtonTypes().setAll(discard, edit);
+        ((Button) question.getDialogPane().lookupButton(edit)).setDefaultButton(true);
+        return question.showAndWait().filter(discard::equals).isPresent();
     }
 
     private Node build() {
@@ -104,6 +122,17 @@ public final class SettingsPage extends RetroPage {
         Label automaticCount = new Label("自动：" + vm.options().automaticDownloads());
         HBox parallelism = new HBox(12, automaticDownloads, downloadThreads, automaticCount);
         parallelism.setAlignment(Pos.CENTER_LEFT);
+        unsavedChanges = () -> {
+            LauncherSettings saved = vm.settingsProperty().get();
+            Path defaultData = vm.dataDirectory();
+            String savedData = saved.dataDirectory().isBlank() ? defaultData.toString() : saved.dataDirectory();
+            String enteredData = dataPath.getText().isBlank() ? defaultData.toString() : dataPath.getText();
+            return !samePath(root.getText(), saved.gameRoot()) || !samePath(enteredData, savedData)
+                || mode.getValue() != saved.isolation() || source.getValue() != saved.downloadSource()
+                || visibility.getValue() != saved.launcherVisibility()
+                || automaticDownloads.isSelected() != saved.autoDownloadThreads()
+                || !sameDownloadCount(downloadThreads, automaticDownloads.isSelected(), saved.downloadThreads());
+        };
         Button save = button("保存设置", () -> {
             try {
                 if (!automaticDownloads.isSelected()) {
@@ -124,7 +153,8 @@ public final class SettingsPage extends RetroPage {
                 boolean rootChanged = !vm.settingsModel().sameDirectory(normalized, Path.of(vm.settingsProperty().get().gameRoot()));
                 Path requested = dataPath.getText().isBlank() ? vm.dataDirectory()
                     : Path.of(dataPath.getText()).toAbsolutePath().normalize();
-                if (mode.getValue() != config.isolation() && !confirm("更改全局隔离模式", "跟随全局设置的实例将切换游戏目录。\n旧存档和模组保留在原目录，不会自动迁移。是否继续？")) {
+                if (mode.getValue() != vm.settingsProperty().get().isolation()
+                    && !confirm("更改全局隔离模式", "跟随全局设置的实例将切换游戏目录。\n旧存档和模组保留在原目录，不会自动迁移。是否继续？")) {
                     return;
                 }
                 boolean migrate = false;
@@ -150,11 +180,41 @@ public final class SettingsPage extends RetroPage {
         save.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
         Button data = button("打开启动器数据目录", () -> openFolder(vm.dataDirectory()));
         Button logs = button("打开启动器日志目录", () -> openFolder(vm.dataDirectory().resolve("logs")));
+        Button clearLogs = button("清理日志", () -> {
+            if (confirm("清理日志", "将永久删除启动器日志目录中的启动器日志、轮转日志和游戏输出日志。\n"
+                + "清理后会重新生成当前日志。是否继续？")) {
+                vm.settingsModel().clearLogs();
+            }
+        });
+        clearLogs.setId("clear-launcher-logs");
+        clearLogs.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
         VBox content = new VBox(25, label("启动器设置", "section-title"),
             form(new String[] { "游戏根目录:", "数据文件目录:", "默认隔离:", "下载源:", "下载并行数:", "启动器可见性:" },
                 new Node[] { rootControl, dataControl, mode, source, parallelism, visibility }),
-            new HBox(10, save, data, logs));
+            new HBox(10, save, data, logs, clearLogs));
         content.setPadding(new Insets(30));
         return content;
+    }
+
+    private static boolean samePath(String entered, String saved) {
+        if (entered.equals(saved)) {
+            return true;
+        }
+        if (entered.isBlank()) {
+            return false;
+        }
+        try {
+            return Path.of(entered).toAbsolutePath().normalize().equals(Path.of(saved).toAbsolutePath().normalize());
+        } catch (InvalidPathException ex) {
+            return false;
+        }
+    }
+
+    private static boolean sameDownloadCount(Spinner<Integer> spinner, boolean automatic, int saved) {
+        if (automatic) {
+            return spinner.getValue() == saved;
+        }
+        String entered = spinner.getEditor().getText().strip();
+        return entered.matches("[0-9]{1,3}") && Integer.parseInt(entered) == saved;
     }
 }

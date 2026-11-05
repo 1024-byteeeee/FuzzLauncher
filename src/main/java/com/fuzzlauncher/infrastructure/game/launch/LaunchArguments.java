@@ -48,8 +48,7 @@ public final class LaunchArguments {
         values.put("natives_directory", natives.toAbsolutePath().toString());
         values.put("launcher_name", "FuzzLauncher");
         values.put("launcher_version", LauncherInfo.VERSION);
-        values.put("classpath",
-            String.join(File.pathSeparator, classpath.stream().map(p -> p.toAbsolutePath().toString()).toList()));
+        values.put("classpath", String.join(File.pathSeparator, classpath.stream().map(p -> p.toAbsolutePath().toString()).toList()));
         values.put("classpath_separator", File.pathSeparator);
         values.put("library_directory", root.resolve("libraries").toAbsolutePath().toString());
         values.put("auth_player_name", session.account().name());

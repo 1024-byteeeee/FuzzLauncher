@@ -221,7 +221,9 @@ public final class ModpackFileTree extends VBox {
     private void locate(String text) {
         String query = text.strip().toLowerCase(Locale.ROOT);
         List<CheckBoxTreeItem<ModpackContent>> matches = nodes.entrySet().stream()
-            .filter(e -> !e.getKey().isEmpty() && e.getKey().toLowerCase(Locale.ROOT).contains(query)).map(Map.Entry::getValue).toList();
+            .filter(e -> !e.getKey().isEmpty() && e.getKey().toLowerCase(Locale.ROOT).contains(query))
+            .map(Map.Entry::getValue)
+            .toList();
         if (query.isEmpty() || matches.isEmpty()) {
             summary.setText("没有找到匹配的文件或文件夹");
             return;

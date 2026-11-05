@@ -429,8 +429,7 @@ public final class ModpackArchive {
                         mmc.addProperty("formatVersion", 1);
                         mmc.add("components", addons(instance, true));
                         jsonEntry(zip, "mmc-pack.json", mmc);
-                        entry(zip, "instance.cfg",
-                            "[General]\nInstanceType=OneSix\nname=" + name.replace("\n", " ").replace("\r", " ") + "\n");
+                        entry(zip, "instance.cfg", "[General]\nInstanceType=OneSix\nname=" + name.replace("\n", " ").replace("\r", " ") + "\n");
                     }
                     case MODRINTH -> {
                         manifest = new JsonObject();

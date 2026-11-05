@@ -21,16 +21,14 @@ public final class ManageMods {
     }
 
     public Path directory(LauncherSettings settings, GameInstance instance) {
-        return new IsolationPolicy().gameDirectory(Path.of(settings.gameRoot()), instance, settings.isolation()).resolve("mods")
-            .toAbsolutePath().normalize();
+        return new IsolationPolicy().gameDirectory(Path.of(settings.gameRoot()), instance, settings.isolation()).resolve("mods").toAbsolutePath().normalize();
     }
 
     public List<ModFile> scan(Path directory, TaskContext task) throws Exception {
         return files.scan(directory, task);
     }
 
-    public FileOperationResult importFiles(Path directory, List<Path> sources, boolean renameCollisions, TaskContext task)
-        throws Exception {
+    public FileOperationResult importFiles(Path directory, List<Path> sources, boolean renameCollisions, TaskContext task) throws Exception {
         return files.importFiles(directory, sources, renameCollisions, task);
     }
 

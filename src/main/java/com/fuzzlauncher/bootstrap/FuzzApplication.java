@@ -64,8 +64,7 @@ public final class FuzzApplication extends Application {
             Platform.setImplicitExit(false);
             Path bootstrap = DataLocations.bootstrapDirectory();
             Files.createDirectories(bootstrap);
-            recoveryChannel = FileChannel.open(bootstrap.resolve("recovery.lock"),
-                StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            recoveryChannel = FileChannel.open(bootstrap.resolve("recovery.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
             recoveryLock = recoveryChannel.tryLock();
             if (recoveryLock == null) {
                 throw new IOException("此配置位置已有启动器运行，不能同时恢复操作");
@@ -103,9 +102,10 @@ public final class FuzzApplication extends Application {
             GameFiles files = new GameFiles(http, baseVersions);
             JavaRuntimeManager runtimes = new JavaRuntimeManager(data.resolve("runtimes"));
             MicrosoftAuthentication authentication = new MicrosoftAuthentication(new HttpTransport(), data);
-            Map<LoaderType, LoaderInstaller> installers = Map.of(LoaderType.FABRIC, new FabricInstaller(http), LoaderType.FORGE,
-                new OfficialLoaderInstaller(LoaderType.FORGE, http, runtimes, resolver), LoaderType.NEOFORGE,
-                new OfficialLoaderInstaller(LoaderType.NEOFORGE, http, runtimes, resolver));
+            Map<LoaderType, LoaderInstaller> installers = Map.of(
+                LoaderType.FABRIC, new FabricInstaller(http),
+                LoaderType.FORGE, new OfficialLoaderInstaller(LoaderType.FORGE, http, runtimes, resolver),
+                LoaderType.NEOFORGE, new OfficialLoaderInstaller(LoaderType.NEOFORGE, http, runtimes, resolver));
             OperationJournal.Store recovery = new OperationJournal.Store(operations, data);
             LocalGameInstallation install = new LocalGameInstallation(instances, files, resolver, installers, recovery);
             LocalGameLauncher launch = new LocalGameLauncher(authentication, new IsolationPolicy(), resolver, files, runtimes,
@@ -144,8 +144,7 @@ public final class FuzzApplication extends Application {
             if (Boolean.getBoolean("fuzz.snapshot")) {
                 Platform.runLater(() -> {
                     try {
-                        ImageIO.write(SwingFXUtils.fromFXImage(scene.snapshot(null), null), "png",
-                            Path.of("ui-preview.png").toFile());
+                        ImageIO.write(SwingFXUtils.fromFXImage(scene.snapshot(null), null), "png", Path.of("ui-preview.png").toFile());
                     } catch (IOException ex) {
                         throw new UncheckedIOException(ex);
                     }

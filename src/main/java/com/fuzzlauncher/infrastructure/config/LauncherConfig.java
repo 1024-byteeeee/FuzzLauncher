@@ -126,9 +126,11 @@ public record LauncherConfig(Defaults defaults, Network network, Downloads downl
         Objects.requireNonNull(defaults.downloadSource(), "默认下载源无效");
         Objects.requireNonNull(defaults.launcherVisibility, "默认可见性无效");
         for (String argument : defaults.jvmArguments) {
-            require(!argument.isBlank() && argument.startsWith("-") && !argument.startsWith("-Xms") && !argument.startsWith("-Xmx")
+            require(
+                !argument.isBlank() && argument.startsWith("-") && !argument.startsWith("-Xms") && !argument.startsWith("-Xmx")
                 && !argument.equals("-cp") && !argument.equals("-classpath") && !argument.equals("-jar")
-                && argument.chars().noneMatch(c -> c == 0 || c == '\n' || c == '\r'), "默认 JVM 参数无效：" + argument);
+                && argument.chars().noneMatch(c -> c == 0 || c == '\n' || c == '\r'), "默认 JVM 参数无效：" + argument
+            );
         }
         bounded(network.connectTimeoutSeconds, 1, 300, "连接超时");
         bounded(network.requestTimeoutSeconds, 1, 3600, "请求超时");
@@ -169,11 +171,9 @@ public record LauncherConfig(Defaults defaults, Network network, Downloads downl
         }
         for (JvmRule rule : jvmRules) {
             require(rule.minJava >= 8 && rule.maxJava >= rule.minJava && rule.maxJava <= 99, "JVM 规则版本范围无效");
-            require(Set.of("common", "hotspot", "g1", "large64", "compact64", "32bit", "windows", "windows10").contains(rule.group),
-                "JVM 规则分组无效");
+            require(Set.of("common", "hotspot", "g1", "large64", "compact64", "32bit", "windows", "windows10").contains(rule.group), "JVM 规则分组无效");
             for (String argument : rule.arguments) {
-                require(argument.startsWith("-") && !argument.contains("\n") && !argument.contains("\r") && !argument.contains("\0"),
-                    "JVM 规则参数无效");
+                require(argument.startsWith("-") && !argument.contains("\n") && !argument.contains("\r") && !argument.contains("\0"), "JVM 规则参数无效");
             }
         }
     }
@@ -190,8 +190,7 @@ public record LauncherConfig(Defaults defaults, Network network, Downloads downl
 
     private static void https(String value) {
         URI uri = URI.create(value);
-        require("https".equals(uri.getScheme()) && uri.getHost() != null && uri.getUserInfo() == null && uri.getQuery() == null
-            && uri.getFragment() == null && (uri.getPort() == -1 || uri.getPort() == 443), "服务地址无效：" + value);
+        require("https".equals(uri.getScheme()) && uri.getHost() != null && uri.getUserInfo() == null && uri.getQuery() == null && uri.getFragment() == null && (uri.getPort() == -1 || uri.getPort() == 443), "服务地址无效：" + value);
     }
 
     public String service(String name) {
@@ -248,12 +247,10 @@ public record LauncherConfig(Defaults defaults, Network network, Downloads downl
         }
 
         public Optional<String> resolve(URI original) {
-            if (hosts.stream().noneMatch(host -> host.equalsIgnoreCase(original.getHost()))
-                || !original.getRawPath().startsWith(pathPrefix)) {
+            if (hosts.stream().noneMatch(host -> host.equalsIgnoreCase(original.getHost())) || !original.getRawPath().startsWith(pathPrefix)) {
                 return Optional.empty();
             }
-            return Optional.of(target + original.getRawPath().substring(pathPrefix.length())
-                + (original.getRawQuery() == null ? "" : "?" + original.getRawQuery()));
+            return Optional.of(target + original.getRawPath().substring(pathPrefix.length()) + (original.getRawQuery() == null ? "" : "?" + original.getRawQuery()));
         }
     }
 

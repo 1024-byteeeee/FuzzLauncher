@@ -129,8 +129,7 @@ class OfflineAccountTest {
         var instance = new GameInstance("local-test", "Local fixture", "local-test", LoaderType.VANILLA, null, IsolationOverride.ISOLATED,
             5000, Path.of(System.getProperty("java.home"), "bin/java.exe").toString());
         Account account = Account.offline("Steve");
-        var running = launch.execute(SettingsDefaults.create(root.toString(), IsolationMode.ALL, DownloadSource.AUTO, "", visibility),
-            instance, account, task);
+        var running = launch.execute(SettingsDefaults.create(root.toString(), IsolationMode.ALL, DownloadSource.AUTO, "", visibility), instance, account, task);
         try {
             assertTrue(running.process().waitFor(15, TimeUnit.SECONDS));
             assertEquals(0, running.process().exitValue());

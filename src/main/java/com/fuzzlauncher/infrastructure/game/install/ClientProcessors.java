@@ -111,13 +111,11 @@ public final class ClientProcessors {
                     Files.writeString(log, "Downloaded official " + selectedSide + " mappings with verified SHA-1\n",
                         StandardOpenOption.CREATE, StandardOpenOption.APPEND);
                 } else {
-                    Path jar = JsonFiles.safeResolve(staging.resolve("libraries"),
-                        VersionResolver.mavenPath(processor.get("jar").getAsString()));
+                    Path jar = JsonFiles.safeResolve(staging.resolve("libraries"), VersionResolver.mavenPath(processor.get("jar").getAsString()));
                     List<String> classpath = new ArrayList<>();
                     classpath.add(jar.toString());
                     for (JsonElement library : processor.getAsJsonArray("classpath")) {
-                        classpath.add(JsonFiles.safeResolve(staging.resolve("libraries"), VersionResolver.mavenPath(library.getAsString()))
-                            .toString());
+                        classpath.add(JsonFiles.safeResolve(staging.resolve("libraries"), VersionResolver.mavenPath(library.getAsString())).toString());
                     }
                     String main;
                     try (JarFile file = new JarFile(jar.toFile())) {
@@ -129,8 +127,7 @@ public final class ClientProcessors {
                     List<String> command = new ArrayList<>(
                         List.of(java.toString(), "-Djava.awt.headless=true", "-cp", String.join(File.pathSeparator, classpath), main));
                     command.addAll(args);
-                    Files.writeString(log, "Processor: " + processor.get("jar").getAsString() + "\n", StandardOpenOption.CREATE,
-                        StandardOpenOption.APPEND);
+                    Files.writeString(log, "Processor: " + processor.get("jar").getAsString() + "\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND);
                     Process process = new ProcessBuilder(command).directory(staging.toFile()).redirectErrorStream(true)
                         .redirectOutput(ProcessBuilder.Redirect.appendTo(log.toFile())).start();
                     Instant deadline = Instant.now().plus(Duration.ofMinutes(10));
@@ -170,8 +167,7 @@ public final class ClientProcessors {
                 JsonFiles.safeResolve(staging.resolve("libraries"), VersionResolver.mavenPath(coordinate.getAsString())).toUri().toURL());
         }
         try (
-            URLClassLoader loader = new URLClassLoader(libraries.toArray(URL[]::new),
-                ClassLoader.getPlatformClassLoader());
+            URLClassLoader loader = new URLClassLoader(libraries.toArray(URL[]::new), ClassLoader.getPlatformClassLoader());
             InputStream stream = Files.newInputStream(input)) {
             Class<?> mapping = loader.loadClass("net.minecraftforge.srgutils.IMappingFile");
             Class<?> formats = loader.loadClass("net.minecraftforge.srgutils.IMappingFile$Format");

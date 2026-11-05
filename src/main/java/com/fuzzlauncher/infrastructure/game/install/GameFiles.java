@@ -46,8 +46,7 @@ public final class GameFiles {
         JsonObject metadata = JsonFiles.read(json);
         JsonObject client = metadata.getAsJsonObject("downloads").getAsJsonObject("client");
         task.report("下载游戏客户端 " + version.id(), -1);
-        http.download(client.get("url").getAsString(), json.resolveSibling(version.id() + ".jar"), JsonFiles.string(client, "sha1", ""),
-            task);
+        http.download(client.get("url").getAsString(), json.resolveSibling(version.id() + ".jar"), JsonFiles.string(client, "sha1", ""), task);
         prepare(root, metadata, task);
     }
 
@@ -159,8 +158,7 @@ public final class GameFiles {
             String hash = entry.getValue().getAsJsonObject().get("hash").getAsString();
             Path dest = JsonFiles.safeResolve(target, entry.getKey());
             Files.createDirectories(dest.getParent());
-            Files.copy(root.resolve("assets/objects").resolve(hash.substring(0, 2)).resolve(hash), dest,
-                StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(root.resolve("assets/objects").resolve(hash.substring(0, 2)).resolve(hash), dest, StandardCopyOption.REPLACE_EXISTING);
         }
     }
 

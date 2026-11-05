@@ -4,6 +4,7 @@ import com.fuzzlauncher.application.model.LauncherInfo;
 import com.fuzzlauncher.ui.about.AboutPage;
 import com.fuzzlauncher.ui.accounts.AccountsPage;
 import com.fuzzlauncher.ui.common.RetroPage;
+import com.fuzzlauncher.ui.common.WindowResize;
 import com.fuzzlauncher.ui.downloads.DownloadsPage;
 import com.fuzzlauncher.ui.instances.InstancesPage;
 import com.fuzzlauncher.ui.mods.ModsPage;
@@ -30,12 +31,14 @@ public final class LauncherView extends RetroPage {
     private double dragX, dragY;
     private InstallProgressDialog installDialog;
     private BrowserLoginDialog loginDialog;
+    private GameLogDialog gameLogDialog;
 
     public LauncherView(Stage stage, LauncherViewModel vm) {
         super(stage, ignored -> {
         });
         this.vm = vm;
         getStyleClass().add("window");
+        WindowResize.install(this);
         setTop(chrome());
         setLeft(navigation());
         setCenter(workspace);
@@ -61,6 +64,15 @@ public final class LauncherView extends RetroPage {
         vm.errorProperty().addListener((o, old, value) -> {
             if (value != null && !value.isBlank()) {
                 message(Alert.AlertType.ERROR, "操作未完成", value);
+            }
+        });
+        vm.gamesModel().testGameProperty().addListener((observable, old, running) -> {
+            if (running != null) {
+                if (gameLogDialog != null) {
+                    gameLogDialog.close();
+                }
+                gameLogDialog = new GameLogDialog(stage, vm.gamesModel(), running);
+                gameLogDialog.show();
             }
         });
         showPage(0);
@@ -148,6 +160,9 @@ public final class LauncherView extends RetroPage {
 
     @Override
     protected void showPage(int page) {
+        if (workspace.getCenter() instanceof SettingsPage settings && (page == 3 || !settings.confirmLeave())) {
+            return;
+        }
         for (int i = 0; i < navigation.size(); i++) {
             navigation.get(i).getStyleClass().remove("selected-nav");
             if (Objects.equals(navigation.get(i).getUserData(), page)) {

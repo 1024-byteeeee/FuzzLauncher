@@ -1,5 +1,6 @@
 package com.fuzzlauncher.infrastructure.settings;
 
+import com.fuzzlauncher.application.model.FileOperationResult;
 import com.fuzzlauncher.application.model.SettingsSaved;
 import com.fuzzlauncher.application.port.InstanceRepository;
 import com.fuzzlauncher.application.port.SettingsOperations;
@@ -43,6 +44,11 @@ public final class LocalSettingsOperations implements SettingsOperations {
         return GameRootMigration.sameDirectory(first, second);
     }
 
+    @Override
+    public FileOperationResult clearLogs(TaskContext task) throws IOException {
+        return LauncherLog.clear(dataDirectory(), task);
+    }
+
     public SettingsSaved save(LauncherSettings previous, LauncherSettings config, boolean migrate, TaskContext context) throws Exception {
         Path previousRoot = Path.of(previous.gameRoot()).toAbsolutePath().normalize();
         Path targetRoot = Path.of(config.gameRoot()).toAbsolutePath().normalize();
@@ -74,8 +80,7 @@ public final class LocalSettingsOperations implements SettingsOperations {
                 context.checkCancelled();
                 try {
                     if (operation != null) {
-                        operation.configuration(dataDirectory().resolve("instances.json"), Map.of("instances", available),
-                            Map.of("instances", oldInstances));
+                        operation.configuration(dataDirectory().resolve("instances.json"), Map.of("instances", available), Map.of("instances", oldInstances));
                         operation.configuration(dataDirectory().resolve("settings.json"), config, previous);
                         Path pointer = DataLocations.bootstrapDirectory().resolve("data-location.json");
                         boolean dataChanged = !requested.toAbsolutePath().normalize().equals(dataDirectory().toAbsolutePath().normalize());

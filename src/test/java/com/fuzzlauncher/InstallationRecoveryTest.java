@@ -106,8 +106,7 @@ class InstallationRecoveryTest {
             zip.closeEntry();
         }
         Path staging = Files.createDirectories(temp.resolve("staging"));
-        JsonObject result = new ClientProcessors(new HttpTransport()).execute(temp, staging, installer, profile, vanilla, Path.of("java"),
-            task);
+        JsonObject result = new ClientProcessors(new HttpTransport()).execute(temp, staging, installer, profile, vanilla, Path.of("java"), task);
         assertEquals("loader", result.get("id").getAsString());
         assertEquals("official mapping fixture", Files.readString(staging.resolve("libraries/fixture/mapping/1/mapping-1.txt")));
     }
@@ -132,8 +131,7 @@ class InstallationRecoveryTest {
         Path root = temp.resolve("game");
         LocalGameInstallation install = new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(),
             Map.of(LoaderType.FORGE, broken));
-        assertThrows(IOException.class,
-            () -> install.execute(root, new GameVersion("base", "release", metadata, ""), LoaderType.FORGE, "1", "失败测试", task));
+        assertThrows(IOException.class, () -> install.execute(root, new GameVersion("base", "release", metadata, ""), LoaderType.FORGE, "1", "失败测试", task));
         assertTrue(repo.findAll().isEmpty());
         try (var dirs = Files.list(root.resolve("versions"))) {
             assertEquals(0, dirs.count());
@@ -171,8 +169,7 @@ class InstallationRecoveryTest {
                 return true;
             }
         };
-        assertThrows(CancellationException.class,
-            () -> installer.execute(root, fixtureGame(), LoaderType.VANILLA, null, "base", cancelled));
+        assertThrows(CancellationException.class, () -> installer.execute(root, fixtureGame(), LoaderType.VANILLA, null, "base", cancelled));
         assertFalse(Files.exists(root.resolve("versions/base")));
         assertFalse(Files.exists(root.resolve(".fuzz-staging")));
         assertTrue(repo.findAll().isEmpty());
@@ -187,10 +184,8 @@ class InstallationRecoveryTest {
             Files.writeString(staging.resolve("libraries/nested/partial/download.part"), "partial");
             throw new CancellationException("cancel fixture");
         };
-        var installer = new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(),
-            Map.of(LoaderType.FABRIC, cancelled));
-        assertThrows(CancellationException.class,
-            () -> installer.execute(root, fixtureGame(), LoaderType.FABRIC, "1", "取消实例", task));
+        var installer = new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of(LoaderType.FABRIC, cancelled));
+        assertThrows(CancellationException.class, () -> installer.execute(root, fixtureGame(), LoaderType.FABRIC, "1", "取消实例", task));
         assertFalse(Files.exists(root.resolve("versions/base")));
         assertFalse(Files.exists(root.resolve("versions/取消实例")));
         assertFalse(Files.exists(root.resolve(".fuzz-staging")));
@@ -239,8 +234,7 @@ class InstallationRecoveryTest {
         Path root = temp.resolve("metadata-game");
         var repo = new JsonInstanceRepository(temp.resolve("metadata-state"));
         var installer = new LocalGameInstallation(repo, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of());
-        assertThrows(Exception.class,
-            () -> installer.execute(root, new GameVersion("base", "release", metadata, ""), LoaderType.VANILLA, null, "下载失败", task));
+        assertThrows(Exception.class, () -> installer.execute(root, new GameVersion("base", "release", metadata, ""), LoaderType.VANILLA, null, "下载失败", task));
         assertFalse(Files.exists(root.resolve("versions/base")));
         assertFalse(Files.exists(root.resolve(".fuzz-staging")));
         assertTrue(repo.findAll().isEmpty());

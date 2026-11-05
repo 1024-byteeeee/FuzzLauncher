@@ -24,8 +24,7 @@ public record ModFile(Path path, boolean enabled, boolean readable, long size, l
     }
 
     public String name() {
-        return metadata.isEmpty() ? path.getFileName().toString()
-            : metadata.getFirst().name() + (metadata.size() > 1 ? " (+" + (metadata.size() - 1) + ")" : "");
+        return metadata.isEmpty() ? path.getFileName().toString() : metadata.getFirst().name() + (metadata.size() > 1 ? " (+" + (metadata.size() - 1) + ")" : "");
     }
 
     public String version() {

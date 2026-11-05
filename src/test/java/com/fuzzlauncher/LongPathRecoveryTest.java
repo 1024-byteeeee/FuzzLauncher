@@ -22,8 +22,7 @@ class LongPathRecoveryTest {
     @Test
     void nativePathsHandleDriveUncAndAlreadyExtendedForms() {
         assertEquals("\\\\?\\C:\\游戏\\file.jar", WindowsPaths.extended(Path.of("C:\\folder\\..\\游戏\\file.jar")));
-        assertEquals("\\\\?\\UNC\\server\\share\\游戏\\file.jar",
-            WindowsPaths.extended(Path.of("\\\\server\\share\\游戏\\file.jar")));
+        assertEquals("\\\\?\\UNC\\server\\share\\游戏\\file.jar", WindowsPaths.extended(Path.of("\\\\server\\share\\游戏\\file.jar")));
         assertEquals("\\\\?\\C:\\游戏\\file.jar", WindowsPaths.extended(Path.of("\\\\?\\C:\\游戏\\file.jar")));
     }
 
@@ -100,8 +99,7 @@ class LongPathRecoveryTest {
         Path external = Files.createDirectories(temp.resolve("external"));
         Path sentinel = Files.writeString(external.resolve("keep.txt"), "keep");
         Path junction = staging.resolve("linked");
-        Process process = new ProcessBuilder("cmd.exe", "/c", "mklink", "/J", junction.toString(), external.toString())
-            .redirectErrorStream(true).start();
+        Process process = new ProcessBuilder("cmd.exe", "/c", "mklink", "/J", junction.toString(), external.toString()).redirectErrorStream(true).start();
         assertEquals(0, process.waitFor());
         var operation = new OperationJournal.Store(temp.resolve("operations"), temp).begin("link pack fixture", temp);
         try {

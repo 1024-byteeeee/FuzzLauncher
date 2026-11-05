@@ -67,8 +67,7 @@ class InstanceRuntimeSettingsTest {
             .parseString(
                 "{\"_clientVersion\":\"1.20.4\",\"mainClass\":\"Main\",\"minecraftArguments\":\"--username" + " ${auth_player_name}\"}")
             .getAsJsonObject();
-        var args = new LaunchArguments().build(temp, temp, temp.resolve("natives"), loaded, GameSession.offline(Account.offline("Steve")),
-            version, List.of());
+        var args = new LaunchArguments().build(temp, temp, temp.resolve("natives"), loaded, GameSession.offline(Account.offline("Steve")), version, List.of());
         assertTrue(args.contains("-Xms1024M"));
         assertTrue(args.contains("-Xmx6000M"));
         assertFalse(args.contains("-Xms256M"));

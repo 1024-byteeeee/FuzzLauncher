@@ -10,7 +10,8 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
 continuation_indent_size = 4
-max_line_length = 140
+# Use the margin as a guide. Wrap at logical boundaries.
+max_line_length = 160
 ij_java_brace_style = end_of_line
 ij_java_if_brace_force = always
 ij_java_for_brace_force = always

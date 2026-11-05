@@ -21,8 +21,7 @@ import java.util.stream.IntStream;
 public record JvmEnvironment(int major, boolean is64Bit, boolean hotspot, long physicalMemory, String encoding, Set<String> flags) {
 
     private static final Map<Path, Cached> CACHE = new LinkedHashMap<>(32, 0.75f, true);
-    private static final ReentrantLock[] LOCKS = IntStream.range(0, 32)
-        .mapToObj(i -> new ReentrantLock()).toArray(ReentrantLock[]::new);
+    private static final ReentrantLock[] LOCKS = IntStream.range(0, 32).mapToObj(i -> new ReentrantLock()).toArray(ReentrantLock[]::new);
 
     private record Stamp(Object key, long size, FileTime modified, FileTime created) {
         static Stamp read(Path file) throws IOException {
@@ -35,8 +34,7 @@ public record JvmEnvironment(int major, boolean is64Bit, boolean hotspot, long p
         static Identity read(Path file) throws IOException {
             Path release = file.getParent().getParent().resolve("release");
             boolean exists = Files.exists(release);
-            return new Identity(Stamp.read(file), exists ? Stamp.read(release) : null,
-                exists ? HttpTransport.digest(release, "SHA-256") : "");
+            return new Identity(Stamp.read(file), exists ? Stamp.read(release) : null, exists ? HttpTransport.digest(release, "SHA-256") : "");
         }
     }
 
@@ -103,8 +101,7 @@ public record JvmEnvironment(int major, boolean is64Bit, boolean hotspot, long p
                 flags.add(flag.group(1));
             }
         }
-        String encoding = property(properties, "native.encoding",
-            property(properties, "sun.jnu.encoding", property(properties, "file.encoding", "UTF-8")));
+        String encoding = property(properties, "native.encoding", property(properties, "sun.jnu.encoding", property(properties, "file.encoding", "UTF-8")));
         if (!Charset.isSupported(encoding)) {
             throw new IOException("游戏 Java 返回了无法识别的系统编码：" + encoding);
         }

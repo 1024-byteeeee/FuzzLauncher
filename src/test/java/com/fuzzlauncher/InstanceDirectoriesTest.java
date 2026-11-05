@@ -102,8 +102,7 @@ class InstanceDirectoriesTest {
             public void remove(String id) {
             }
         };
-        assertThrows(IOException.class,
-            () -> InstanceDirectories.save(root, item, item.withSettings("New", item.isolation(), 4096), failing));
+        assertThrows(IOException.class, () -> InstanceDirectories.save(root, item, item.withSettings("New", item.isolation(), 4096), failing));
         assertTrue(Files.exists(root.resolve("versions/Old/saves/world/level.dat")));
         assertFalse(Files.exists(root.resolve("versions/New")));
     }

@@ -1,7 +1,9 @@
 package com.fuzzlauncher.ui.viewmodel;
 
+import com.fuzzlauncher.application.model.RunningGame;
 import com.fuzzlauncher.application.port.GameInstallation;
 import com.fuzzlauncher.application.port.GameLauncher;
+import com.fuzzlauncher.application.port.GameLauncher.LogSnapshot;
 import com.fuzzlauncher.application.port.JvmArgumentPreview;
 import com.fuzzlauncher.application.port.ModpackOperations;
 import com.fuzzlauncher.application.port.VersionCatalogPort;
@@ -21,6 +23,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 
@@ -39,6 +42,8 @@ public final class GamesViewModel {
     private final GameInstallation install;
     private final GameLauncher launch;
     private final ModpackOperations modpacks;
+    private final BooleanProperty testMode = new SimpleBooleanProperty();
+    private final ReadOnlyObjectWrapper<RunningGame> testGame = new ReadOnlyObjectWrapper<>();
     private Consumer<LauncherVisibility> gameStarted = ignored -> {
     };
     private IntConsumer gameExited = ignored -> {
@@ -113,9 +118,13 @@ public final class GamesViewModel {
     }
 
     public void launch() {
+        if (busy.get() || gameRunning.get()) {
+            return;
+        }
         GameInstance instance = selected.get();
         Account identity = account.get();
         LauncherSettings config = settings.get();
+        boolean testing = testMode.get();
         if (instance == null) {
             error.set("请先安装并选择一个游戏实例");
             return;
@@ -123,14 +132,31 @@ public final class GamesViewModel {
         if (modpacks.updatesAvailable() && identity != null) {
             tasks.submit("检查整合包更新", context -> modpacks.update(Path.of(config.gameRoot()), instance, context), updated -> {
                 state.replaceInstance(updated);
-                launchPrepared(config, updated, identity);
+                launchPrepared(config, updated, identity, testing);
             });
         } else {
-            launchPrepared(config, instance, identity);
+            launchPrepared(config, instance, identity, testing);
         }
     }
 
-    private void launchPrepared(LauncherSettings config, GameInstance instance, Account identity) {
+    public BooleanProperty testModeProperty() {
+        return testMode;
+    }
+
+    public ReadOnlyObjectProperty<RunningGame> testGameProperty() {
+        return testGame.getReadOnlyProperty();
+    }
+
+    public void followTestGameLog(RunningGame game, BooleanSupplier cancelled, Consumer<LogSnapshot> output)
+        throws IOException, InterruptedException {
+        launch.followLog(game, cancelled, output);
+    }
+
+    public void stopTestGame(RunningGame game) throws IOException {
+        launch.stop(game);
+    }
+
+    private void launchPrepared(LauncherSettings config, GameInstance instance, Account identity, boolean testing) {
         tasks.submit("启动游戏", context -> launch.execute(config, instance, identity, context), running -> {
             gameRunning.set(true);
             status.set("游戏运行中");
@@ -139,13 +165,20 @@ public final class GamesViewModel {
                     return;
                 }
                 gameRunning.set(false);
+                if (testing) {
+                    testGame.set(null);
+                }
                 gameExited.accept(process.exitValue());
                 status.set("游戏已退出，退出码 " + process.exitValue());
-                if (process.exitValue() != 0) {
+                if (!testing && process.exitValue() != 0) {
                     error.set("游戏异常退出（" + process.exitValue() + "），请查看日志: " + running.log());
                 }
             }));
-            gameStarted.accept(config.launcherVisibility());
+            gameStarted.accept(testing ? LauncherVisibility.KEEP : config.launcherVisibility());
+            if (testing) {
+                testMode.set(false);
+                testGame.set(running);
+            }
         });
     }
 

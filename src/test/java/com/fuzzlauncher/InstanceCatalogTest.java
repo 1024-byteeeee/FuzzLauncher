@@ -32,10 +32,8 @@ class InstanceCatalogTest {
     };
 
     private GameInstance create(Path root, String id, String name) throws IOException {
-        GameInstance item = new GameInstance(id, name, "base", LoaderType.VANILLA, null, IsolationOverride.ISOLATED, 5000,
-            "C:/Java/bin/java.exe");
-        JsonFiles.write(root.resolve("versions/base/base.json"),
-            JsonParser.parseString("{\"id\":\"base\",\"mainClass\":\"Main\",\"libraries\":[]}"));
+        GameInstance item = new GameInstance(id, name, "base", LoaderType.VANILLA, null, IsolationOverride.ISOLATED, 5000, "C:/Java/bin/java.exe");
+        JsonFiles.write(root.resolve("versions/base/base.json"), JsonParser.parseString("{\"id\":\"base\",\"mainClass\":\"Main\",\"libraries\":[]}"));
         Files.writeString(root.resolve("versions/base/base.jar"), "shared-client");
         JsonObject profile = new JsonObject();
         profile.addProperty("id", id);
@@ -89,8 +87,7 @@ class InstanceCatalogTest {
         Files.delete(InstanceDirectories.profile(root, item));
         assertTrue(InstanceCatalog.refresh(root, repo).isEmpty());
         assertTrue(repo.findAll().isEmpty());
-        assertTrue(Files.exists(InstanceDirectories.directory(root, item).resolve("saves/world/level.dat")),
-            "Refresh must never delete remaining user files");
+        assertTrue(Files.exists(InstanceDirectories.directory(root, item).resolve("saves/world/level.dat")), "Refresh must never delete remaining user files");
     }
 
     @Test

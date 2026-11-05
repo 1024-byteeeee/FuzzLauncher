@@ -66,8 +66,7 @@ class BrowserFilesTest {
         Path locked = Files.writeString(source.resolve("z-locked.txt"), "locked");
         Path destination = Files.createDirectory(temp.resolve("locked-destination"));
         var kernel = Kernel32.INSTANCE;
-        var handle = kernel.CreateFile(locked.toString(), WinNT.GENERIC_READ, 0, null,
-            WinNT.OPEN_EXISTING, WinNT.FILE_ATTRIBUTE_NORMAL, null);
+        var handle = kernel.CreateFile(locked.toString(), WinNT.GENERIC_READ, 0, null, WinNT.OPEN_EXISTING, WinNT.FILE_ATTRIBUTE_NORMAL, null);
         assertNotEquals(WinBase.INVALID_HANDLE_VALUE, handle);
         try {
             assertThrows(IOException.class, () -> BrowserFiles.paste(source, destination, false, false));
@@ -87,8 +86,7 @@ class BrowserFilesTest {
     void copyingIntoAnAliasOfDescendantIsRejected() throws Exception {
         Path folder = Files.createDirectories(temp.resolve("source/child"));
         Path alias = temp.resolve("alias");
-        var process = new ProcessBuilder("cmd.exe", "/c", "mklink", "/J", alias.toString(), folder.toString()).redirectErrorStream(true)
-            .start();
+        var process = new ProcessBuilder("cmd.exe", "/c", "mklink", "/J", alias.toString(), folder.toString()).redirectErrorStream(true).start();
         assertEquals(0, process.waitFor(), new String(process.getInputStream().readAllBytes()));
         try {
             assertThrows(IOException.class, () -> BrowserFiles.paste(folder.getParent(), alias, false, true));

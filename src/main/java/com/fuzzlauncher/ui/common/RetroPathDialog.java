@@ -47,8 +47,7 @@ public final class RetroPathDialog extends Dialog<Path> {
         this(owner, title, initial, directoryOnly, RetroPathDialog::isJava, browser);
     }
 
-    private RetroPathDialog(Window owner, String title, Path initial, boolean directoryOnly, Predicate<Path> fileFilter,
-        FileBrowser browser) {
+    private RetroPathDialog(Window owner, String title, Path initial, boolean directoryOnly, Predicate<Path> fileFilter, FileBrowser browser) {
         this.browser = browser;
         this.directoryOnly = directoryOnly;
         this.fileFilter = fileFilter;

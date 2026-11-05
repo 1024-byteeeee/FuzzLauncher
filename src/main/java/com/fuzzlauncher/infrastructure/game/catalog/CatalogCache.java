@@ -60,8 +60,7 @@ final class CatalogCache {
             if (json.get("schema").getAsInt() != 1 || !key.equals(json.get("key").getAsString())) {
                 throw new IOException("版本缓存格式不匹配");
             }
-            Entry<T> entry = new Entry<>(json.get("fetchedAt").getAsLong(),
-                Arrays.asList(JsonFiles.GSON.fromJson(json.get("values"), type)));
+            Entry<T> entry = new Entry<>(json.get("fetchedAt").getAsLong(), Arrays.asList(JsonFiles.GSON.fromJson(json.get("values"), type)));
             if (!valid(entry.values)) {
                 throw new IOException("版本缓存条目无效");
             }

@@ -51,8 +51,7 @@ public final class BaseVersions {
         boolean owned = Files.isRegularFile(legacy.resolve(InstanceDirectories.PROFILE));
         boolean baseOnly;
         try (var children = Files.list(legacy)) {
-            baseOnly = children
-                .allMatch(path -> path.getFileName().toString().equals(id + ".json") || path.getFileName().toString().equals(id + ".jar"));
+            baseOnly = children.allMatch(path -> path.getFileName().toString().equals(id + ".json") || path.getFileName().toString().equals(id + ".jar"));
         }
         for (String suffix : new String[] { ".json", ".jar" }) {
             Path source = JsonFiles.safeResolve(legacy, id + suffix);

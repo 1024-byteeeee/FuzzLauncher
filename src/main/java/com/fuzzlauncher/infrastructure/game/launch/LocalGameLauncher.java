@@ -17,6 +17,7 @@ import com.fuzzlauncher.infrastructure.game.runtime.JavaRuntimeManager;
 import com.fuzzlauncher.infrastructure.game.runtime.JvmDefaults;
 import com.fuzzlauncher.infrastructure.game.runtime.JvmEnvironment;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.platform.ProcessCleanup;
 
 import com.google.gson.*;
 
@@ -25,6 +26,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Instant;
 import java.util.*;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 public final class LocalGameLauncher implements GameLauncher {
     private final AccountAuthenticator authentication;
@@ -44,6 +47,17 @@ public final class LocalGameLauncher implements GameLauncher {
         this.runtimes = runtimes;
         this.arguments = arguments;
         this.logs = logs;
+    }
+
+    @Override
+    public void stop(RunningGame game) throws IOException {
+        ProcessCleanup.terminate(game.process());
+    }
+
+    @Override
+    public void followLog(RunningGame game, BooleanSupplier cancelled, Consumer<LogSnapshot> output)
+        throws IOException, InterruptedException {
+        GameLogTail.follow(game, cancelled, output);
     }
 
     public RunningGame execute(LauncherSettings settings, GameInstance instance, Account account, TaskContext task) throws Exception {
@@ -76,8 +90,7 @@ public final class LocalGameLauncher implements GameLauncher {
                         JsonFiles.safeResolve(root.resolve("libraries"), downloads.getAsJsonObject("artifact").get("path").getAsString()));
                 }
             } else {
-                classpath
-                    .add(JsonFiles.safeResolve(root.resolve("libraries"), VersionResolver.mavenPath(library.get("name").getAsString())));
+                classpath.add(JsonFiles.safeResolve(root.resolve("libraries"), VersionResolver.mavenPath(library.get("name").getAsString())));
             }
         }
         files.legacyResources(root, gameDir, version, task);

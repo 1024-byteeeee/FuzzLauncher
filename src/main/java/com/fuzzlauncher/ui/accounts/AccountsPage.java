@@ -52,12 +52,10 @@ public final class AccountsPage extends RetroPage {
             vm.busyProperty().or(vm.gameRunningProperty()).or(vm.accountProperty().isNotNull()).or(username.textProperty().isEmpty()));
         Label offlineHint = new Label("使用本地用户名游玩单人游戏或允许离线账号的服务器。");
         offlineHint.setWrapText(true);
-        VBox microsoftSection = new VBox(25, label("微软账号", "section-title"), avatar, microsoftAccount,
-            new HBox(15, login, microsoftLogout));
+        VBox microsoftSection = new VBox(25, label("微软账号", "section-title"), avatar, microsoftAccount, new HBox(15, login, microsoftLogout));
         microsoftSection.disableProperty().bind(Bindings.createBooleanBinding(
             () -> vm.accountProperty().get() != null && vm.accountProperty().get().isOffline(), vm.accountProperty()));
-        VBox offlineSection = new VBox(25, label("离线账号", "section-title"), offlineAccount, username, offlineHint,
-            new HBox(15, offline, offlineLogout));
+        VBox offlineSection = new VBox(25, label("离线账号", "section-title"), offlineAccount, username, offlineHint, new HBox(15, offline, offlineLogout));
         offlineSection.disableProperty().bind(Bindings.createBooleanBinding(
             () -> vm.accountProperty().get() != null && !vm.accountProperty().get().isOffline(), vm.accountProperty()));
         VBox content = new VBox(25, microsoftSection, offlineSection);

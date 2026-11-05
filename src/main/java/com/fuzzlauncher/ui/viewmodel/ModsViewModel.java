@@ -47,8 +47,7 @@ public final class ModsViewModel {
         }
         Path directory = modDirectory(instance);
         List<Path> selectedFiles = List.copyOf(sources);
-        tasks.submit("导入模组", task -> mods.importFiles(directory, selectedFiles, renameCollisions, task),
-            report -> modsChanged("导入", report, changed));
+        tasks.submit("导入模组", task -> mods.importFiles(directory, selectedFiles, renameCollisions, task), report -> modsChanged("导入", report, changed));
     }
 
     public void setModsEnabled(GameInstance instance, List<ModFile> selected, boolean enabled, Runnable changed) {

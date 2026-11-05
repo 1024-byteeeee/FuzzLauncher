@@ -55,6 +55,18 @@ public final class SettingsViewModel {
         return settingsOperations.sameDirectory(first, second);
     }
 
+    public void clearLogs() {
+        if (busy.get() || gameRunning.get()) {
+            return;
+        }
+        tasks.submit("清理日志", settingsOperations::clearLogs, result -> {
+            status.set("已清理 " + result.completed() + " 个日志文件");
+            if (!result.failures().isEmpty()) {
+                error.set(String.join("\n", result.failures()));
+            }
+        });
+    }
+
     public void saveSettings(LauncherSettings config) {
         saveSettings(config, false);
     }

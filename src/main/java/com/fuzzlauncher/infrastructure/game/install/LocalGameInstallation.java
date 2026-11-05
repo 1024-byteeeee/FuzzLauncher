@@ -37,8 +37,7 @@ public final class LocalGameInstallation implements GameInstallation {
     private final Map<LoaderType, LoaderInstaller> installers;
     private final OperationJournal.Store recovery;
 
-    public LocalGameInstallation(InstanceRepository instances, GameFiles files, VersionResolver resolver,
-        Map<LoaderType, LoaderInstaller> installers) {
+    public LocalGameInstallation(InstanceRepository instances, GameFiles files, VersionResolver resolver, Map<LoaderType, LoaderInstaller> installers) {
         this(instances, files, resolver, installers, null);
     }
 
@@ -67,8 +66,7 @@ public final class LocalGameInstallation implements GameInstallation {
 
     public GameInstance installModpack(Path root, GameVersion game, LoaderType loader, String loaderVersion, String name,
         ContentPreparation preparation, TaskContext task) throws Exception {
-        return execute(root, game, loader, loaderVersion, name, IsolationOverride.ISOLATED, null,
-            Objects.requireNonNull(preparation), task);
+        return execute(root, game, loader, loaderVersion, name, IsolationOverride.ISOLATED, null, Objects.requireNonNull(preparation), task);
     }
 
     private GameInstance execute(Path root, GameVersion game, LoaderType loader, String loaderVersion, String name,
@@ -172,8 +170,7 @@ public final class LocalGameInstallation implements GameInstallation {
                     List<GameInstance> next = new ArrayList<>(instances.findAll());
                     List<GameInstance> previous = List.copyOf(next);
                     next.add(instance);
-                    operation.configuration(recovery.dataDirectory().resolve("instances.json"), Map.of("instances", next),
-                        Map.of("instances", previous));
+                    operation.configuration(recovery.dataDirectory().resolve("instances.json"), Map.of("instances", next), Map.of("instances", previous));
                 }
                 instances.save(instance);
                 if (operation != null) {
@@ -247,8 +244,7 @@ public final class LocalGameInstallation implements GameInstallation {
         try {
             files.installVanilla(root, game, task);
             JsonObject profile = instance.loader() == LoaderType.VANILLA ? new JsonObject()
-                : Objects.requireNonNull(installers.get(instance.loader()), "缺少加载器适配器").install(root, staging, game,
-                    instance.loaderVersion(), task);
+                : Objects.requireNonNull(installers.get(instance.loader()), "缺少加载器适配器").install(root, staging, game, instance.loaderVersion(), task);
             profile.addProperty("id", instance.id());
             profile.addProperty("inheritsFrom", game.id());
             profile.add("fuzzInstance", JsonFiles.GSON.toJsonTree(instance));

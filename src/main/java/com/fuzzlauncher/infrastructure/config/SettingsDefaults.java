@@ -24,8 +24,7 @@ public final class SettingsDefaults {
         return create(root, isolation, source, data, null);
     }
 
-    public static LauncherSettings create(String root, IsolationMode isolation, DownloadSource source, String data,
-        LauncherVisibility visibility) {
+    public static LauncherSettings create(String root, IsolationMode isolation, DownloadSource source, String data, LauncherVisibility visibility) {
         return create(root, isolation, source, data, visibility, null, null);
     }
 

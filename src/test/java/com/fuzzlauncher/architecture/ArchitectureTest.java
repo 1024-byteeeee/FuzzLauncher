@@ -12,8 +12,7 @@ import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.sli
 
 /** These rules apply to production bytecode, including constructor and method-body dependencies. */
 final class ArchitectureTest {
-    private static final JavaClasses PRODUCTION = new ClassFileImporter()
-        .importUrl(LauncherInfo.class.getProtectionDomain().getCodeSource().getLocation());
+    private static final JavaClasses PRODUCTION = new ClassFileImporter().importUrl(LauncherInfo.class.getProtectionDomain().getCodeSource().getLocation());
 
     @Test
     void domainUsesOnlyDomainAndJdk() {

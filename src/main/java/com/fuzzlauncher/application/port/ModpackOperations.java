@@ -16,13 +16,11 @@ public interface ModpackOperations {
 
     ModpackInfo inspect(Path archive) throws IOException;
 
-    GameInstance importPack(Path root, Path archive, String name, boolean optional, Set<String> excluded, TaskContext task)
-        throws Exception;
+    GameInstance importPack(Path root, Path archive, String name, boolean optional, Set<String> excluded, TaskContext task) throws Exception;
 
     GameInstance update(Path root, GameInstance instance, TaskContext task) throws Exception;
 
-    void export(Path source, GameInstance instance, ModpackFormat format, String name, String version, String author, String description,
-        String fileApi, Set<String> entries, Path destination, boolean replace, TaskContext task) throws Exception;
+    void export(Path source, GameInstance instance, ModpackFormat format, String name, String version, String author, String description, String fileApi, Set<String> entries, Path destination, boolean replace, TaskContext task) throws Exception;
 
     List<ModpackContent> scanExport(Path source, GameInstance instance, TaskContext task) throws IOException;
 

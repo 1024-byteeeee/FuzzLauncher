@@ -115,8 +115,7 @@ class GameRootMigrationTest {
         for (Path invalid : List.of(source, source.resolve("nested"), source.getParent())) {
             assertThrows(IOException.class, () -> GameRootMigration.prepare(source, invalid, List.of(), task));
         }
-        assertThrows(IOException.class,
-            () -> GameRootMigration.prepare(source, temp.resolve("protected"), List.of(source.resolve("config")), task));
+        assertThrows(IOException.class, () -> GameRootMigration.prepare(source, temp.resolve("protected"), List.of(source.resolve("config")), task));
         TaskContext cancelled = new TaskContext() {
             boolean stop;
 
@@ -177,8 +176,7 @@ class GameRootMigrationTest {
         Path external = Files.createDirectory(temp.resolve("external"));
         Files.writeString(external.resolve("keep.txt"), "keep");
         Path junction = source.resolve("linked");
-        Process process = new ProcessBuilder("cmd", "/c", "mklink", "/J", junction.toString(), external.toString())
-            .redirectErrorStream(true).start();
+        Process process = new ProcessBuilder("cmd", "/c", "mklink", "/J", junction.toString(), external.toString()).redirectErrorStream(true).start();
         assertEquals(0, process.waitFor(), new String(process.getInputStream().readAllBytes()));
         try {
             assertThrows(IOException.class, () -> GameRootMigration.prepare(source, target, List.of(), task));
@@ -203,8 +201,7 @@ class GameRootMigrationTest {
         Files.setAttribute(readOnly, "dos:readonly", true);
         Path locked = Files.writeString(source.resolve("z-locked.txt"), "locked");
         var kernel = Kernel32.INSTANCE;
-        var handle = kernel.CreateFile(locked.toString(), WinNT.GENERIC_READ, 0, null,
-            WinNT.OPEN_EXISTING, WinNT.FILE_ATTRIBUTE_NORMAL, null);
+        var handle = kernel.CreateFile(locked.toString(), WinNT.GENERIC_READ, 0, null, WinNT.OPEN_EXISTING, WinNT.FILE_ATTRIBUTE_NORMAL, null);
         assertNotEquals(WinBase.INVALID_HANDLE_VALUE, handle);
         try {
             assertThrows(IOException.class, () -> GameRootMigration.prepare(source, target, List.of(), task));
@@ -226,8 +223,7 @@ class GameRootMigrationTest {
             Path originals = source.resolve("versions");
             Path backup = temp.resolve("versions-backup");
             Files.move(originals, backup);
-            Process process = new ProcessBuilder("cmd", "/c", "mklink", "/J", originals.toString(), backup.toString())
-                .redirectErrorStream(true).start();
+            Process process = new ProcessBuilder("cmd", "/c", "mklink", "/J", originals.toString(), backup.toString()).redirectErrorStream(true).start();
             assertEquals(0, process.waitFor(), new String(process.getInputStream().readAllBytes()));
             migration.commit();
             try {

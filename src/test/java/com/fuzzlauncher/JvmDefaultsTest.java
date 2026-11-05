@@ -26,10 +26,8 @@ class JvmDefaultsTest {
         LauncherSettings old = JsonFiles.GSON.fromJson("{\"gameRoot\":\"game\",\"isolation\":\"ALL\"}", LauncherSettings.class);
         assertTrue(old.autoDownloadThreads());
         assertEquals(64, old.downloadThreads());
-        assertEquals(Math.min(Runtime.getRuntime().availableProcessors() * 4, 64),
-            old.effectiveDownloadThreads(LauncherConfig.get().network().concurrency()));
-        LauncherSettings manual = SettingsDefaults.create("game", IsolationMode.ALL, DownloadSource.AUTO, "", LauncherVisibility.KEEP,
-            false, 5);
+        assertEquals(Math.min(Runtime.getRuntime().availableProcessors() * 4, 64), old.effectiveDownloadThreads(LauncherConfig.get().network().concurrency()));
+        LauncherSettings manual = SettingsDefaults.create("game", IsolationMode.ALL, DownloadSource.AUTO, "", LauncherVisibility.KEEP, false, 5);
         assertEquals(5, manual.effectiveDownloadThreads(LauncherConfig.get().network().concurrency()));
         assertEquals(manual, JsonFiles.GSON.fromJson(JsonFiles.GSON.toJson(manual), LauncherSettings.class));
         assertThrows(IllegalArgumentException.class,
@@ -40,8 +38,7 @@ class JvmDefaultsTest {
     void collectorChoiceAndExplicitSettingsOverrideDefaults() {
         var env = environment(21, true, 16L << 30,
             Set.of("UnlockExperimentalVMOptions", "UnlockDiagnosticVMOptions", "UseG1GC", "MaxGCPauseMillis", "ReservedCodeCacheSize"));
-        List<String> generated = JvmDefaults.generate(env,
-            List.of("-XX:+UseZGC", "-XX:ReservedCodeCacheSize=256M", "-Dfile.encoding=UTF-8"));
+        List<String> generated = JvmDefaults.generate(env, List.of("-XX:+UseZGC", "-XX:ReservedCodeCacheSize=256M", "-Dfile.encoding=UTF-8"));
         assertFalse(generated.contains("-XX:+UseG1GC"));
         assertFalse(generated.stream().anyMatch(value -> value.startsWith("-XX:MaxGCPauseMillis")));
         assertFalse(generated.stream().anyMatch(value -> value.startsWith("-XX:ReservedCodeCacheSize")));
@@ -81,7 +78,6 @@ class JvmDefaultsTest {
         var java21 = environment(21, true, 4L << 30, Set.of());
         assertEquals("GBK", JvmDefaults.outputEncoding(java21, List.of()).name());
         assertEquals("UTF-8", JvmDefaults.outputEncoding(java21, List.of("-Dfile.encoding=GBK", "-Dstdout.encoding=UTF-8")).name());
-        assertEquals("UTF-8",
-            JvmDefaults.outputEncoding(environment(8, true, 4L << 30, Set.of()), List.of("-Dsun.stdout.encoding=UTF-8")).name());
+        assertEquals("UTF-8", JvmDefaults.outputEncoding(environment(8, true, 4L << 30, Set.of()), List.of("-Dsun.stdout.encoding=UTF-8")).name());
     }
 }

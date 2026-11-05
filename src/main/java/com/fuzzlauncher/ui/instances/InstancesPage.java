@@ -149,8 +149,7 @@ public final class InstancesPage extends RetroPage {
         details.setMinWidth(0);
         HBox.setHgrow(details, Priority.ALWAYS);
         InstanceDetails editor = new InstanceDetails();
-        VBox emptyDetails = new VBox(20, label("实例详情", "section-title"), new Label("安装一个游戏版本后，在这里配置并启动。"),
-            button("下载游戏", () -> showPage(1)));
+        VBox emptyDetails = new VBox(20, label("实例详情", "section-title"), new Label("安装一个游戏版本后，在这里配置并启动。"), button("下载游戏", () -> showPage(1)));
         emptyDetails.setPadding(new Insets(20));
         Consumer<GameInstance> select = item -> {
             if (item == null || !list.getItems().contains(item)) {
@@ -355,6 +354,7 @@ public final class InstancesPage extends RetroPage {
             panel.getStyleClass().add("details-box");
             VBox.setVgrow(panel, Priority.ALWAYS);
             Button start = button("启动游戏", vm.gamesModel()::launch);
+            start.setId("launch-game");
             start.setGraphic(icon("grass", 43));
             start.setGraphicTextGap(18);
             start.getStyleClass().add("launch-button");
@@ -367,7 +367,17 @@ public final class InstancesPage extends RetroPage {
                         : (vm.accountProperty().get().isOffline() ? "离线账号: " : "微软账号: ") + vm.accountProperty().get().name(),
                     vm.accountProperty()));
             loginHint.setStyle("-fx-font-size: 14px;");
-            VBox right = new VBox(12, panel, start, loginHint);
+            loginHint.setMinWidth(0);
+            loginHint.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(loginHint, Priority.ALWAYS);
+            CheckBox testMode = new CheckBox("以测试模式启动");
+            testMode.setId("test-game-mode");
+            testMode.setMinWidth(Region.USE_PREF_SIZE);
+            testMode.selectedProperty().bindBidirectional(vm.gamesModel().testModeProperty());
+            testMode.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
+            HBox launchOptions = new HBox(10, loginHint, testMode);
+            launchOptions.setAlignment(Pos.CENTER_LEFT);
+            VBox right = new VBox(12, panel, start, launchOptions);
             getChildren().setAll(right);
             VBox.setVgrow(right, Priority.ALWAYS);
         }
@@ -376,8 +386,7 @@ public final class InstancesPage extends RetroPage {
     private Spinner<Integer> memorySpinner(int minimum, int initial, int step) {
         Spinner<Integer> spinner = new Spinner<>(minimum, 65536, initial, step);
         spinner.setEditable(true);
-        spinner.getEditor()
-            .setTextFormatter(new TextFormatter<String>(change -> change.getControlNewText().matches("[0-9]{0,5}") ? change : null));
+        spinner.getEditor().setTextFormatter(new TextFormatter<String>(change -> change.getControlNewText().matches("[0-9]{0,5}") ? change : null));
         spinner.setMaxWidth(Double.MAX_VALUE);
         return spinner;
     }

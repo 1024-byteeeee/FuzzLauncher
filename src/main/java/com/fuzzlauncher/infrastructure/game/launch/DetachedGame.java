@@ -97,12 +97,7 @@ public final class DetachedGame {
             System.out.println("STARTED");
             System.out.flush();
             try (BufferedReader input = game.inputReader(encoding)) {
-                String line;
-                while ((line = input.readLine()) != null) {
-                    output.write(token.isEmpty() ? line : line.replace(token, "[REDACTED]"));
-                    output.newLine();
-                    output.flush();
-                }
+                GameLogText.transfer(input, output, token);
             }
             code = game.waitFor();
         }

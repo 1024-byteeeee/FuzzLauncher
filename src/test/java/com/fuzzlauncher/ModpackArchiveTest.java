@@ -115,8 +115,7 @@ class ModpackArchiveTest {
             assertTrue(ModpackArchive.allowedContent(directory + "/settings.json"), directory);
             assertTrue(ModpackArchive.allowedContent("config/hirosakura/" + directory + "/settings.json"), directory);
         }
-        for (String path : List.of("config/accounts.json", "config/data/credentials.dpapi", "config/data/.env",
-            "config/.fuzz-modpack.json")) {
+        for (String path : List.of("config/accounts.json", "config/data/credentials.dpapi", "config/data/.env", "config/.fuzz-modpack.json")) {
             assertTrue(ModpackArchive.allowedContent(path), path);
             ModpackArchive.validateContent(path);
         }
@@ -128,17 +127,14 @@ class ModpackArchiveTest {
     @Test
     void maliciousDuplicateAndReservedArchivePathsAreRejected() throws Exception {
         String manifest = "{\"formatVersion\":1,\"components\":[{\"uid\":\"net.minecraft\",\"version\":\"1.20.4\"}]}";
-        for (String unsafe : List.of("../outside", "/absolute", "C:/outside", "dir/../escape", "dir\\escape", "dir/NUL.txt",
-            "data:stream")) {
+        for (String unsafe : List.of("../outside", "/absolute", "C:/outside", "dir/../escape", "dir\\escape", "dir/NUL.txt", "data:stream")) {
             Path zip = archive("unsafe-" + UUID.randomUUID() + ".zip", Map.of("mmc-pack.json", manifest, unsafe, "bad"));
             assertThrows(IOException.class, () -> ModpackArchive.inspect(zip), unsafe);
         }
-        Path duplicate = archive("duplicate.zip",
-            Map.of("mmc-pack.json", manifest, ".minecraft/mods/A.jar", "a", ".minecraft/mods/a.jar", "b"));
+        Path duplicate = archive("duplicate.zip", Map.of("mmc-pack.json", manifest, ".minecraft/mods/A.jar", "a", ".minecraft/mods/a.jar", "b"));
         assertThrows(IOException.class, () -> ModpackArchive.inspect(duplicate));
         Path credentials = archive("credentials.zip", Map.of("mmc-pack.json", manifest, ".minecraft/account.json", "private"));
-        ModpackArchive.extract(credentials, ModpackArchive.inspect(credentials), temp.resolve("unrestricted"), true, new HttpTransport(),
-            task);
+        ModpackArchive.extract(credentials, ModpackArchive.inspect(credentials), temp.resolve("unrestricted"), true, new HttpTransport(), task);
         assertEquals("private", Files.readString(temp.resolve("unrestricted/account.json")));
         assertFalse(Files.exists(temp.resolve("outside")));
     }
@@ -198,16 +194,14 @@ class ModpackArchiveTest {
             excluded.addProperty("path", "mods/server.jar");
             excluded.add("env", JsonParser.parseString("{\"client\":\"unsupported\"}"));
             index.getAsJsonArray("files").add(excluded);
-            Path zip = archive("remote.mrpack",
-                Map.of("modrinth.index.json", index.toString(), "overrides/mods/optional.jar", "embedded optional override"));
+            Path zip = archive("remote.mrpack", Map.of("modrinth.index.json", index.toString(), "overrides/mods/optional.jar", "embedded optional override"));
             ModpackArchive.extract(zip, ModpackArchive.inspect(zip), temp.resolve("remote"), false, new HttpTransport(), task);
             assertArrayEquals(bytes, Files.readAllBytes(temp.resolve("remote/mods/remote.jar")));
             assertFalse(Files.exists(temp.resolve("remote/mods/optional.jar")));
             assertFalse(Files.exists(temp.resolve("remote/mods/server.jar")));
             ModpackArchive.extract(zip, ModpackArchive.inspect(zip), temp.resolve("optional-selected"), true,
                 Set.of("mods/optional.jar", "mods/remote.jar"), new HttpTransport(), task);
-            assertTrue(Files.isRegularFile(temp.resolve("optional-selected/mods/remote.jar")),
-                "Required files cannot be excluded through optional selection");
+            assertTrue(Files.isRegularFile(temp.resolve("optional-selected/mods/remote.jar")), "Required files cannot be excluded through optional selection");
             assertFalse(Files.exists(temp.resolve("optional-selected/mods/optional.jar")));
             hashes.addProperty("sha512", "0".repeat(128));
             Path bad = archive("bad.mrpack", Map.of("modrinth.index.json", index.toString()));
@@ -240,8 +234,7 @@ class ModpackArchiveTest {
         Files.writeString(source.resolve("config/nested/settings.json"), "config");
         Files.writeString(source.resolve("logs/latest.log"), "private log");
         Files.writeString(source.resolve("account.json"), "private account");
-        GameInstance instance = new GameInstance("selected", "selected", "1.20.4", LoaderType.VANILLA, null, IsolationOverride.ISOLATED,
-            4096);
+        GameInstance instance = new GameInstance("selected", "selected", "1.20.4", LoaderType.VANILLA, null, IsolationOverride.ISOLATED, 4096);
         var entries = ModpackArchive.scanExport(source, instance, task);
         assertTrue(entries.stream().anyMatch(e -> e.path().equals("config/nested/settings.json")));
         assertTrue(entries.stream().anyMatch(e -> e.path().equals("logs/latest.log")));
@@ -272,8 +265,7 @@ class ModpackArchiveTest {
         Files.writeString(source.resolve("options.txt"), "settings");
         Path output = temp.resolve("existing.zip");
         Files.writeString(output, "original");
-        GameInstance instance = new GameInstance("fixture", "fixture", "1.20.4", LoaderType.VANILLA, null, IsolationOverride.ISOLATED,
-            4096);
+        GameInstance instance = new GameInstance("fixture", "fixture", "1.20.4", LoaderType.VANILLA, null, IsolationOverride.ISOLATED, 4096);
         TaskContext cancelled = new TaskContext() {
             public void report(String m, double p) {
             }

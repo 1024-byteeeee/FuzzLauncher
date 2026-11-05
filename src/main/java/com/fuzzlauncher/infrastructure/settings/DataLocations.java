@@ -93,8 +93,7 @@ public final class DataLocations {
             Path source = Path.of(location.get("previous").getAsString()).toAbsolutePath().normalize();
             if (!source.equals(target)) {
                 Files.createDirectories(source);
-                try (FileChannel channel = FileChannel.open(source.resolve("launcher.lock"), StandardOpenOption.CREATE,
-                    StandardOpenOption.WRITE)) {
+                try (FileChannel channel = FileChannel.open(source.resolve("launcher.lock"), StandardOpenOption.CREATE, StandardOpenOption.WRITE)) {
                     var lock = channel.tryLock();
                     if (lock == null) {
                         throw new IOException("请先退出旧启动器，再切换数据目录");

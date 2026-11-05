@@ -52,8 +52,7 @@ class SkinAvatarsTest {
                 profiles.incrementAndGet();
                 String texture = Base64.getEncoder().encodeToString(
                     ("{\"textures\":{\"SKIN\":{\"url\":\"" + A + "\"}}}").getBytes(StandardCharsets.UTF_8));
-                bytes = ("{\"properties\":[{\"name\":\"textures\",\"value\":\"" + texture + "\"}]}")
-                    .getBytes(StandardCharsets.UTF_8);
+                bytes = ("{\"properties\":[{\"name\":\"textures\",\"value\":\"" + texture + "\"}]}").getBytes(StandardCharsets.UTF_8);
             } else {
                 images.incrementAndGet();
                 bytes = exchange.getRequestURI().getPath().equals("/a") ? first : second;
@@ -73,8 +72,7 @@ class SkinAvatarsTest {
 
     private SkinAvatars loader() {
         String base = "http://127.0.0.1:" + server.getAddress().getPort();
-        return new SkinAvatars(temp,
-            new HttpTransport(url -> url.contains("sessionserver") ? base + "/profile" : url.equals(A) ? base + "/a" : base + "/b"));
+        return new SkinAvatars(temp, new HttpTransport(url -> url.contains("sessionserver") ? base + "/profile" : url.equals(A) ? base + "/a" : base + "/b"));
     }
 
     private Account account(String url) {
@@ -146,8 +144,7 @@ class SkinAvatarsTest {
         assertEquals("", SkinAvatars.activeSkinUrl(JsonParser.parseString("{\"skins\":[{\"state\":{},\"url\":{}}]}").getAsJsonObject()));
         assertEquals(A,
             SkinAvatars.activeSkinUrl(
-                JsonParser.parseString("{\"skins\":[{\"state\":\"INACTIVE\",\"url\":\"x\"},{\"state\":\"ACTIVE\",\"url\":\"" + A + "\"}]}")
-                    .getAsJsonObject()));
+                JsonParser.parseString("{\"skins\":[{\"state\":\"INACTIVE\",\"url\":\"x\"},{\"state\":\"ACTIVE\",\"url\":\"" + A + "\"}]}").getAsJsonObject()));
     }
 
     @Test

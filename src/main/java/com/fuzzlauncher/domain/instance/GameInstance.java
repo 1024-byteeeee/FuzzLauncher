@@ -51,8 +51,7 @@ public record GameInstance(String id, String name, String gameVersion, LoaderTyp
         this(id, name, gameVersion, loader, loaderVersion, isolation, memoryMb, javaPath, 256, List.of(), List.of());
     }
 
-    public GameInstance(String id, String name, String gameVersion, LoaderType loader, String loaderVersion, IsolationOverride isolation,
-        int memoryMb) {
+    public GameInstance(String id, String name, String gameVersion, LoaderType loader, String loaderVersion, IsolationOverride isolation, int memoryMb) {
         this(id, name, gameVersion, loader, loaderVersion, isolation, memoryMb, "");
     }
 
@@ -66,16 +65,14 @@ public record GameInstance(String id, String name, String gameVersion, LoaderTyp
     }
 
     public GameInstance withSettings(String newName, IsolationOverride mode, int memory, String javaPath) {
-        return new GameInstance(id, newName.strip(), gameVersion, loader, loaderVersion, mode, memory, javaPath, minMemoryMb, jvmArguments,
-            gameArguments);
+        return new GameInstance(id, newName.strip(), gameVersion, loader, loaderVersion, mode, memory, javaPath, minMemoryMb, jvmArguments, gameArguments);
     }
 
     public GameInstance withSettings(String newName, IsolationOverride mode, int minimumMemory, int maximumMemory, String javaPath) {
         if (minimumMemory < 128) {
             throw new IllegalArgumentException("最小内存应在 128–65536 MB 之间");
         }
-        return new GameInstance(id, newName.strip(), gameVersion, loader, loaderVersion, mode, maximumMemory, javaPath, minimumMemory,
-            jvmArguments, gameArguments);
+        return new GameInstance(id, newName.strip(), gameVersion, loader, loaderVersion, mode, maximumMemory, javaPath, minimumMemory, jvmArguments, gameArguments);
     }
 
     public GameInstance withLaunchArguments(int minimumMemory, int maximumMemory, List<String> jvm, List<String> game) {

@@ -51,8 +51,7 @@ class HttpDownloadResumeTest {
                     validator.set(exchange.getRequestHeaders().getFirst("If-Range"));
                     int offset = ignoreRange ? 0 : 65536;
                     if (!ignoreRange) {
-                        exchange.getResponseHeaders().add("Content-Range",
-                            "bytes " + offset + "-" + (bytes.length - 1) + "/" + bytes.length);
+                        exchange.getResponseHeaders().add("Content-Range", "bytes " + offset + "-" + (bytes.length - 1) + "/" + bytes.length);
                     }
                     exchange.sendResponseHeaders(ignoreRange ? 200 : 206, bytes.length - offset);
                     exchange.getResponseBody().write(bytes, offset, bytes.length - offset);

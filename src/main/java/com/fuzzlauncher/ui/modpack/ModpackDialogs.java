@@ -23,8 +23,7 @@ public final class ModpackDialogs {
     }
 
     public static void importPack(Stage owner, LauncherViewModel vm) {
-        RetroPathDialog.modpack(owner, Path.of(System.getProperty("user.home")), vm.browser())
-            .ifPresent(archive -> importArchive(owner, vm, archive));
+        RetroPathDialog.modpack(owner, Path.of(System.getProperty("user.home")), vm.browser()).ifPresent(archive -> importArchive(owner, vm, archive));
     }
 
     public static void importArchive(Stage owner, LauncherViewModel vm, Path archive) {

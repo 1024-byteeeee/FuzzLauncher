@@ -97,8 +97,7 @@ public final class WindowsFileClipboard {
             ByteBuffer.wrap(drop).order(ByteOrder.LITTLE_ENDIAN).putInt(0, 20).putInt(16, 1);
             System.arraycopy(text, 0, drop, 20, text.length);
             publish(CF_HDROP, drop);
-            publish(EFFECT,
-                ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(move ? DROP_MOVE : DROP_COPY).array());
+            publish(EFFECT, ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(move ? DROP_MOVE : DROP_COPY).array());
         } finally {
             USER.CloseClipboard();
         }

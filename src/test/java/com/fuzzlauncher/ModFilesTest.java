@@ -135,8 +135,7 @@ class ModFilesTest {
         Path first = fabric(temp.resolve("one/mod.jar"), "first"), second = fabric(temp.resolve("two/mod.jar"), "second");
         Path mods = temp.resolve("mods");
         assertEquals(2, files.importFiles(mods, List.of(first, second), true, TASK).completed());
-        assertEquals(Set.of("first", "second"),
-            files.scan(mods, TASK).stream().map(mod -> mod.metadata().getFirst().id()).collect(Collectors.toSet()));
+        assertEquals(Set.of("first", "second"), files.scan(mods, TASK).stream().map(mod -> mod.metadata().getFirst().id()).collect(Collectors.toSet()));
         assertNoTemporaryDirectories(mods);
     }
 

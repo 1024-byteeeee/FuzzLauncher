@@ -74,8 +74,7 @@ class BrowserSignInTest {
         Map<String, String> result = new HashMap<>();
         for (String pair : value.split("&")) {
             String[] parts = pair.split("=", 2);
-            result.put(URLDecoder.decode(parts[0], StandardCharsets.UTF_8),
-                URLDecoder.decode(parts.length == 2 ? parts[1] : "", StandardCharsets.UTF_8));
+            result.put(URLDecoder.decode(parts[0], StandardCharsets.UTF_8), URLDecoder.decode(parts.length == 2 ? parts[1] : "", StandardCharsets.UTF_8));
         }
         return result;
     }
@@ -174,8 +173,7 @@ class BrowserSignInTest {
         }));
         assertTrue(opened.await(5, TimeUnit.SECONDS));
         cancelled.set(true);
-        assertInstanceOf(CancellationException.class,
-            assertThrows(ExecutionException.class, () -> login.get(5, TimeUnit.SECONDS)).getCause());
+        assertInstanceOf(CancellationException.class, assertThrows(ExecutionException.class, () -> login.get(5, TimeUnit.SECONDS)).getCause());
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
         boolean closed = false;
         while (System.nanoTime() < deadline) {

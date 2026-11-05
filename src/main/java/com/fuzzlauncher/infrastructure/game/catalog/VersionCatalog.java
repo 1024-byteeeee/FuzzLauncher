@@ -56,8 +56,7 @@ public final class VersionCatalog implements VersionCatalogPort {
         List<GameVersion> result = new ArrayList<>();
         for (JsonElement item : http.getJson(MANIFEST).getAsJsonArray("versions")) {
             JsonObject v = item.getAsJsonObject();
-            result.add(new GameVersion(v.get("id").getAsString(), v.get("type").getAsString(), v.get("url").getAsString(),
-                JsonFiles.string(v, "sha1", "")));
+            result.add(new GameVersion(v.get("id").getAsString(), v.get("type").getAsString(), v.get("url").getAsString(), JsonFiles.string(v, "sha1", "")));
         }
         return cache.write(key, result);
     }

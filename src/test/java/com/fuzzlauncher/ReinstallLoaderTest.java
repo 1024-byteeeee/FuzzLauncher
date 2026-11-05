@@ -97,8 +97,7 @@ class ReinstallLoaderTest {
     }
 
     private LocalLoaderReinstallation operation(InstanceRepository state, LoaderInstaller installer) {
-        return new LocalLoaderReinstallation(state, new GameFiles(new HttpTransport()), new VersionResolver(),
-            Map.of(LoaderType.FABRIC, installer));
+        return new LocalLoaderReinstallation(state, new GameFiles(new HttpTransport()), new VersionResolver(), Map.of(LoaderType.FABRIC, installer));
     }
 
     private LoaderInstaller installer() {
@@ -123,8 +122,7 @@ class ReinstallLoaderTest {
         assertEquals("2", updated.loaderVersion());
         assertEquals(updated, repository.findAll().getFirst());
         assertTrue(OperationJournal.pending(records).isEmpty());
-        assertEquals("user data saves/world/level.dat",
-            Files.readString(InstanceDirectories.directory(root, updated).resolve("saves/world/level.dat")));
+        assertEquals("user data saves/world/level.dat", Files.readString(InstanceDirectories.directory(root, updated).resolve("saves/world/level.dat")));
     }
 
     @Test
@@ -260,8 +258,7 @@ class ReinstallLoaderTest {
             assertTrue(paths.anyMatch(path -> path.getFileName().toString().equals("original-instances.json")));
         }
         assertEquals(List.of(original), repository.findAll());
-        assertEquals("1",
-            JsonFiles.read(InstanceDirectories.profile(root, original)).getAsJsonObject("fuzzInstance").get("loaderVersion").getAsString());
+        assertEquals("1", JsonFiles.read(InstanceDirectories.profile(root, original)).getAsJsonObject("fuzzInstance").get("loaderVersion").getAsString());
         assertUserData();
     }
 }

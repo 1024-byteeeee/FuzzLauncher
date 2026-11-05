@@ -81,8 +81,7 @@ public final class MicrosoftAuthentication implements AccountAuthenticator {
                 }
             }
         };
-        var builder = PublicClientApplication.builder(CLIENT_ID).authority(LauncherConfig.get().authentication().authority())
-            .setTokenCacheAccessAspect(cache);
+        var builder = PublicClientApplication.builder(CLIENT_ID).authority(LauncherConfig.get().authentication().authority()).setTokenCacheAccessAspect(cache);
         if (executor != null) {
             builder.executorService(executor);
         }
@@ -123,8 +122,7 @@ public final class MicrosoftAuthentication implements AccountAuthenticator {
     public GameSession refresh(Account account, TaskContext task) throws Exception {
         task.report("验证正版账号与游戏权限", -1);
         PublicClientApplication app = application();
-        IAccount cached = await(app.getAccounts(), task).stream().filter(a -> a.homeAccountId().equals(account.homeAccountId())).findFirst()
-            .orElseThrow(() -> new IOException("账号授权已失效，请重新进行微软登录"));
+        IAccount cached = await(app.getAccounts(), task).stream().filter(a -> a.homeAccountId().equals(account.homeAccountId())).findFirst().orElseThrow(() -> new IOException("账号授权已失效，请重新进行微软登录"));
         try {
             IAuthenticationResult result = await(app.acquireTokenSilently(SilentParameters.builder(SCOPES, cached).build()), task);
             GameSession session = exchange(result, task);
@@ -147,14 +145,10 @@ public final class MicrosoftAuthentication implements AccountAuthenticator {
     private GameSession exchange(IAuthenticationResult microsoft, TaskContext task) throws Exception {
         task.checkCancelled();
         task.report("Xbox Live 验证", -1);
-        JsonObject body = JsonParser.parseString(
-            "{\"Properties\":{\"AuthMethod\":\"RPS\",\"SiteName\":\"user.auth.xboxlive.com\"},\"RelyingParty\":\"http://auth.xboxlive.com\",\"TokenType\":\"JWT\"}")
-            .getAsJsonObject();
+        JsonObject body = JsonParser.parseString("{\"Properties\":{\"AuthMethod\":\"RPS\",\"SiteName\":\"user.auth.xboxlive.com\"},\"RelyingParty\":\"http://auth.xboxlive.com\",\"TokenType\":\"JWT\"}").getAsJsonObject();
         body.getAsJsonObject("Properties").addProperty("RpsTicket", "d=" + microsoft.accessToken());
         JsonObject xbox = http.postJson(LauncherConfig.get().authentication().xboxAuth(), body);
-        JsonObject xstsBody = JsonParser.parseString(
-            "{\"Properties\":{\"SandboxId\":\"RETAIL\",\"UserTokens\":[]},\"RelyingParty\":\"rp://api.minecraftservices.com/\",\"TokenType\":\"JWT\"}")
-            .getAsJsonObject();
+        JsonObject xstsBody = JsonParser.parseString("{\"Properties\":{\"SandboxId\":\"RETAIL\",\"UserTokens\":[]},\"RelyingParty\":\"rp://api.minecraftservices.com/\",\"TokenType\":\"JWT\"}").getAsJsonObject();
         xstsBody.getAsJsonObject("Properties").getAsJsonArray("UserTokens").add(xbox.get("Token").getAsString());
         task.checkCancelled();
         task.report("XSTS 验证", -1);

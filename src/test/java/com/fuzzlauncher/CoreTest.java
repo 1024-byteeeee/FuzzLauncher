@@ -61,8 +61,7 @@ class CoreTest {
                 for (IsolationOverride override : IsolationOverride.values()) {
                     boolean expected = override == IsolationOverride.ISOLATED || override == IsolationOverride.INHERIT
                         && (global == IsolationMode.ALL || global == IsolationMode.MODDED && loader != LoaderType.VANILLA);
-                    assertEquals(expected ? temp.resolve("versions/测试") : temp,
-                        policy.gameDirectory(temp, instance(loader, override), global));
+                    assertEquals(expected ? temp.resolve("versions/测试") : temp, policy.gameDirectory(temp, instance(loader, override), global));
                 }
             }
         }
@@ -122,8 +121,7 @@ class CoreTest {
 
     @Test
     void rulesHonorPlatformAndDoNotEnableDemoMode() {
-        assertFalse(VersionResolver
-            .allowed(JsonParser.parseString("{\"rules\":[{\"action\":\"allow\",\"os\":{\"name\":\"linux\"}}]}").getAsJsonObject()));
+        assertFalse(VersionResolver.allowed(JsonParser.parseString("{\"rules\":[{\"action\":\"allow\",\"os\":{\"name\":\"linux\"}}]}").getAsJsonObject()));
         assertFalse(VersionResolver.allowed(
             JsonParser.parseString("{\"rules\":[{\"action\":\"allow\",\"features\":{\"is_demo_user\":true}}]}").getAsJsonObject()));
         assertTrue(VersionResolver.allowed(JsonParser
@@ -132,8 +130,7 @@ class CoreTest {
 
     @Test
     void legacyQuotesAndUnresolvedArgumentsFailClearly() throws Exception {
-        assertEquals(List.of("--gameDir", "C:\\有空格 test", "--name", ""),
-            LaunchArguments.splitLegacy("--gameDir \"C:\\有空格 test\" --name \"\""));
+        assertEquals(List.of("--gameDir", "C:\\有空格 test", "--name", ""), LaunchArguments.splitLegacy("--gameDir \"C:\\有空格 test\" --name \"\""));
         assertThrows(IOException.class, () -> LaunchArguments.splitLegacy("\"broken"));
         assertThrows(IOException.class, () -> LaunchArguments.substitute("${unknown}", Map.of()));
     }
@@ -145,8 +142,7 @@ class CoreTest {
         JsonObject version = JsonParser.parseString(
             "{\"_clientVersion\":\"1.20.4\",\"mainClass\":\"net.minecraft.client.main.Main\",\"arguments\":{\"game\":[\"--gameDir\",\"${game_directory}\",\"--accessToken\",\"${auth_access_token}\"]}}")
             .getAsJsonObject();
-        var session = new GameSession(new Account("test-home", "test-uuid", "test-player"), "unit-test-token",
-            Instant.now().plusSeconds(600));
+        var session = new GameSession(new Account("test-home", "test-uuid", "test-player"), "unit-test-token", Instant.now().plusSeconds(600));
         List<String> command = new LaunchArguments().build(temp, directory, temp.resolve("native"), item, session, version, List.of());
         assertEquals(directory.toAbsolutePath().toString(), command.get(command.indexOf("--gameDir") + 1));
         assertEquals("unit-test-token", command.get(command.indexOf("--accessToken") + 1));

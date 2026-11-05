@@ -310,6 +310,43 @@
 .list-cell:empty {
     -fx-background-color: white;
 }
+.game-log-output .list-cell {
+    -fx-font-family: "Consolas";
+    -fx-font-size: 13px;
+    -fx-padding: 2 5;
+}
+.game-log-buttons > .container {
+    -fx-spacing: 6;
+}
+.game-log-output .list-cell.game-log-fatal:filled,
+.game-log-filter.game-log-fatal:selected {
+    -fx-background-color: #ffad9f;
+    -fx-text-fill: #610000;
+}
+.game-log-output .list-cell.game-log-error:filled,
+.game-log-filter.game-log-error:selected {
+    -fx-background-color: #ffe0e0;
+    -fx-text-fill: #870000;
+}
+.game-log-output .list-cell.game-log-warn:filled,
+.game-log-filter.game-log-warn:selected {
+    -fx-background-color: #fff2c7;
+    -fx-text-fill: #5a3a00;
+}
+.game-log-output .list-cell.game-log-info:filled,
+.game-log-filter.game-log-info:selected {
+    -fx-background-color: #e9f2ff;
+    -fx-text-fill: #143253;
+}
+.game-log-output .list-cell.game-log-debug:filled,
+.game-log-filter.game-log-debug:selected {
+    -fx-background-color: #eeeeee;
+    -fx-text-fill: #464646;
+}
+.game-log-output .list-cell:filled:selected {
+    -fx-background-color: #000080;
+    -fx-text-fill: white;
+}
 .combo-box .list-cell {
     -fx-padding: 4 8;
     -fx-font-size: 18px;

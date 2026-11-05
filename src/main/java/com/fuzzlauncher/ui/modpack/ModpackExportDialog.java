@@ -59,8 +59,7 @@ final class ModpackExportDialog extends Dialog<ButtonType> {
         error.setWrapText(true);
         error.setStyle("-fx-text-fill: #a00000;");
         Set<String> excludedDefaults = Set.of("saves", "screenshots", "servers.dat", "options.txt");
-        ModpackFileTree selector = new ModpackFileTree(instance.name(),
-            path -> !excludedDefaults.contains(path.split("/")[0].toLowerCase(Locale.ROOT)));
+        ModpackFileTree selector = new ModpackFileTree(instance.name(), path -> !excludedDefaults.contains(path.split("/")[0].toLowerCase(Locale.ROOT)));
         selector.setId("modpack-file-selector");
         TextField directory = field(System.getProperty("user.home"), "modpack-output-directory");
         TextField filename = field(instance.name(), "modpack-filename");
@@ -77,8 +76,7 @@ final class ModpackExportDialog extends Dialog<ButtonType> {
         HBox folder = new HBox(8, directory, browse);
         HBox.setHgrow(directory, Priority.ALWAYS);
         Label suffix = new Label();
-        suffix.textProperty().bind(Bindings
-            .createStringBinding(() -> "文件名（自动添加 " + format.getValue().extension() + "）", format.valueProperty()));
+        suffix.textProperty().bind(Bindings.createStringBinding(() -> "文件名（自动添加 " + format.getValue().extension() + "）", format.valueProperty()));
         GridPane output = new GridPane();
         output.setHgap(12);
         output.setVgap(8);

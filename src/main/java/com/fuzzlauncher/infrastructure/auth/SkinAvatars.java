@@ -116,10 +116,12 @@ public final class SkinAvatars implements AccountAvatars {
     public static String textureUrl(String input) throws IOException {
         try {
             URI uri = URI.create(input);
-            if (!("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+            if (
+                !("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
                 || !"textures.minecraft.net".equalsIgnoreCase(uri.getHost()) || uri.getUserInfo() != null || uri.getQuery() != null
                 || uri.getFragment() != null || (uri.getPort() != -1 && uri.getPort() != 80 && uri.getPort() != 443)
-                || !uri.getPath().matches("/texture/[0-9a-fA-F]{32,128}")) {
+                || !uri.getPath().matches("/texture/[0-9a-fA-F]{32,128}")
+            ) {
                 throw new IOException("皮肤地址不是官方纹理地址");
             }
             return LauncherConfig.get().service("textureBase") + uri.getPath().substring(1);
@@ -144,8 +146,7 @@ public final class SkinAvatars implements AccountAvatars {
             try {
                 reader.setInput(input);
                 int width = reader.getWidth(0), height = reader.getHeight(0);
-                boolean valid = avatar ? width >= 8 && width <= 128 && width % 8 == 0 && height == width
-                    : width >= 64 && width <= 1024 && width % 64 == 0 && (height == width || height * 2 == width);
+                boolean valid = avatar ? width >= 8 && width <= 128 && width % 8 == 0 && height == width : width >= 64 && width <= 1024 && width % 64 == 0 && (height == width || height * 2 == width);
                 if (!"png".equalsIgnoreCase(reader.getFormatName()) || !valid) {
                     throw new IOException("皮肤 PNG 尺寸无效");
                 }

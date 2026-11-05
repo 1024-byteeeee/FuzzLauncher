@@ -287,8 +287,7 @@ class StabilityTest {
                 return null;
             });
             cancelled.set(true);
-            assertInstanceOf(CancellationException.class,
-                assertThrows(ExecutionException.class, () -> waiting.get(5, TimeUnit.SECONDS)).getCause());
+            assertInstanceOf(CancellationException.class, assertThrows(ExecutionException.class, () -> waiting.get(5, TimeUnit.SECONDS)).getCause());
             release.countDown();
             first.get(5, TimeUnit.SECONDS);
             http.download(url, temp.resolve("three"), "", task);

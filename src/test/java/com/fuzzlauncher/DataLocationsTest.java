@@ -92,8 +92,7 @@ class DataLocationsTest {
         assertFalse(Files.exists(target.resolve(".minecraft")));
         Files.writeString(source.resolve("logs/launcher.log"), "later old data");
         DataLocations.resolve(bootstrap);
-        assertEquals("history", Files.readString(target.resolve("logs/launcher.log")),
-            "Resolved pointer must not overwrite active data again");
+        assertEquals("history", Files.readString(target.resolve("logs/launcher.log")), "Resolved pointer must not overwrite active data again");
     }
 
     @Test
