@@ -101,6 +101,9 @@ public final class ModpackArchive {
     }
 
     public static Info inspect(Path archive) throws IOException {
+        if (!Files.readAttributes(archive, BasicFileAttributes.class).isRegularFile()) {
+            throw new IOException("整合包路径不是普通文件：" + archive);
+        }
         try (ZipFile zip = new ZipFile(archive.toFile())) {
             validateEntries(zip);
             List<String> matches = zip.stream().filter(e -> !e.isDirectory()).map(ZipEntry::getName)

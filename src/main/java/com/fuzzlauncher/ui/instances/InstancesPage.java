@@ -16,10 +16,12 @@ import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.ListChangeListener;
 import javafx.concurrent.Task;
+import javafx.event.EventHandler;
 import javafx.geometry.*;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.*;
+import javafx.scene.input.DataFormat;
 import javafx.scene.input.DragEvent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
@@ -27,7 +29,8 @@ import javafx.scene.text.TextAlignment;
 import javafx.stage.Stage;
 
 import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.logging.Logger;
@@ -40,18 +43,24 @@ public final class InstancesPage extends RetroPage {
         super(stage, navigate);
         this.vm = vm;
         setCenter(build());
-        addEventFilter(DragEvent.DRAG_OVER, event -> {
-            if (canImportModpack() && event.getDragboard().hasFiles()) {
+        EventHandler<DragEvent> dragOver = event -> {
+            if (!isModpackDropArea(event)) {
+                return;
+            }
+            if (canImportModpack() && event.getDragboard().getContentTypes().contains(DataFormat.FILES)) {
                 event.acceptTransferModes(TransferMode.COPY);
             }
             event.consume();
-        });
-        addEventFilter(DragEvent.DRAG_DROPPED, event -> {
+        };
+        EventHandler<DragEvent> dragDropped = event -> {
+            if (!isModpackDropArea(event)) {
+                return;
+            }
             if (canImportModpack() && event.getDragboard().hasFiles()) {
                 var files = event.getDragboard().getFiles();
                 if (files.size() == 1) {
                     Path archive = files.getFirst().toPath();
-                    if (isModpack(archive)) {
+                    if (hasModpackExtension(archive)) {
                         event.setDropCompleted(true);
                         event.consume();
                         Platform.runLater(() -> ModpackDialogs.importArchive(stage, vm, archive));
@@ -61,15 +70,34 @@ public final class InstancesPage extends RetroPage {
             }
             event.setDropCompleted(false);
             event.consume();
+        };
+        sceneProperty().addListener((observable, previous, scene) -> {
+            if (previous != null) {
+                previous.removeEventFilter(DragEvent.DRAG_OVER, dragOver);
+                previous.removeEventFilter(DragEvent.DRAG_DROPPED, dragDropped);
+            }
+            if (scene != null) {
+                scene.addEventFilter(DragEvent.DRAG_OVER, dragOver);
+                scene.addEventFilter(DragEvent.DRAG_DROPPED, dragDropped);
+            }
         });
+    }
+
+    private boolean isModpackDropArea(DragEvent event) {
+        return contains(sceneToLocal(event.getSceneX(), event.getSceneY()));
     }
 
     private boolean canImportModpack() {
         return !vm.busyProperty().get() && !vm.gameRunningProperty().get();
     }
 
-    private static boolean isModpack(Path path) {
-        return Files.isRegularFile(path) && path.getFileName().toString().toLowerCase(Locale.ROOT).matches(".*\\.(zip|mrpack)");
+    private static boolean hasModpackExtension(Path path) {
+        Path fileName = path.getFileName();
+        if (fileName == null) {
+            return false;
+        }
+        String name = fileName.toString().toLowerCase(Locale.ROOT);
+        return name.endsWith(".zip") || name.endsWith(".mrpack");
     }
 
     private Node build() {

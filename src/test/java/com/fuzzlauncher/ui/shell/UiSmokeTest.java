@@ -1506,6 +1506,7 @@ class UiSmokeTest {
         var clipboard = (TKClipboard) Proxy.newProxyInstance(TKClipboard.class.getClassLoader(), new Class<?>[] { TKClipboard.class },
             (proxy, method, args) -> switch (method.getName()) {
                 case "hasContent" -> DataFormat.FILES.equals(args[0]);
+                case "getContentTypes" -> Set.of(DataFormat.FILES);
                 case "setSecurityContext" -> null;
                 case "getTransferModes" -> Set.of(TransferMode.COPY);
                 case "getContent" -> {
@@ -1516,12 +1517,13 @@ class UiSmokeTest {
             });
         var board = DragboardHelper.createDragboard(clipboard);
         DragboardHelper.setDataAccessRestriction(board, false);
-        var pick = new PickResult(target, 5, 5);
-        var over = new DragEvent(DragEvent.DRAG_OVER, board, 5, 5, 5, 5, TransferMode.COPY, null, null, pick);
+        var point = target.localToScene(5, 5);
+        var pick = new PickResult(target, point.getX(), point.getY());
+        var over = new DragEvent(DragEvent.DRAG_OVER, board, point.getX(), point.getY(), 5, 5, TransferMode.MOVE, null, null, pick);
         Event.fireEvent(target, over);
         assertEquals(TransferMode.COPY, over.getAcceptedTransferMode());
         filesReady.set(true);
-        var drop = new DragEvent(DragEvent.DRAG_DROPPED, board, 5, 5, 5, 5, TransferMode.COPY, null, null, pick);
+        var drop = new DragEvent(DragEvent.DRAG_DROPPED, board, point.getX(), point.getY(), 5, 5, TransferMode.COPY, null, null, pick);
         Event.fireEvent(target, drop);
         assertTrue(drop.isDropCompleted());
         var pane = new AtomicReference<DialogPane>();
