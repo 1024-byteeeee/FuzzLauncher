@@ -23,7 +23,7 @@ Windows x64 / JavaFX，Windows 95 风格 Minecraft Java 启动器。
 整个目录内置 Java 21 + JavaFX；移动时必须保留 `app`、`runtime` 等全部文件。
 仓库只包含源码；发布版本的安装程序和便携应用可在 GitHub Releases 下载，也可以在本地构建。
 
-默认数据：`%LOCALAPPDATA%\FuzzLauncher`。游戏根目录可在首次安装前从设置中修改。
+首次运行默认使用启动器 EXE 同级的 `game` 和 `data`。游戏根目录可在首次安装游戏前从设置中修改。
 首次打开没有演示账号或演示实例。“下载”页自动读取游戏版本列表；选择游戏版本和加载器类型后，自动查询兼容的加载器版本，再选择加载器版本并填写实例名称后安装。已加载的游戏列表在页面切换时复用，刷新按钮可手动重试或更新。
 
 ## 微软登录当前状态
@@ -70,7 +70,7 @@ Windows 打包使用完整 JDK 21 的 `jlink` 和 `jpackage`，每次生成新�
 
 工作流检出该标签的源码，在 Windows x64 上使用 Zulu JDK 21 和经 SHA-256 校验的 Inno Setup 6.5.4，执行构建及核心测试，然后上传到同一个 Release：
 
-- `FuzzLauncher-<版本>-windows-x64-setup.exe`：简体中文安装程序，发布者为 `1024_byteeeee`，内置启动器所需的 Java/JavaFX。安装需要管理员权限，为所有用户安装，默认目录为 `%ProgramFiles%\FuzzLauncher`。每位用户的游戏、配置和基础版本默认保存在自己的 `%LOCALAPPDATA%\FuzzLauncher`。安装器保留已有数据。
+- `FuzzLauncher-<版本>-windows-x64-setup.exe`：简体中文安装程序，发布者为 `1024_byteeeee`，内置启动器所需的 Java/JavaFX。安装需要管理员权限，为所有用户安装，默认目录为 `%ProgramFiles%\FuzzLauncher`。各 Windows 用户共享 EXE 同级的 `game`、`data` 和基础版本，登录信息保存在各自的 `%LOCALAPPDATA%\FuzzLauncher`。升级保留旧目录中的数据，由用户决定如何合并。
 - `FuzzLauncher-<版本>-windows-x64-portable.zip`：解压后运行的便携版，需保留完整目录。
 - `SHA256SUMS.txt`：以上文件的 SHA-256 校验值。
 

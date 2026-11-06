@@ -23,7 +23,13 @@ public final class DataLocations {
     private DataLocations() {
     }
 
-    public static Path bootstrapDirectory() {
+    public static Path bootstrapDirectory() throws IOException {
+        if (System.getProperty("fuzz.dataDir") == null) {
+            Path launcher = LauncherPaths.directory();
+            if (LauncherPaths.sharedDataInstallation(launcher)) {
+                return launcher.resolve(".launcher-state");
+            }
+        }
         return LauncherPaths.bootstrapDirectory();
     }
 
@@ -37,7 +43,7 @@ public final class DataLocations {
 
     /** Defaults to local data, while preserving explicit selections and existing legacy settings. */
     public static Path resolve(Path bootstrap, Path launcherDirectory) throws IOException {
-        if (Files.exists(bootstrap.resolve(LOCATION)) || LauncherPaths.allUsersInstallation(launcherDirectory)) {
+        if (Files.exists(bootstrap.resolve(LOCATION)) || LauncherPaths.legacyAllUsersInstallation(launcherDirectory)) {
             return resolve(bootstrap);
         }
         Path local = launcherDirectory.toAbsolutePath().normalize().resolve("data");

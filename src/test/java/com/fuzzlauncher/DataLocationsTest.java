@@ -37,6 +37,11 @@ class DataLocationsTest {
             Files.writeString(launcher.resolve("all-users.install"), "scope=all-users");
             assertEquals(bootstrap, DataLocations.resolve(bootstrap, launcher));
             assertEquals(override, LauncherPaths.gameStorageDirectory());
+            Files.writeString(launcher.resolve("shared-data.install"), "scope=all-users");
+            System.clearProperty("fuzz.dataDir");
+            assertEquals(launcher.resolve(".launcher-state"), DataLocations.bootstrapDirectory());
+            assertEquals(launcher.resolve("data"), DataLocations.resolve());
+            assertEquals(launcher, LauncherPaths.gameStorageDirectory());
         } finally {
             if (previousExecutable == null) {
                 System.clearProperty("jpackage.app-path");

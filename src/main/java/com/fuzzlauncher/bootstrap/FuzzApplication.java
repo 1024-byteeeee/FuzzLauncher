@@ -113,7 +113,9 @@ public final class FuzzApplication extends Application {
             VersionResolver resolver = new VersionResolver(baseVersions);
             GameFiles files = new GameFiles(http, baseVersions);
             JavaRuntimeManager runtimes = new JavaRuntimeManager(data.resolve("runtimes"));
-            MicrosoftAuthentication authentication = new MicrosoftAuthentication(new HttpTransport(), data);
+            Path accountData = LauncherPaths.sharedDataInstallation(LauncherPaths.directory())
+                ? LauncherPaths.bootstrapDirectory() : data;
+            MicrosoftAuthentication authentication = new MicrosoftAuthentication(new HttpTransport(), accountData);
             Map<LoaderType, LoaderInstaller> installers = Map.of(
                 LoaderType.FABRIC, new FabricInstaller(http),
                 LoaderType.FORGE, new OfficialLoaderInstaller(LoaderType.FORGE, http, runtimes, resolver),

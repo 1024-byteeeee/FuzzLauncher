@@ -18,11 +18,15 @@ public final class LauncherPaths {
 
     public static Path gameStorageDirectory() throws IOException {
         Path launcherDirectory = directory();
-        return allUsersInstallation(launcherDirectory) ? bootstrapDirectory() : launcherDirectory;
+        return legacyAllUsersInstallation(launcherDirectory) ? bootstrapDirectory() : launcherDirectory;
     }
 
-    public static boolean allUsersInstallation(Path launcherDirectory) {
-        return Files.isRegularFile(launcherDirectory.resolve("all-users.install"));
+    public static boolean legacyAllUsersInstallation(Path launcherDirectory) {
+        return !sharedDataInstallation(launcherDirectory) && Files.isRegularFile(launcherDirectory.resolve("all-users.install"));
+    }
+
+    public static boolean sharedDataInstallation(Path launcherDirectory) {
+        return Files.isRegularFile(launcherDirectory.resolve("shared-data.install"));
     }
 
     public static Path directory() throws IOException {

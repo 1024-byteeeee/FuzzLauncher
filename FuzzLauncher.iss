@@ -46,8 +46,14 @@ Name: "chinesesimplified"; MessagesFile: "packaging\ChineseSimplified.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; Flags: unchecked
 
 [Files]
-Source: "{#SrcDir}\*"; DestDir: "{app}"; Excludes: "data\*,game\*,baseVerisons\*"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "packaging\all-users.install"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\*"; DestDir: "{app}"; Excludes: "data\*,game\*,baseVerisons\*,.launcher-state\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "packaging\all-users.install"; DestDir: "{app}"; DestName: "shared-data.install"; Flags: ignoreversion
+
+[Dirs]
+Name: "{app}\game"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\data"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\baseVerisons"; Permissions: users-modify; Flags: uninsneveruninstall
+Name: "{app}\.launcher-state"; Permissions: users-modify; Flags: uninsneveruninstall
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

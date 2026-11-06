@@ -9,14 +9,13 @@
 
 ## 安装权限
 
-安装器为当前用户安装，默认 `%LOCALAPPDATA%\Programs\FuzzLauncher`，不为程序目录授予所有用户写权限。
-程序旁的 `game/data/baseVerisons` 由当前用户创建和使用。打包排除已有的这些目录，避免夹带游戏数据、账号或配置。
-旧的 Program Files 安装和手动选择的不可写目录不会自动迁移或放宽权限；升级时应选择用户可写位置并保留原数据。
+安装器为所有用户安装，默认 `%ProgramFiles%\FuzzLauncher`。安装器仅给 `game`、`data`、`baseVerisons` 和 `.launcher-state` 授予本机 Users 组修改权限。
+打包排除这些目录。升级保留旧的每用户数据，各账户的目录内容由用户决定如何合并。
 
 ## 操作恢复记录
 
 安装、加载器重装和启动器设置保存使用稳定配置位置下的 `operations/<操作ID>/operation.json`。
-稳定位置为 `DataLocations.bootstrapDirectory()`，正常安装对应 `%LOCALAPPDATA%\FuzzLauncher`；显式 `fuzz.dataDir` 则使用指定位置。
+稳定位置为 `DataLocations.bootstrapDirectory()`，共享安装使用程序旁的 `.launcher-state`，便携版使用 `%LOCALAPPDATA%\FuzzLauncher`；显式 `fuzz.dataDir` 则使用指定位置。
 它独立于正在切换的游戏/数据目录；启动时在解析数据目录迁移之前检查恢复记录。
 
 - `PENDING`：修改目标之前保存备份、目标位置和预期新内容的 SHA-256，目录发布记录文件清单。未提交操作可回退。
