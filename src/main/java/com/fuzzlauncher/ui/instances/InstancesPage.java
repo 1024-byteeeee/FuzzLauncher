@@ -20,6 +20,7 @@ import javafx.geometry.*;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.*;
+import javafx.scene.input.DragEvent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
 import javafx.scene.text.TextAlignment;
@@ -39,23 +40,32 @@ public final class InstancesPage extends RetroPage {
         super(stage, navigate);
         this.vm = vm;
         setCenter(build());
-        setOnDragOver(event -> {
-            if (!vm.busyProperty().get() && !vm.gameRunningProperty().get() && event.getDragboard().hasFiles()
-                && event.getDragboard().getFiles().size() == 1 && isModpack(event.getDragboard().getFiles().getFirst().toPath())) {
+        addEventFilter(DragEvent.DRAG_OVER, event -> {
+            if (canImportModpack() && event.getDragboard().hasFiles()) {
                 event.acceptTransferModes(TransferMode.COPY);
             }
             event.consume();
         });
-        setOnDragDropped(event -> {
-            boolean accepted = !vm.busyProperty().get() && !vm.gameRunningProperty().get() && event.getDragboard().hasFiles()
-                && event.getDragboard().getFiles().size() == 1 && isModpack(event.getDragboard().getFiles().getFirst().toPath());
-            if (accepted) {
-                Path archive = event.getDragboard().getFiles().getFirst().toPath();
-                Platform.runLater(() -> ModpackDialogs.importArchive(stage, vm, archive));
+        addEventFilter(DragEvent.DRAG_DROPPED, event -> {
+            if (canImportModpack() && event.getDragboard().hasFiles()) {
+                var files = event.getDragboard().getFiles();
+                if (files.size() == 1) {
+                    Path archive = files.getFirst().toPath();
+                    if (isModpack(archive)) {
+                        event.setDropCompleted(true);
+                        event.consume();
+                        Platform.runLater(() -> ModpackDialogs.importArchive(stage, vm, archive));
+                        return;
+                    }
+                }
             }
-            event.setDropCompleted(accepted);
+            event.setDropCompleted(false);
             event.consume();
         });
+    }
+
+    private boolean canImportModpack() {
+        return !vm.busyProperty().get() && !vm.gameRunningProperty().get();
     }
 
     private static boolean isModpack(Path path) {
