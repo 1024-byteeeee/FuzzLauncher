@@ -79,9 +79,7 @@ public final class ModMetadataReader {
                 task.checkCancelled();
                 try {
                     icon = ContentPreviewIO.thumbnail(ContentPreviewIO.bytes(archive, name, ICON_LIMIT, task));
-                    if (icon != null) {
-                        break;
-                    }
+                    break;
                 } catch (IOException | IllegalArgumentException ex) {
                     problems.add("图标无法读取：" + name);
                 }
