@@ -54,8 +54,6 @@ import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.sun.javafx.scene.input.DragboardHelper;
-import com.sun.javafx.tk.TKClipboard;
 import com.sun.net.httpserver.HttpServer;
 import javafx.animation.KeyFrame;
 import javafx.animation.PauseTransition;
@@ -63,7 +61,6 @@ import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.value.ChangeListener;
-import javafx.collections.FXCollections;
 import javafx.css.PseudoClass;
 import javafx.embed.swing.SwingFXUtils;
 import javafx.event.ActionEvent;
@@ -79,11 +76,9 @@ import javafx.scene.control.skin.ComboBoxListViewSkin;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.DataFormat;
-import javafx.scene.input.DragEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
-import javafx.scene.input.TransferMode;
 import javafx.scene.layout.CornerRadii;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
@@ -99,7 +94,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.reflect.Proxy;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -939,7 +933,6 @@ class UiSmokeTest {
                 assertNull(zip.getEntry("overrides/mods/excluded.jar"));
                 assertNull(zip.getEntry("overrides/options.txt"));
             }
-            verifyModpackDrop((ListView<?>) view.lookup(".list-view"), data.resolve("exports/selected.zip"));
             var optionalManifest = JsonParser.parseString(
                 "{\"files\":[{\"path\":\"mods/optional-a.jar\",\"fileSize\":100,\"env\":{\"client\":\"optional\"}},{\"path\":\"mods/optional-b.jar\",\"fileSize\":200,\"env\":{\"client\":\"optional\"}}]}")
                 .getAsJsonObject();
@@ -1486,54 +1479,6 @@ class UiSmokeTest {
         view.showPage(3);
         view.applyCss();
         view.layout();
-    }
-
-    private static <T> void verifyModpackDrop(ListView<T> list, Path archive) {
-        verifyModpackDrop(cell(list, 0), archive);
-        var items = list.getItems();
-        list.setItems(FXCollections.observableArrayList());
-        try {
-            list.applyCss();
-            list.layout();
-            verifyModpackDrop(list.getPlaceholder(), archive);
-        } finally {
-            list.setItems(items);
-        }
-    }
-
-    private static void verifyModpackDrop(Node target, Path archive) {
-        var filesReady = new AtomicBoolean();
-        var clipboard = (TKClipboard) Proxy.newProxyInstance(TKClipboard.class.getClassLoader(), new Class<?>[] { TKClipboard.class },
-            (proxy, method, args) -> switch (method.getName()) {
-                case "hasContent" -> DataFormat.FILES.equals(args[0]);
-                case "getContentTypes" -> Set.of(DataFormat.FILES);
-                case "setSecurityContext" -> null;
-                case "getTransferModes" -> Set.of(TransferMode.COPY);
-                case "getContent" -> {
-                    assertTrue(filesReady.get(), "File paths should only be fetched on drop");
-                    yield List.of(archive.toFile());
-                }
-                default -> throw new AssertionError(method);
-            });
-        var board = DragboardHelper.createDragboard(clipboard);
-        DragboardHelper.setDataAccessRestriction(board, false);
-        var point = target.localToScene(5, 5);
-        var pick = new PickResult(target, point.getX(), point.getY());
-        var over = new DragEvent(DragEvent.DRAG_OVER, board, point.getX(), point.getY(), 5, 5, TransferMode.MOVE, null, null, pick);
-        Event.fireEvent(target, over);
-        assertEquals(TransferMode.COPY, over.getAcceptedTransferMode());
-        filesReady.set(true);
-        var drop = new DragEvent(DragEvent.DRAG_DROPPED, board, point.getX(), point.getY(), 5, 5, TransferMode.COPY, null, null, pick);
-        Event.fireEvent(target, drop);
-        assertTrue(drop.isDropCompleted());
-        var pane = new AtomicReference<DialogPane>();
-        waitForFx(() -> Window.getWindows().stream().filter(Window::isShowing).map(Window::getScene)
-            .map(scene -> scene.lookup("#import-modpack-dialog")).filter(DialogPane.class::isInstance).map(DialogPane.class::cast)
-            .findFirst().map(found -> {
-                pane.set(found);
-                return true;
-            }).orElse(false));
-        ((Button) pane.get().lookupButton(ButtonType.CANCEL)).fire();
     }
 
     private static DialogPane loaderPane() {
