@@ -84,7 +84,9 @@ public final class ContentPage extends RetroPage {
                 return null;
             }
         });
-        instances.disableProperty().bind(vm.busyProperty());
+        var noInstances = Bindings.isEmpty(instances.getItems());
+        instances.disableProperty().bind(vm.busyProperty().or(noInstances));
+        instances.promptTextProperty().bind(Bindings.when(noInstances).then("当前无可用游戏实例").otherwise("请选择游戏实例"));
         instances.valueProperty().addListener((observable, old, selected) -> {
             subdirectory.set(Path.of(""));
             if (selected != null) {
@@ -283,7 +285,6 @@ public final class ContentPage extends RetroPage {
         Label instanceLabel = new Label("选择实例：");
         instanceLabel.setLabelFor(instances);
         instanceLabel.setMinWidth(Region.USE_PREF_SIZE);
-        instances.setPromptText("请选择游戏实例");
         HBox.setHgrow(instances, Priority.ALWAYS);
         HBox instanceSelector = new HBox(10, instanceLabel, instances);
         instanceSelector.setAlignment(Pos.CENTER_LEFT);

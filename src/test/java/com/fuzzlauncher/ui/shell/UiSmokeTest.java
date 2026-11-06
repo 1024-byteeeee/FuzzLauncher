@@ -716,7 +716,14 @@ class UiSmokeTest {
         Path data = temp.resolve("browser-login-state");
         new SettingsStore(data).save(SettingsDefaults.create(data.resolve("game").toString(), IsolationMode.ALL));
         try (var vm = ViewModels.create(new SettingsStore(data), new JsonInstanceRepository(data), null, auth, null, null)) {
-            stage.getScene().setRoot(new LauncherView(stage, vm));
+            var view = new LauncherView(stage, vm);
+            stage.getScene().setRoot(view);
+            for (var entry : Map.of(4, "#mod-instance", 6, "#resource-pack-instance", 7, "#schematic-instance").entrySet()) {
+                view.showPage(entry.getKey());
+                var selector = (ComboBox<?>) view.lookup(entry.getValue());
+                assertTrue(selector.isDisabled());
+                assertEquals("当前无可用游戏实例", selector.getPromptText());
+            }
             vm.accountsModel().login();
             assertTrue(vm.loggingInProperty().get());
             DialogPane pane = browserPane();
