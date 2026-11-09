@@ -1958,10 +1958,11 @@ class UiSmokeTest {
         page.setPrefSize(200, 200);
         var available = new AtomicBoolean();
         var imported = new AtomicReference<List<Path>>();
+        var sourceModes = new AtomicReference<>(Set.of(TransferMode.COPY, TransferMode.MOVE));
         var clipboard = (TKClipboard) Proxy.newProxyInstance(TKClipboard.class.getClassLoader(), new Class<?>[] { TKClipboard.class },
             (proxy, method, args) -> switch (method.getName()) {
                 case "setSecurityContext" -> null;
-                case "getTransferModes" -> Set.of(TransferMode.COPY, TransferMode.MOVE);
+                case "getTransferModes" -> sourceModes.get();
                 case "getContent" -> available.get() && DataFormat.URL.equals(args[0]) ? archive.toUri().toString() : null;
                 default -> throw new AssertionError(method);
             });
@@ -1984,6 +1985,17 @@ class UiSmokeTest {
             Event.fireEvent(scene, drop);
             assertTrue(drop.isDropCompleted());
             assertEquals(List.of(archive), imported.get());
+
+            imported.set(null);
+            available.set(true);
+            sourceModes.set(Set.of(TransferMode.MOVE));
+            var moveOver = new DragEvent(DragEvent.DRAG_OVER, board, 20, 20, 20, 20, TransferMode.MOVE, null, null, pick);
+            Event.fireEvent(scene, moveOver);
+            assertEquals(TransferMode.MOVE, moveOver.getAcceptedTransferMode());
+            var moveDrop = new DragEvent(DragEvent.DRAG_DROPPED, board, 20, 20, 20, 20, TransferMode.MOVE, null, null, pick);
+            Event.fireEvent(scene, moveDrop);
+            assertEquals(List.of(archive), imported.get());
+            assertFalse(moveDrop.isDropCompleted(), "The drag source must retain the original archive");
         } finally {
             scene.setRoot(original);
         }

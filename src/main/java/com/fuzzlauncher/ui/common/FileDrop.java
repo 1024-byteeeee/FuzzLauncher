@@ -34,19 +34,25 @@ public final class FileDrop {
                 }
             }
             if (candidates.containsKey(board)) {
-                event.acceptTransferModes(TransferMode.COPY);
+                if (board.getTransferModes().contains(TransferMode.COPY)) {
+                    event.acceptTransferModes(TransferMode.COPY);
+                } else {
+                    event.acceptTransferModes(TransferMode.MOVE);
+                }
                 event.consume();
             }
         };
         EventHandler<DragEvent> drop = event -> {
-            if (!inside(page, event) || !ready.getAsBoolean() || event.getTransferMode() != TransferMode.COPY) {
+            TransferMode mode = event.getTransferMode();
+            if (!inside(page, event) || !ready.getAsBoolean() || (mode != TransferMode.COPY && mode != TransferMode.MOVE)) {
                 return;
             }
             Dragboard board = event.getDragboard();
             List<Path> paths = readPaths(board);
             List<Path> previous = candidates.remove(board);
             List<Path> selected = paths.isEmpty() && previous != null ? previous : select.apply(paths);
-            event.setDropCompleted(!selected.isEmpty());
+            // A successful MOVE tells the drag source it may remove the original files.
+            event.setDropCompleted(!selected.isEmpty() && mode == TransferMode.COPY);
             event.consume();
             if (!selected.isEmpty()) {
                 dropped.accept(selected);
