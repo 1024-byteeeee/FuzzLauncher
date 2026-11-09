@@ -258,7 +258,8 @@ public final class ContentPage extends RetroPage {
         addEventFilter(DragEvent.DRAG_OVER, event -> {
             Dragboard board = event.getDragboard();
             if (canDrop() && (acceptedDrags.contains(board)
-                || (board.hasFiles() && board.getFiles().stream().map(File::toPath).anyMatch(model::canImport)))) {
+                || (board.hasFiles() && board.getFiles().stream().map(File::toPath)
+                    .anyMatch(this::isDropCandidate)))) {
                 acceptedDrags.add(board);
                 event.acceptTransferModes(TransferMode.COPY);
                 event.consume();
@@ -269,7 +270,7 @@ public final class ContentPage extends RetroPage {
                 return;
             }
             List<Path> sources = event.getDragboard().getFiles().stream().map(File::toPath)
-                .filter(model::canImport).toList();
+                .filter(this::isDropCandidate).toList();
             event.setDropCompleted(!sources.isEmpty());
             if (!sources.isEmpty()) {
                 pendingDrop = sources;
@@ -546,6 +547,10 @@ public final class ContentPage extends RetroPage {
                     + " · 启用 " + enabled + " · 禁用 " + (values.size() - enabled));
             finishDrop(ticket);
         }
+    }
+
+    private boolean isDropCandidate(Path path) {
+        return kind.supportsArchive(path) || (kind.supportsFolders() && model.canImport(path));
     }
 
     private boolean canDrop() {
