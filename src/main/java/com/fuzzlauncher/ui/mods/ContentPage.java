@@ -574,16 +574,23 @@ public final class ContentPage extends RetroPage {
         }
         boolean rename = false;
         if (collision) {
-            ChoiceDialog<String> choice = new ChoiceDialog<>("跳过同名文件", "跳过同名文件", "保留两份");
+            Dialog<ButtonType> choice = new Dialog<>();
+            ComboBox<String> action = new RetroComboBox<>();
+            action.getItems().setAll("跳过同名文件", "保留两份");
+            action.getSelectionModel().selectFirst();
             RetroDialogs.decorate(choice, stage, "同名" + contentLabel);
-            choice.setContentText("已存在同名启用或禁用文件，处理方式：");
+            Label prompt = new Label("已存在同名启用或禁用文件，处理方式：");
+            prompt.setLabelFor(action);
+            HBox content = new HBox(10, prompt, action);
+            content.setAlignment(Pos.CENTER_LEFT);
+            choice.getDialogPane().setContent(content);
+            choice.getDialogPane().getButtonTypes().setAll(ButtonType.OK, ButtonType.CANCEL);
             ((Button) choice.getDialogPane().lookupButton(ButtonType.OK)).setText("确定");
             ((Button) choice.getDialogPane().lookupButton(ButtonType.CANCEL)).setText("取消");
-            Optional<String> result = choice.showAndWait();
-            if (result.isEmpty()) {
+            if (choice.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
                 return;
             }
-            rename = result.get().equals("保留两份");
+            rename = action.getSelectionModel().getSelectedIndex() == 1;
         }
         if (Objects.equals(instance, instances.getValue()) && destination.equals(displayedDirectory.get())) {
             model.importFiles(destination, sources, rename, changed(instance));
