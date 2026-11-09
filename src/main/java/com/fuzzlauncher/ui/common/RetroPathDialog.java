@@ -2,6 +2,7 @@ package com.fuzzlauncher.ui.common;
 
 import com.fuzzlauncher.application.port.FileBrowser;
 import com.fuzzlauncher.domain.content.ContentKind;
+import com.fuzzlauncher.domain.modpack.ModpackFormat;
 
 import javafx.application.Platform;
 import javafx.beans.property.*;
@@ -207,7 +208,7 @@ public final class RetroPathDialog extends Dialog<Path> {
 
     public static Optional<Path> modpack(Window owner, Path initial, FileBrowser browser) {
         return new RetroPathDialog(owner, "选择整合包", initial, false,
-            path -> Files.isRegularFile(path) && path.getFileName().toString().toLowerCase(Locale.ROOT).matches(".*\\.(zip|mrpack)"),
+            path -> Files.isRegularFile(path) && ModpackFormat.supportsArchive(path),
             browser).showAndWait();
     }
 

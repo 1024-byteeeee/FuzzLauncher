@@ -5,12 +5,14 @@ import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.instance.InstancePaths;
 import com.fuzzlauncher.domain.instance.IsolationOverride;
 import com.fuzzlauncher.domain.instance.IsolationPolicy;
+import com.fuzzlauncher.domain.modpack.ModpackFormat;
 import com.fuzzlauncher.ui.common.RetroComboBox;
 import com.fuzzlauncher.ui.common.RetroPage;
 import com.fuzzlauncher.ui.common.RetroPathDialog;
 import com.fuzzlauncher.ui.modpack.ModpackDialogs;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
+import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.value.ChangeListener;
 import javafx.collections.ListChangeListener;
@@ -19,6 +21,9 @@ import javafx.geometry.*;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.*;
+import javafx.scene.input.DragEvent;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.*;
 import javafx.scene.text.TextAlignment;
 import javafx.stage.Stage;
@@ -38,6 +43,18 @@ public final class InstancesPage extends RetroPage {
         super(stage, navigate);
         this.vm = vm;
         setCenter(build());
+    }
+
+    private static Optional<Path> droppedModpack(Dragboard board) {
+        if (!board.hasFiles()) {
+            return Optional.empty();
+        }
+        var files = board.getFiles();
+        if (files.size() != 1) {
+            return Optional.empty();
+        }
+        Path archive = files.getFirst().toPath();
+        return ModpackFormat.supportsArchive(archive) ? Optional.of(archive) : Optional.empty();
     }
 
     private Node build() {
@@ -101,6 +118,25 @@ public final class InstancesPage extends RetroPage {
         Button importPack = button("导入", () -> ModpackDialogs.importPack(stage, vm));
         importPack.setId("import-modpack");
         importPack.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
+        addEventFilter(DragEvent.DRAG_OVER, event -> {
+            if (!importPack.isDisabled() && droppedModpack(event.getDragboard()).isPresent()) {
+                event.acceptTransferModes(TransferMode.COPY);
+                event.consume();
+            }
+        });
+        addEventFilter(DragEvent.DRAG_DROPPED, event -> {
+            if (importPack.isDisabled() || !event.getDragboard().hasFiles()) {
+                return;
+            }
+            var archive = droppedModpack(event.getDragboard());
+            event.setDropCompleted(archive.isPresent());
+            event.consume();
+            archive.ifPresent(path -> Platform.runLater(() -> {
+                if (getScene() != null) {
+                    ModpackDialogs.importArchive(stage, vm, path);
+                }
+            }));
+        });
         Button exportPack = button("导出", () -> {
             GameInstance instance = vm.selectedProperty().get();
             if (instance != null) {

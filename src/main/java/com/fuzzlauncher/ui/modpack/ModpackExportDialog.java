@@ -129,10 +129,10 @@ final class ModpackExportDialog extends Dialog<ButtonType> {
         };
         for (ModpackFormat type : ModpackFormat.values()) {
             String detail = switch (type) {
-                case MCBBS -> "MCBBS 整合包（推荐）\n可由 HMCL 等启动器导入";
-                case MULTIMC -> "MultiMC\n可由 MultiMC、Prism Launcher 和 HMCL 导入";
-                case SERVER -> "服务器自动更新整合包\n通过文件服务器发布客户端更新";
-                case MODRINTH -> "Modrinth\n通用 .mrpack 格式，支持客户端文件与覆盖层";
+                case MCBBS -> "MCBBS 整合包（推荐）\n可由 Fuzz Launcher、HMCL 等启动器导入";
+                case MULTIMC -> "MultiMC\n可由 Fuzz Launcher、MultiMC、Prism Launcher 和 HMCL 导入";
+                case SERVER -> "服务器自动更新整合包\n可由 Fuzz Launcher 导入，通过文件服务器发布客户端更新";
+                case MODRINTH -> "Modrinth\nFuzz Launcher 支持导入 .mrpack，包括客户端文件与覆盖层";
             };
             Button choice = new Button(detail + "    →");
             choice.setId("modpack-type-" + type.name().toLowerCase(Locale.ROOT));

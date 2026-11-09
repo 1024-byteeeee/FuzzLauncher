@@ -24,7 +24,11 @@ public final class ModpackDialogs {
 
     public static void importPack(Stage owner, LauncherViewModel vm) {
         RetroPathDialog.modpack(owner, Path.of(System.getProperty("user.home")), vm.browser())
-            .ifPresent(archive -> vm.modpacksModel().inspectModpack(archive, info -> importOptions(owner, vm, archive, info)));
+            .ifPresent(archive -> importArchive(owner, vm, archive));
+    }
+
+    public static void importArchive(Stage owner, LauncherViewModel vm, Path archive) {
+        vm.modpacksModel().inspectModpack(archive, info -> importOptions(owner, vm, archive, info));
     }
 
     public static Dialog<ButtonType> importOptions(Stage owner, LauncherViewModel vm, Path archive, ModpackInfo info) {
