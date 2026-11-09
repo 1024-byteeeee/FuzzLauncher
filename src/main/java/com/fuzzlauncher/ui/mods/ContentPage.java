@@ -37,7 +37,6 @@ import javafx.util.StringConverter;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.function.Consumer;
@@ -133,10 +132,6 @@ public final class ContentPage extends RetroPage {
             case SCHEMATICS -> item.directory() ? "folder" : "schematics";
         });
     }
-    private boolean importable(Path path) {
-        return Files.isDirectory(path) ? kind.supportsFolders() : kind.supportsArchive(path);
-    }
-
     private Node build() {
         var blocked = vm.busyProperty().or(vm.gameRunningProperty()).or(scanning).or(displayedDirectory.isNull());
         var noSelection = Bindings.isEmpty(list.getSelectionModel().getSelectedItems());
@@ -257,19 +252,30 @@ public final class ContentPage extends RetroPage {
             menu.getItems().add(item);
         }
         list.setContextMenu(menu);
-        list.setOnDragOver(event -> {
-            if (!blocked.get() && event.getDragboard().hasFiles()
-                && event.getDragboard().getFiles().stream().anyMatch(file -> importable(file.toPath()))) {
+        Map<Dragboard, Boolean> acceptedDrags = new WeakHashMap<>();
+        addEventFilter(DragEvent.DRAG_OVER, event -> {
+            Dragboard board = event.getDragboard();
+            if (!blocked.get() && board.hasFiles() && acceptedDrags.computeIfAbsent(board,
+                drag -> drag.getFiles().stream().map(File::toPath).anyMatch(model::canImport))) {
                 event.acceptTransferModes(TransferMode.COPY);
+                event.consume();
             }
-            event.consume();
         });
-        list.setOnDragDropped(event -> {
-            List<Path> sources = event.getDragboard().getFiles().stream().map(File::toPath).filter(this::importable).toList();
-            boolean accepted = !blocked.get() && !sources.isEmpty();
-            event.setDropCompleted(accepted);
-            if (accepted) {
-                Platform.runLater(() -> importFiles(sources));
+        addEventFilter(DragEvent.DRAG_DROPPED, event -> {
+            if (blocked.get() || !event.getDragboard().hasFiles()) {
+                return;
+            }
+            List<Path> sources = event.getDragboard().getFiles().stream().map(File::toPath)
+                .filter(model::canImport).toList();
+            event.setDropCompleted(!sources.isEmpty());
+            if (!sources.isEmpty()) {
+                GameInstance instance = instances.getValue();
+                Path destination = displayedDirectory.get();
+                Platform.runLater(() -> {
+                    if (getScene() != null && Objects.equals(instance, instances.getValue()) && destination.equals(displayedDirectory.get())) {
+                        importFiles(sources);
+                    }
+                });
             }
             event.consume();
         });
@@ -552,7 +558,8 @@ public final class ContentPage extends RetroPage {
 
     private void importFiles(List<Path> sources) {
         GameInstance instance = instances.getValue();
-        if (instance == null || sources.isEmpty() || vm.busyProperty().get() || vm.gameRunningProperty().get() || scanning.get()) {
+        Path destination = displayedDirectory.get();
+        if (instance == null || destination == null || sources.isEmpty() || vm.busyProperty().get() || vm.gameRunningProperty().get() || scanning.get()) {
             return;
         }
         Set<String> existing = mods.stream().map(mod -> ModFileNames.logicalName(mod.path().getFileName().toString()))
@@ -560,7 +567,7 @@ public final class ContentPage extends RetroPage {
         Set<String> incoming = new HashSet<>();
         boolean collision = false;
         for (Path path : sources) {
-            if (importable(path)) {
+            if (path.getFileName() != null) {
                 String name = ModFileNames.logicalName(path.getFileName().toString());
                 collision |= existing.contains(name) || !incoming.add(name);
             }
@@ -578,7 +585,9 @@ public final class ContentPage extends RetroPage {
             }
             rename = result.get().equals("保留两份");
         }
-        model.importFiles(displayedDirectory.get(), sources, rename, changed(instance));
+        if (Objects.equals(instance, instances.getValue()) && destination.equals(displayedDirectory.get())) {
+            model.importFiles(destination, sources, rename, changed(instance));
+        }
     }
 
     private void setEnabled(boolean enabled) {

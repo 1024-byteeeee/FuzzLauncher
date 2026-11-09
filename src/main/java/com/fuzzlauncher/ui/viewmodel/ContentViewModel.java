@@ -44,6 +44,10 @@ public final class ContentViewModel {
         return mods.directory(settings, instance);
     }
 
+    public boolean canImport(Path source) {
+        return mods.canImport(source);
+    }
+
     public List<ContentFile> scan(Path directory, TaskContext task) throws Exception {
         return mods.scan(directory, task);
     }

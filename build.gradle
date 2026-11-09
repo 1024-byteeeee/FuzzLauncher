@@ -36,6 +36,7 @@ dependencies {
     implementation("com.microsoft.azure:msal4j:${msal_version}")
     implementation("net.java.dev.jna:jna-platform:${jna_version}")
     runtimeOnly("org.slf4j:slf4j-nop:${slf4j_version}")
+    compileOnly("org.jetbrains:annotations:${jetbrains_annotations_version}")
     testImplementation(platform("org.junit:junit-bom:${junit_version}"))
     testImplementation('org.junit.jupiter:junit-jupiter')
     testImplementation("com.tngtech.archunit:archunit:${archunit_version}")

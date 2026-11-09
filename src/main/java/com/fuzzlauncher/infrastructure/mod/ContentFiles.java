@@ -13,6 +13,7 @@ import com.fuzzlauncher.infrastructure.platform.windows.WindowsPaths;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.WinBase;
 import com.sun.jna.platform.win32.WinNT;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.nio.file.*;
@@ -131,10 +132,28 @@ public final class ContentFiles implements ContentRepository {
             if (kind == ContentKind.SCHEMATICS) {
                 return true;
             }
-            return kind.supportsFolders() && (Files.exists(path.resolve(ResourcePackMetadataReader.METADATA), LinkOption.NOFOLLOW_LINKS)
-                || Files.exists(path.resolve(ResourcePackMetadataReader.DISABLED_METADATA), LinkOption.NOFOLLOW_LINKS));
+            return kind.supportsFolders() && (Files.exists(path.resolve(ResourcePackMetadataReader.METADATA), LinkOption.NOFOLLOW_LINKS) || Files.exists(path.resolve(ResourcePackMetadataReader.DISABLED_METADATA), LinkOption.NOFOLLOW_LINKS));
         }
         return kind.supportsArchive(path);
+    }
+
+    @Override
+    public boolean canImport(Path source) {
+        try {
+            validateImportSource(source);
+            return true;
+        } catch (IOException | IllegalArgumentException ex) {
+            return false;
+        }
+    }
+
+    private boolean validateImportSource(Path source) throws IOException {
+        ordinary(source);
+        boolean folder = Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS);
+        if (!accepts(source) || (folder ? !kind.supportsFolders() : !Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS))) {
+            throw new IOException("请选择受支持的文件或文件夹");
+        }
+        return folder;
     }
 
     private static boolean enabled(Path path) {
@@ -231,11 +250,7 @@ public final class ContentFiles implements ContentRepository {
             for (Path source : sources) {
                 task.checkCancelled();
                 try {
-                    ordinary(source);
-                    boolean folder = Files.isDirectory(source, LinkOption.NOFOLLOW_LINKS);
-                    if (!accepts(source) || (folder ? !kind.supportsFolders() : !Files.isRegularFile(source, LinkOption.NOFOLLOW_LINKS))) {
-                        throw new IOException("请选择受支持的文件或文件夹");
-                    }
+                    boolean folder = validateImportSource(source);
                     Path sourceReal = source.toRealPath();
                     if (real.equals(sourceReal.getParent()) || (folder && real.startsWith(sourceReal))) {
                         throw new IOException("来源与目标目录重叠");
@@ -316,7 +331,7 @@ public final class ContentFiles implements ContentRepository {
     private static void copyFolder(Path source, Path target, List<Path> temporaryFiles, TaskContext task) throws IOException {
         Files.walkFileTree(source, new SimpleFileVisitor<>() {
             @Override
-            public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attributes) throws IOException {
+            public @NotNull FileVisitResult preVisitDirectory(@NotNull Path path, @NotNull BasicFileAttributes attributes) throws IOException {
                 task.checkCancelled();
                 ordinary(path);
                 Path copy = target.resolve(source.relativize(path));
@@ -328,7 +343,7 @@ public final class ContentFiles implements ContentRepository {
             }
 
             @Override
-            public FileVisitResult visitFile(Path path, BasicFileAttributes attributes) throws IOException {
+            public @NotNull FileVisitResult visitFile(@NotNull Path path, @NotNull BasicFileAttributes attributes) throws IOException {
                 ordinary(path);
                 if (!attributes.isRegularFile()) {
                     throw new IOException("资源包包含非普通文件：" + path);

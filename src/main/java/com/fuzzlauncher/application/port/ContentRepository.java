@@ -13,6 +13,8 @@ public interface ContentRepository {
         return gameDirectory.resolve(kind.directory());
     }
 
+    boolean canImport(Path source);
+
     List<ContentFile> scan(Path directory, TaskContext task) throws Exception;
 
     FileOperationResult importFiles(Path directory, List<Path> sources, boolean rename, TaskContext task) throws Exception;

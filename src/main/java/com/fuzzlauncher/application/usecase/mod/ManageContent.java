@@ -36,6 +36,10 @@ public final class ManageContent {
         return files.directory(gameDirectory, kind).toAbsolutePath().normalize();
     }
 
+    public boolean canImport(Path source) {
+        return files.canImport(source);
+    }
+
     public List<ContentFile> scan(Path directory, TaskContext task) throws Exception {
         return files.scan(directory, task);
     }
