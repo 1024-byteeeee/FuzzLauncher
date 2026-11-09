@@ -7,6 +7,7 @@ import com.fuzzlauncher.domain.content.ContentKind;
 import com.fuzzlauncher.domain.content.ImportConflict;
 import com.fuzzlauncher.domain.mod.ModFileNames;
 import com.fuzzlauncher.domain.settings.LauncherSettings;
+import com.fuzzlauncher.ui.common.FileDrop;
 import com.fuzzlauncher.ui.common.RetroComboBox;
 import com.fuzzlauncher.ui.common.RetroDialogs;
 import com.fuzzlauncher.ui.common.RetroPage;
@@ -36,7 +37,6 @@ import javafx.stage.WindowEvent;
 import javafx.util.StringConverter;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
@@ -254,32 +254,12 @@ public final class ContentPage extends RetroPage {
             menu.getItems().add(item);
         }
         list.setContextMenu(menu);
-        Set<Dragboard> acceptedDrags = Collections.newSetFromMap(new WeakHashMap<>());
-        addEventFilter(DragEvent.DRAG_OVER, event -> {
-            Dragboard board = event.getDragboard();
-            if (canDrop() && (acceptedDrags.contains(board)
-                || (board.hasFiles() && board.getFiles().stream().map(File::toPath)
-                    .anyMatch(this::isDropCandidate)))) {
-                acceptedDrags.add(board);
-                event.acceptTransferModes(TransferMode.COPY);
-                event.consume();
+        FileDrop.install(this, this::canDrop, paths -> paths.stream().filter(this::isDropCandidate).toList(), sources -> {
+            pendingDrop = sources;
+            if (!scanning.get()) {
+                long ticket = generation;
+                Platform.runLater(() -> finishDrop(ticket));
             }
-        });
-        addEventFilter(DragEvent.DRAG_DROPPED, event -> {
-            if (!canDrop() || !event.getDragboard().hasFiles()) {
-                return;
-            }
-            List<Path> sources = event.getDragboard().getFiles().stream().map(File::toPath)
-                .filter(this::isDropCandidate).toList();
-            event.setDropCompleted(!sources.isEmpty());
-            if (!sources.isEmpty()) {
-                pendingDrop = sources;
-                if (!scanning.get()) {
-                    long ticket = generation;
-                    Platform.runLater(() -> finishDrop(ticket));
-                }
-            }
-            event.consume();
         });
         list.setMinWidth(0);
         VBox.setVgrow(list, Priority.ALWAYS);

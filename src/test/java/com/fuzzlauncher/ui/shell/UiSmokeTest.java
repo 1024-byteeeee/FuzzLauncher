@@ -50,6 +50,9 @@ import com.fuzzlauncher.ui.common.RetroPathDialog;
 import com.fuzzlauncher.ui.modpack.ModpackDialogs;
 import com.fuzzlauncher.ui.modpack.ModpackFileTree;
 import com.fuzzlauncher.ui.settings.SettingsPage;
+import com.fuzzlauncher.ui.common.FileDrop;
+import com.sun.javafx.scene.input.DragboardHelper;
+import com.sun.javafx.tk.TKClipboard;
 import com.fuzzlauncher.ui.viewmodel.LauncherViewModel;
 
 import com.google.gson.JsonObject;
@@ -76,6 +79,8 @@ import javafx.scene.control.skin.ComboBoxListViewSkin;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.DataFormat;
+import javafx.scene.input.DragEvent;
+import javafx.scene.input.TransferMode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.PickResult;
@@ -94,6 +99,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Proxy;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -173,6 +179,7 @@ class UiSmokeTest {
                 verifyClearLogs(view);
                 verifyLocalMods(stage, view);
                 verifyDropdownHighlight(view);
+                verifyFileDrop(stage, temp.resolve("中文 整合包.zip"));
                 verifyDisabledMenuHighlight(stage);
                 verifyResourcePacks(stage, view);
                 verifySchematics(stage, view);
@@ -1941,6 +1948,44 @@ class UiSmokeTest {
         } finally {
             timeout.stop();
             vm.busyProperty().removeListener(listener);
+        }
+    }
+
+    private static void verifyFileDrop(Stage stage, Path archive) {
+        var scene = stage.getScene();
+        var original = scene.getRoot();
+        var page = new VBox();
+        page.setPrefSize(200, 200);
+        var available = new AtomicBoolean();
+        var imported = new AtomicReference<List<Path>>();
+        var clipboard = (TKClipboard) Proxy.newProxyInstance(TKClipboard.class.getClassLoader(), new Class<?>[] { TKClipboard.class },
+            (proxy, method, args) -> switch (method.getName()) {
+                case "setSecurityContext" -> null;
+                case "getTransferModes" -> Set.of(TransferMode.COPY, TransferMode.MOVE);
+                case "getContent" -> available.get() && DataFormat.URL.equals(args[0]) ? archive.toUri().toString() : null;
+                default -> throw new AssertionError(method);
+            });
+        var board = DragboardHelper.createDragboard(clipboard);
+        FileDrop.install(page, () -> true, paths -> paths, imported::set);
+        scene.setRoot(page);
+        try {
+            page.applyCss();
+            page.layout();
+            var pick = new PickResult(scene, 20, 20);
+            var over = new DragEvent(DragEvent.DRAG_OVER, board, 20, 20, 20, 20, TransferMode.MOVE, null, null, pick);
+            Event.fireEvent(scene, over);
+            assertFalse(over.isAccepted());
+            available.set(true);
+            var retry = new DragEvent(DragEvent.DRAG_OVER, board, 20, 20, 20, 20, TransferMode.MOVE, null, null, pick);
+            Event.fireEvent(scene, retry);
+            assertEquals(TransferMode.COPY, retry.getAcceptedTransferMode());
+            available.set(false);
+            var drop = new DragEvent(DragEvent.DRAG_DROPPED, board, 20, 20, 20, 20, TransferMode.COPY, null, null, pick);
+            Event.fireEvent(scene, drop);
+            assertTrue(drop.isDropCompleted());
+            assertEquals(List.of(archive), imported.get());
+        } finally {
+            scene.setRoot(original);
         }
     }
 
