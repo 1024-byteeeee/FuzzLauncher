@@ -8,6 +8,7 @@ import com.fuzzlauncher.domain.instance.IsolationMode;
 import com.fuzzlauncher.domain.instance.IsolationOverride;
 import com.fuzzlauncher.domain.content.ContentFile;
 import com.fuzzlauncher.domain.content.ContentKind;
+import com.fuzzlauncher.domain.content.ImportConflict;
 import com.fuzzlauncher.domain.settings.LauncherSettings;
 import com.fuzzlauncher.infrastructure.config.SettingsDefaults;
 import com.fuzzlauncher.infrastructure.mod.ContentFiles;
@@ -52,7 +53,7 @@ class ModFilesTest {
         Files.createDirectories(custom);
         repository.createFolder(custom, "建筑", TASK);
         Path source = Files.writeString(temp.resolve("房子.litematic"), "opaque fixture");
-        assertEquals(1, service.importFiles(custom, List.of(source), false, TASK).completed());
+        assertEquals(1, service.importFiles(custom, List.of(source), ImportConflict.SKIP, TASK).completed());
         Files.writeString(custom.resolve("ignore.txt"), "not a schematic");
         var entries = service.scan(custom, TASK);
         assertEquals(Set.of("建筑", "房子.litematic"), entries.stream().map(ContentFile::name).collect(Collectors.toSet()));
@@ -77,7 +78,7 @@ class ModFilesTest {
         Files.createDirectories(folder.resolve("assets/minecraft"));
         Files.writeString(folder.resolve("assets/minecraft/fixture.txt"), "keep");
         Path invalid = jar(temp.resolve("source/invalid.zip"), Map.of("pack.mcmeta", "{\"pack\":5}"));
-        var imported = packs.importFiles(directory, List.of(archive, folder, invalid), false, TASK);
+        var imported = packs.importFiles(directory, List.of(archive, folder, invalid), ImportConflict.SKIP, TASK);
         assertEquals(2, imported.completed());
         assertEquals(1, imported.failures().size());
         assertFalse(Files.exists(directory.resolve("invalid.zip")));
@@ -95,8 +96,8 @@ class ModFilesTest {
         assertEquals(2, packs.setEnabled(directory, disabled, true, TASK).completed());
         assertEquals("keep", Files.readString(directory.resolve("草地方块/assets/minecraft/fixture.txt")));
         assertEquals(metadata, Files.readString(directory.resolve("草地方块/pack.mcmeta")));
-        assertEquals(0, packs.importFiles(directory, List.of(archive, folder), false, TASK).completed());
-        assertEquals(2, packs.importFiles(directory, List.of(archive, folder), true, TASK).completed());
+        assertEquals(0, packs.importFiles(directory, List.of(archive, folder), ImportConflict.SKIP, TASK).completed());
+        assertEquals(2, packs.importFiles(directory, List.of(archive, folder), ImportConflict.KEEP_BOTH, TASK).completed());
         assertTrue(Files.isRegularFile(directory.resolve("像素 (2).zip")));
         assertTrue(Files.isRegularFile(directory.resolve("草地方块 (2)/pack.mcmeta")));
     }
@@ -140,12 +141,25 @@ class ModFilesTest {
         Path mods = temp.resolve("mods"), source = fabric(temp.resolve("incoming/mod.jar"), "incoming");
         Path existing = fabric(mods.resolve("mod.jar.disabled"), "existing");
         byte[] original = Files.readAllBytes(existing);
-        assertEquals(0, files.importFiles(mods, List.of(source), false, TASK).completed());
+        assertEquals(0, files.importFiles(mods, List.of(source), ImportConflict.SKIP, TASK).completed());
         assertArrayEquals(original, Files.readAllBytes(existing));
-        assertEquals(1, files.importFiles(mods, List.of(source), true, TASK).completed());
+        assertEquals(1, files.importFiles(mods, List.of(source), ImportConflict.KEEP_BOTH, TASK).completed());
         assertTrue(Files.isRegularFile(mods.resolve("mod (2).jar")));
         assertTrue(Files.exists(source));
         assertEquals(2, files.scan(mods, TASK).size());
+        assertNoTemporaryDirectories(mods);
+    }
+
+    @Test
+    void replacingAnImportedModPreservesItsDisabledState() throws Exception {
+        var replacing = new ContentFiles(Files::delete);
+        Path mods = temp.resolve("mods");
+        Path existing = fabric(mods.resolve("mod.jar.disabled"), "existing");
+        Path source = fabric(temp.resolve("incoming/mod.jar"), "incoming");
+        var report = replacing.importFiles(mods, List.of(source), ImportConflict.REPLACE, TASK);
+        assertEquals(1, report.completed(), report.failures().toString());
+        assertArrayEquals(Files.readAllBytes(source), Files.readAllBytes(existing));
+        assertFalse(Files.exists(mods.resolve("mod.jar")));
         assertNoTemporaryDirectories(mods);
     }
 
@@ -154,7 +168,7 @@ class ModFilesTest {
         Path valid = fabric(temp.resolve("incoming/valid.jar"), "valid");
         Path invalid = Files.writeString(temp.resolve("incoming/bad.jar"), "not a jar");
         Path mods = temp.resolve("mods");
-        var result = files.importFiles(mods, List.of(invalid, valid), false, TASK);
+        var result = files.importFiles(mods, List.of(invalid, valid), ImportConflict.SKIP, TASK);
         assertEquals(1, result.completed());
         assertEquals(1, result.failures().size());
         assertFalse(Files.exists(mods.resolve("bad.jar")));
@@ -178,7 +192,7 @@ class ModFilesTest {
                 throw new CancellationException("fixture cancellation");
             }
         };
-        assertThrows(CancellationException.class, () -> files.importFiles(mods, List.of(source), false, cancelledAtCommit));
+        assertThrows(CancellationException.class, () -> files.importFiles(mods, List.of(source), ImportConflict.SKIP, cancelledAtCommit));
         assertTrue(Files.exists(source));
         try (var remaining = Files.list(mods)) {
             assertEquals(0, remaining.count());
@@ -206,7 +220,7 @@ class ModFilesTest {
     void sameNameSourcesAreReservedWithinTheBatchAndCannotOverwriteEachOther() throws Exception {
         Path first = fabric(temp.resolve("one/mod.jar"), "first"), second = fabric(temp.resolve("two/mod.jar"), "second");
         Path mods = temp.resolve("mods");
-        assertEquals(2, files.importFiles(mods, List.of(first, second), true, TASK).completed());
+        assertEquals(2, files.importFiles(mods, List.of(first, second), ImportConflict.KEEP_BOTH, TASK).completed());
         assertEquals(Set.of("first", "second"), files.scan(mods, TASK).stream().map(mod -> mod.metadata().getFirst().id()).collect(Collectors.toSet()));
         assertNoTemporaryDirectories(mods);
     }
@@ -236,7 +250,7 @@ class ModFilesTest {
         Files.writeString(source, "not a jar");
         Files.setAttribute(source, "dos:readonly", true);
         try {
-            var report = files.importFiles(mods, List.of(source), false, TASK);
+            var report = files.importFiles(mods, List.of(source), ImportConflict.SKIP, TASK);
             assertEquals(0, report.completed());
             assertEquals(1, report.failures().size());
             assertTrue(Files.readAttributes(source, DosFileAttributes.class).isReadOnly());

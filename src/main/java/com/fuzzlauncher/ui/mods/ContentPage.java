@@ -4,6 +4,7 @@ import com.fuzzlauncher.application.task.TaskContext;
 import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.content.ContentFile;
 import com.fuzzlauncher.domain.content.ContentKind;
+import com.fuzzlauncher.domain.content.ImportConflict;
 import com.fuzzlauncher.domain.mod.ModFileNames;
 import com.fuzzlauncher.domain.settings.LauncherSettings;
 import com.fuzzlauncher.ui.common.RetroComboBox;
@@ -58,6 +59,7 @@ public final class ContentPage extends RetroPage {
     private final ObjectProperty<Path> subdirectory = new SimpleObjectProperty<>(Path.of(""));
     private final ObjectProperty<Path> displayedDirectory = new SimpleObjectProperty<>();
     private Task<List<ContentFile>> scan;
+    private List<Path> pendingDrop = List.of();
     private long generation;
     private final EventHandler<WindowEvent> windowHidden = event -> cancelScan();
 
@@ -252,30 +254,29 @@ public final class ContentPage extends RetroPage {
             menu.getItems().add(item);
         }
         list.setContextMenu(menu);
-        Map<Dragboard, Boolean> acceptedDrags = new WeakHashMap<>();
+        Set<Dragboard> acceptedDrags = Collections.newSetFromMap(new WeakHashMap<>());
         addEventFilter(DragEvent.DRAG_OVER, event -> {
             Dragboard board = event.getDragboard();
-            if (!blocked.get() && board.hasFiles() && acceptedDrags.computeIfAbsent(board,
-                drag -> drag.getFiles().stream().map(File::toPath).anyMatch(model::canImport))) {
+            if (canDrop() && (acceptedDrags.contains(board)
+                || (board.hasFiles() && board.getFiles().stream().map(File::toPath).anyMatch(model::canImport)))) {
+                acceptedDrags.add(board);
                 event.acceptTransferModes(TransferMode.COPY);
                 event.consume();
             }
         });
         addEventFilter(DragEvent.DRAG_DROPPED, event -> {
-            if (blocked.get() || !event.getDragboard().hasFiles()) {
+            if (!canDrop() || !event.getDragboard().hasFiles()) {
                 return;
             }
             List<Path> sources = event.getDragboard().getFiles().stream().map(File::toPath)
                 .filter(model::canImport).toList();
             event.setDropCompleted(!sources.isEmpty());
             if (!sources.isEmpty()) {
-                GameInstance instance = instances.getValue();
-                Path destination = displayedDirectory.get();
-                Platform.runLater(() -> {
-                    if (getScene() != null && Objects.equals(instance, instances.getValue()) && destination.equals(displayedDirectory.get())) {
-                        importFiles(sources);
-                    }
-                });
+                pendingDrop = sources;
+                if (!scanning.get()) {
+                    long ticket = generation;
+                    Platform.runLater(() -> finishDrop(ticket));
+                }
             }
             event.consume();
         });
@@ -450,6 +451,7 @@ public final class ContentPage extends RetroPage {
 
     private void cancelScan() {
         generation++;
+        pendingDrop = List.of();
         if (scan != null) {
             scan.cancel(true);
             scan = null;
@@ -503,6 +505,7 @@ public final class ContentPage extends RetroPage {
                 scanning.set(false);
                 scan = null;
                 summary.setText("无法读取" + contentLabel + "：" + task.getException().getMessage());
+                pendingDrop = List.of();
                 Logger.getLogger("com.fuzzlauncher.launcher").warning(summary.getText());
             }
         });
@@ -541,6 +544,20 @@ public final class ContentPage extends RetroPage {
             summary.setText(schematics ? (values.size() - values.stream().filter(ContentFile::directory).count()) + " 个原理图"
                 : values.size() + (kind == ContentKind.MODS ? " 个模组文件" : " 个资源包")
                     + " · 启用 " + enabled + " · 禁用 " + (values.size() - enabled));
+            finishDrop(ticket);
+        }
+    }
+
+    private boolean canDrop() {
+        return pendingDrop.isEmpty() && instances.getValue() != null && (scanning.get() || displayedDirectory.get() != null)
+            && !vm.busyProperty().get() && !vm.gameRunningProperty().get();
+    }
+
+    private void finishDrop(long ticket) {
+        if (ticket == generation && getScene() != null && !pendingDrop.isEmpty()) {
+            List<Path> sources = pendingDrop;
+            pendingDrop = List.of();
+            importFiles(sources);
         }
     }
 
@@ -572,11 +589,26 @@ public final class ContentPage extends RetroPage {
                 collision |= existing.contains(name) || !incoming.add(name);
             }
         }
-        boolean rename = false;
+        ImportConflict conflict = ImportConflict.SKIP;
         if (collision) {
             Dialog<ButtonType> choice = new Dialog<>();
-            ComboBox<String> action = new RetroComboBox<>();
-            action.getItems().setAll("跳过同名文件", "保留两份");
+            ComboBox<ImportConflict> action = new RetroComboBox<>();
+            action.getItems().setAll(ImportConflict.values());
+            action.setConverter(new StringConverter<>() {
+                @Override
+                public String toString(ImportConflict value) {
+                    return value == null ? "" : switch (value) {
+                        case SKIP -> "跳过同名文件";
+                        case KEEP_BOTH -> "保留两份";
+                        case REPLACE -> "替换";
+                    };
+                }
+
+                @Override
+                public ImportConflict fromString(String text) {
+                    throw new UnsupportedOperationException();
+                }
+            });
             action.getSelectionModel().selectFirst();
             RetroDialogs.decorate(choice, stage, "同名" + contentLabel);
             Label prompt = new Label("已存在同名启用或禁用文件，处理方式：");
@@ -590,10 +622,10 @@ public final class ContentPage extends RetroPage {
             if (choice.showAndWait().orElse(ButtonType.CANCEL) != ButtonType.OK) {
                 return;
             }
-            rename = action.getSelectionModel().getSelectedIndex() == 1;
+            conflict = action.getValue();
         }
         if (Objects.equals(instance, instances.getValue()) && destination.equals(displayedDirectory.get())) {
-            model.importFiles(destination, sources, rename, changed(instance));
+            model.importFiles(destination, sources, conflict, changed(instance));
         }
     }
 

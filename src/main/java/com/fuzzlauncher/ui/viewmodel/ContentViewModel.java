@@ -6,6 +6,7 @@ import com.fuzzlauncher.application.usecase.mod.ManageContent;
 import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.content.ContentFile;
 import com.fuzzlauncher.domain.content.ContentKind;
+import com.fuzzlauncher.domain.content.ImportConflict;
 import com.fuzzlauncher.domain.settings.LauncherSettings;
 import com.fuzzlauncher.ui.task.FxTaskCoordinator;
 
@@ -52,12 +53,12 @@ public final class ContentViewModel {
         return mods.scan(directory, task);
     }
 
-    public void importFiles(Path directory, List<Path> sources, boolean renameCollisions, Runnable changed) {
+    public void importFiles(Path directory, List<Path> sources, ImportConflict conflict, Runnable changed) {
         if (directory == null || busy.get() || gameRunning.get() || sources.isEmpty()) {
             return;
         }
         List<Path> selectedFiles = List.copyOf(sources);
-        tasks.submit("导入" + label(), task -> mods.importFiles(directory, selectedFiles, renameCollisions, task), report -> contentChanged("导入", report, changed));
+        tasks.submit("导入" + label(), task -> mods.importFiles(directory, selectedFiles, conflict, task), report -> contentChanged("导入", report, changed));
     }
 
     public void setEnabled(Path directory, List<ContentFile> selected, boolean enabled, Runnable changed) {

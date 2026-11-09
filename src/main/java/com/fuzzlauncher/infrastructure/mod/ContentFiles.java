@@ -5,6 +5,7 @@ import com.fuzzlauncher.application.port.ContentRepository;
 import com.fuzzlauncher.application.task.TaskContext;
 import com.fuzzlauncher.domain.content.ContentFile;
 import com.fuzzlauncher.domain.content.ContentKind;
+import com.fuzzlauncher.domain.content.ImportConflict;
 import com.fuzzlauncher.domain.mod.ModFileNames;
 import com.fuzzlauncher.infrastructure.filesystem.BrowserFiles;
 import com.fuzzlauncher.infrastructure.filesystem.CancellableFiles;
@@ -21,7 +22,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.DosFileAttributes;
 import java.util.*;
 
-/** Local archive operations. Every publication refuses to overwrite an existing file. */
+/** Local content operations. Imports are staged before publication. */
 public final class ContentFiles implements ContentRepository {
     private static final String DISABLED = ".disabled";
     private static final int CACHE_CAPACITY = 1024;
@@ -52,7 +53,7 @@ public final class ContentFiles implements ContentRepository {
         this.recycler = Objects.requireNonNull(recycler);
     }
 
-    private record Prepared(Path temporary, Path target) {
+    private record Prepared(Path temporary, Path target, String replacedIdentity) {
     }
 
     public static boolean supported(Path path) {
@@ -227,7 +228,7 @@ public final class ContentFiles implements ContentRepository {
         return new FileOperationResult(completed[0], failures);
     }
 
-    public FileOperationResult importFiles(Path directory, List<Path> sources, boolean renameCollisions, TaskContext task)
+    public FileOperationResult importFiles(Path directory, List<Path> sources, ImportConflict conflict, TaskContext task)
         throws Exception {
         task.checkCancelled();
         checkAncestors(directory);
@@ -238,13 +239,19 @@ public final class ContentFiles implements ContentRepository {
         List<Path> temporaryFiles = new ArrayList<>();
         List<String> failures = new ArrayList<>();
         Set<String> reserved = new HashSet<>();
+        Map<String, Path> replaceable = new HashMap<>();
         int[] completed = { 0 };
         Throwable primaryFailure = null;
         try {
             try (var existing = Files.newDirectoryStream(real)) {
                 for (Path path : existing) {
                     task.checkCancelled();
-                    reserved.add(logicalName(path.getFileName().toString()));
+                    String name = logicalName(path.getFileName().toString());
+                    if (reserved.add(name)) {
+                        replaceable.put(name, path);
+                    } else {
+                        replaceable.remove(name);
+                    }
                 }
             }
             for (Path source : sources) {
@@ -255,7 +262,12 @@ public final class ContentFiles implements ContentRepository {
                     if (real.equals(sourceReal.getParent()) || (folder && real.startsWith(sourceReal))) {
                         throw new IOException("来源与目标目录重叠");
                     }
-                    Path target = destination(real, source.getFileName().toString(), reserved, renameCollisions, folder);
+                    String name = source.getFileName().toString();
+                    String key = logicalName(name);
+                    Path replacement = conflict == ImportConflict.REPLACE ? replaceable.get(key) : null;
+                    Path target = replacement == null ? destination(real, name, reserved, conflict == ImportConflict.KEEP_BOTH, folder) : replacement;
+                    String replacedIdentity = replacement == null ? null
+                        : identity(Files.readAttributes(replacement, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS));
                     Path copy = staging.resolve(Integer.toString(temporaryFiles.size()));
                     temporaryFiles.add(copy);
                     task.report("导入 " + source.getFileName(), (double) prepared.size() / Math.max(1, sources.size()));
@@ -268,7 +280,8 @@ public final class ContentFiles implements ContentRepository {
                     if (!metadata.readable()) {
                         throw new IOException(metadata.problem());
                     }
-                    prepared.add(new Prepared(copy, target));
+                    prepared.add(new Prepared(copy, target, replacedIdentity));
+                    replaceable.remove(key);
                     reserved.add(logicalName(target.getFileName().toString()));
                 } catch (IOException | IllegalArgumentException ex) {
                     failures.add(source.getFileName() + "：" + ex.getMessage());
@@ -281,8 +294,16 @@ public final class ContentFiles implements ContentRepository {
                         if (Files.exists(counterpart(file.target), LinkOption.NOFOLLOW_LINKS)) {
                             throw new FileAlreadyExistsException("同名启用或禁用文件已存在");
                         }
-                        Files.move(file.temporary, file.target);
+                        Path backup = null;
+                        if (file.replacedIdentity != null) {
+                            backup = replaceImported(file, staging);
+                        } else {
+                            Files.move(file.temporary, file.target);
+                        }
                         completed[0]++;
+                        if (backup != null) {
+                            recycler.recycle(backup);
+                        }
                     } catch (IOException ex) {
                         failures.add(file.target.getFileName() + "：" + ex.getMessage());
                     }
@@ -354,6 +375,32 @@ public final class ContentFiles implements ContentRepository {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    private Path replaceImported(Prepared file, Path staging) throws IOException {
+        ordinary(file.target);
+        var attributes = Files.readAttributes(file.target, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        if (!file.replacedIdentity.equals(identity(attributes))) {
+            throw new IOException("同名条目已发生变化，请刷新后重试");
+        }
+        if ((!attributes.isRegularFile() && !attributes.isDirectory()) || !accepts(file.target)
+            || attributes.isDirectory() != Files.isDirectory(file.temporary)) {
+            throw new IOException("同名条目的类型不允许替换");
+        }
+        Path backup = staging.resolve(file.temporary.getFileName() + "-previous");
+        Files.move(file.target, backup);
+        try {
+            Files.move(file.temporary, file.target);
+        } catch (IOException ex) {
+            try {
+                Files.move(backup, file.target);
+            } catch (IOException restore) {
+                ex.addSuppressed(restore);
+                throw new IOException("替换失败，原条目保存在 " + backup, ex);
+            }
+            throw ex;
+        }
+        return backup;
     }
 
     private static Path destination(Path directory, String name, Set<String> reserved, boolean rename, boolean folder) throws IOException {

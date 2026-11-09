@@ -7,6 +7,7 @@ import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.instance.IsolationPolicy;
 import com.fuzzlauncher.domain.content.ContentFile;
 import com.fuzzlauncher.domain.content.ContentKind;
+import com.fuzzlauncher.domain.content.ImportConflict;
 import com.fuzzlauncher.domain.settings.LauncherSettings;
 
 import java.nio.file.Path;
@@ -44,8 +45,8 @@ public final class ManageContent {
         return files.scan(directory, task);
     }
 
-    public FileOperationResult importFiles(Path directory, List<Path> sources, boolean renameCollisions, TaskContext task) throws Exception {
-        return files.importFiles(directory, sources, renameCollisions, task);
+    public FileOperationResult importFiles(Path directory, List<Path> sources, ImportConflict conflict, TaskContext task) throws Exception {
+        return files.importFiles(directory, sources, conflict, task);
     }
 
     public FileOperationResult setEnabled(Path directory, List<ContentFile> selected, boolean enabled, TaskContext task) throws Exception {
