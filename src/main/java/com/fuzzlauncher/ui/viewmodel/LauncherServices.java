@@ -18,5 +18,5 @@ import com.fuzzlauncher.application.usecase.mod.ManageContent;
 public record LauncherServices(SettingsRepository settings, InstanceRepository repository, VersionCatalogPort catalog,
     AccountAuthenticator authentication, GameInstallation installation, GameLauncher launcher, AccountAvatars avatars,
     InstanceOperations instances, SettingsOperations settingsOperations, ModpackOperations modpacks, ManageContent mods, ManageContent resourcePacks,
-    ManageContent schematics, LauncherOptions options, FileBrowser browser) {
+    ManageContent shaderPacks, ManageContent schematics, LauncherOptions options, FileBrowser browser) {
 }

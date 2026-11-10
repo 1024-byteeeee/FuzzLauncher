@@ -69,6 +69,9 @@ public class RetroPage extends BorderPane {
             if (key.equals("resource-packs")) {
                 return ResourcePackIcon.create();
             }
+            if (key.equals("shader-packs")) {
+                return ShaderPackIcon.create();
+            }
             if (key.equals("schematics")) {
                 return SchematicIcon.create();
             }

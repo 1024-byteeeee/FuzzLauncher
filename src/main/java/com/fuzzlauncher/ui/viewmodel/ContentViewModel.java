@@ -37,6 +37,7 @@ public final class ContentViewModel {
         return switch (kind()) {
             case MODS -> "模组";
             case RESOURCE_PACKS -> "资源包";
+            case SHADER_PACKS -> "光影包";
             case SCHEMATICS -> "原理图";
         };
     }

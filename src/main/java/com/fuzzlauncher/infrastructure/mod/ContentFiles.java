@@ -124,7 +124,7 @@ public final class ContentFiles implements ContentRepository {
         return switch (kind) {
             case MODS -> reader.read(path, task);
             case RESOURCE_PACKS -> ResourcePackMetadataReader.read(path, name, task);
-            case SCHEMATICS -> ContentInspection.WITHOUT_METADATA;
+            case SHADER_PACKS, SCHEMATICS -> ContentInspection.WITHOUT_METADATA;
         };
     }
 
@@ -163,8 +163,8 @@ public final class ContentFiles implements ContentRepository {
     }
 
     public FileOperationResult setEnabled(Path directory, List<ContentFile> selected, boolean enabled, TaskContext task) throws Exception {
-        if (kind == ContentKind.SCHEMATICS) {
-            throw new IOException("原理图没有启用状态");
+        if (!kind.supportsEnabledState()) {
+            throw new IOException("此内容类型没有启用状态");
         }
         return change(directory, selected, task, mod -> {
             if (mod.enabled() == enabled) {

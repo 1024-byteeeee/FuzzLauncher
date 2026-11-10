@@ -216,6 +216,7 @@ public final class RetroPathDialog extends Dialog<Path> {
         String title = switch (kind) {
             case MODS -> "选择模组文件";
             case RESOURCE_PACKS -> "选择资源包（ZIP 或文件夹）";
+            case SHADER_PACKS -> "选择光影包（ZIP）";
             case SCHEMATICS -> "选择原理图文件";
         };
         RetroPathDialog dialog = new RetroPathDialog(owner, title, initial, false,

@@ -63,6 +63,7 @@ public final class ViewModels {
                 new LocalInstanceOperations(repository, versions), new LocalSettingsOperations(settings, repository, versions, recovery),
                 new LocalModpackOperations(modpacks), new ManageContent(new ContentFiles()),
                 new ManageContent(ContentKind.RESOURCE_PACKS, new ContentFiles(ContentKind.RESOURCE_PACKS)),
+                new ManageContent(ContentKind.SHADER_PACKS, new ContentFiles(ContentKind.SHADER_PACKS)),
                 new ManageContent(ContentKind.SCHEMATICS, new ContentFiles(ContentKind.SCHEMATICS)), options, fileBrowser())
             );
     }

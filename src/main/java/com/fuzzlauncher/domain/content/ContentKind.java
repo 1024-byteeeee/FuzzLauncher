@@ -7,6 +7,7 @@ import java.nio.file.Path;
 public enum ContentKind {
     MODS("mods"),
     RESOURCE_PACKS("resourcepacks"),
+    SHADER_PACKS("shaderpacks"),
     SCHEMATICS("schematics");
 
     private final String directory;
@@ -25,9 +26,14 @@ public enum ContentKind {
         return switch (this) {
             case MODS -> ModFileNames.supported(path);
             case RESOURCE_PACKS -> ModFileNames.logicalName(name).endsWith(".zip");
+            case SHADER_PACKS -> name.endsWith(".zip");
             case SCHEMATICS -> name.endsWith(".litematic") || name.endsWith(".schem")
                 || name.endsWith(".schematic") || name.endsWith(".nbt");
         };
+    }
+
+    public boolean supportsEnabledState() {
+        return this == MODS || this == RESOURCE_PACKS;
     }
 
     public boolean supportsFolders() {

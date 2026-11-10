@@ -50,6 +50,7 @@ public final class ContentPage extends RetroPage {
     private final ContentViewModel model;
     private final ContentKind kind;
     private final boolean schematics;
+    private final boolean supportsEnabledState;
     private final String contentLabel;
     private final ComboBox<GameInstance> instances;
     private final ObservableList<ContentFile> mods = FXCollections.observableArrayList();
@@ -69,6 +70,7 @@ public final class ContentPage extends RetroPage {
         this.model = model;
         kind = model.kind();
         schematics = kind == ContentKind.SCHEMATICS;
+        supportsEnabledState = kind.supportsEnabledState();
         contentLabel = model.label();
         instances = new RetroComboBox<>(vm.instances());
         instances.setId(id("mod-instance"));
@@ -123,6 +125,7 @@ public final class ContentPage extends RetroPage {
         return switch (kind) {
             case MODS -> modId;
             case RESOURCE_PACKS -> modId.replace("mod", "resource-pack");
+            case SHADER_PACKS -> modId.replace("mod", "shader-pack");
             case SCHEMATICS -> modId.replace("mod", "schematic");
         };
     }
@@ -131,6 +134,7 @@ public final class ContentPage extends RetroPage {
         return image(switch (kind) {
             case MODS -> "mods";
             case RESOURCE_PACKS -> "resource-packs";
+            case SHADER_PACKS -> "shader-packs";
             case SCHEMATICS -> item.directory() ? "folder" : "schematics";
         });
     }
@@ -177,7 +181,10 @@ public final class ContentPage extends RetroPage {
             create.disableProperty().bind(blocked);
             toolbar = new HBox(6, back, refresh, add, create, folder);
         } else {
-            toolbar = new HBox(6, add, refresh, enable, disable, delete, folder);
+            toolbar = new HBox(6, add, refresh, delete, folder);
+            if (supportsEnabledState) {
+                toolbar.getChildren().addAll(2, List.of(enable, disable));
+            }
         }
         toolbar.setAlignment(Pos.CENTER_LEFT);
         TextField search = new TextField();
@@ -204,14 +211,14 @@ public final class ContentPage extends RetroPage {
         search.textProperty().addListener((o, old, value) -> filter.run());
         state.valueProperty().addListener((o, old, value) -> filter.run());
         HBox.setHgrow(search, Priority.ALWAYS);
-        HBox filters = schematics ? new HBox(8, search) : new HBox(8, search, state);
+        HBox filters = supportsEnabledState ? new HBox(8, search, state) : new HBox(8, search);
         list.setId(id("mod-list"));
         list.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         list.setCellFactory(ignored -> new ModCell(blocked));
         list.setFixedCellSize(64);
         ComboBox<String> order = new RetroComboBox<>();
         order.setId(id("mod-sort"));
-        order.getItems().setAll(schematics ? List.of("按名称", "按文件名") : List.of("按名称", "按文件名", "按启用状态"));
+        order.getItems().setAll(supportsEnabledState ? List.of("按名称", "按文件名", "按启用状态") : List.of("按名称", "按文件名"));
         order.setValue("按名称");
         SortedList<ContentFile> sorted = new SortedList<>(filtered);
         Runnable sort = () -> {
@@ -247,7 +254,7 @@ public final class ContentPage extends RetroPage {
             }
         });
         ContextMenu menu = new ContextMenu();
-        for (Button action : schematics ? List.of(delete, refresh, folder) : List.of(enable, disable, delete, refresh, folder)) {
+        for (Button action : supportsEnabledState ? List.of(enable, disable, delete, refresh, folder) : List.of(delete, refresh, folder)) {
             MenuItem item = new MenuItem(action.getText());
             item.disableProperty().bind(action.disableProperty());
             item.setOnAction(event -> action.fire());
@@ -337,7 +344,10 @@ public final class ContentPage extends RetroPage {
                 remove.disableProperty().bind(blocked);
                 row = new HBox(10, iconSlot, text, locate, remove);
             } else {
-                row = new HBox(10, enabled, iconSlot, text, locate, info);
+                row = new HBox(10, iconSlot, text, locate, info);
+                if (supportsEnabledState) {
+                    row.getChildren().addFirst(enabled);
+                }
             }
             row.setAlignment(Pos.CENTER_LEFT);
             row.setMinWidth(0);
@@ -523,8 +533,8 @@ public final class ContentPage extends RetroPage {
             }
             long enabled = values.stream().filter(ContentFile::enabled).count();
             summary.setText(schematics ? (values.size() - values.stream().filter(ContentFile::directory).count()) + " 个原理图"
-                : values.size() + (kind == ContentKind.MODS ? " 个模组文件" : " 个资源包")
-                    + " · 启用 " + enabled + " · 禁用 " + (values.size() - enabled));
+                : values.size() + (kind == ContentKind.MODS ? " 个模组文件" : " 个" + contentLabel)
+                    + (supportsEnabledState ? " · 启用 " + enabled + " · 禁用 " + (values.size() - enabled) : ""));
             finishDrop(ticket);
         }
     }
@@ -698,6 +708,9 @@ public final class ContentPage extends RetroPage {
         }
         if (kind == ContentKind.RESOURCE_PACKS) {
             parts.add("启用后可在游戏的资源包菜单中选择。");
+        }
+        if (kind == ContentKind.SHADER_PACKS) {
+            parts.add("请在支持光影的游戏内菜单中选择此光影包。");
         }
         parts.add("文件：" + mod.path().getFileName());
         description.setText(String.join("\n\n", parts));

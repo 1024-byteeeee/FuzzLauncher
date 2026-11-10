@@ -37,6 +37,7 @@ public final class LauncherViewModel implements AutoCloseable {
     private final StringProperty status = tasks.statusProperty(), error = tasks.errorProperty();
     private final ContentViewModel modsViewModel;
     private final ContentViewModel resourcePacksViewModel;
+    private final ContentViewModel shaderPacksViewModel;
     private final ContentViewModel schematicsViewModel;
     private final AccountsViewModel accountsViewModel;
     private final CatalogViewModel catalogViewModel;
@@ -61,6 +62,7 @@ public final class LauncherViewModel implements AutoCloseable {
         }
         modsViewModel = new ContentViewModel(state, tasks, services.mods());
         resourcePacksViewModel = new ContentViewModel(state, tasks, services.resourcePacks());
+        shaderPacksViewModel = new ContentViewModel(state, tasks, services.shaderPacks());
         schematicsViewModel = new ContentViewModel(state, tasks, services.schematics());
         accountsViewModel = new AccountsViewModel(state, tasks, services.authentication(), services.avatars());
         catalogViewModel = new CatalogViewModel(state, tasks, services.catalog());
@@ -160,6 +162,10 @@ public final class LauncherViewModel implements AutoCloseable {
 
     public ContentViewModel resourcePacksModel() {
         return resourcePacksViewModel;
+    }
+
+    public ContentViewModel shaderPacksModel() {
+        return shaderPacksViewModel;
     }
 
     public ContentViewModel schematicsModel() {

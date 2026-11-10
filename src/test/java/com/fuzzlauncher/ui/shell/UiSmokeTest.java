@@ -182,6 +182,7 @@ class UiSmokeTest {
                 verifyFileDrop(stage, temp.resolve("中文 整合包.zip"));
                 verifyDisabledMenuHighlight(stage);
                 verifyResourcePacks(stage, view);
+                verifyShaderPacks(view);
                 verifySchematics(stage, view);
                 verifyLauncherVisibility(stage, view, app);
                 verifyTestGame(stage);
@@ -1258,6 +1259,30 @@ class UiSmokeTest {
         assertTrue(Files.isRegularFile(folder.resolve("复古材质.zip.disabled")));
     }
 
+    private static void verifyShaderPacks(LauncherView view) throws Exception {
+        var vm = view.viewModel();
+        var instance = vm.selectedProperty().get();
+        var settings = vm.settingsProperty().get();
+        var model = vm.shaderPacksModel();
+        Path folder = model.directory(settings, instance);
+        assertEquals(vm.resourcePacksModel().directory(settings, instance).resolveSibling("shaderpacks"), folder);
+        Path archive = ModFixtures.jar(folder.resolve("测试光影.ZIP"), Map.of("shaders/final.fsh", "fixture"));
+        assertTrue(model.canImport(archive));
+        assertFalse(model.canImport(folder));
+        Button resourcePacks = (Button) view.lookupAll(".nav-button").stream()
+            .filter(node -> node instanceof Button button && button.getText().equals("资源包")).findFirst().orElseThrow();
+        var navigation = resourcePacks.getParent().getChildrenUnmodifiable();
+        Button shaderPacks = (Button) navigation.get(navigation.indexOf(resourcePacks) + 1);
+        assertEquals("光影包", shaderPacks.getText());
+        shaderPacks.fire();
+        @SuppressWarnings("unchecked")
+        ListView<ContentFile> packs = (ListView<ContentFile>) view.lookup("#shader-pack-list");
+        assertNotNull(packs);
+        waitForFx(() -> packs.getItems().stream().anyMatch(pack -> pack.path().equals(archive)));
+        assertNotNull(view.lookup("#import-shader-packs"));
+        assertNull(view.lookup("#enable-shader-packs"));
+    }
+
     private static void verifySchematics(Stage stage, LauncherView view) throws Exception {
         var vm = view.viewModel();
         Path root = vm.schematicsModel().directory(vm.settingsProperty().get(), vm.selectedProperty().get());
@@ -1286,7 +1311,7 @@ class UiSmokeTest {
     private static void verifyNavigationLayout(LauncherView view) throws Exception {
         VBox sidebar = (VBox) view.lookup(".navigation");
         var buttons = sidebar.getChildren().stream().filter(Button.class::isInstance).map(Button.class::cast).toList();
-        assertEquals(List.of("游戏实例", "账号", "下载", "模组", "资源包", "原理图", "设置", "关于"), buttons.stream().map(Button::getText).toList());
+        assertEquals(List.of("游戏实例", "账号", "下载", "模组", "资源包", "光影包", "原理图", "设置", "关于"), buttons.stream().map(Button::getText).toList());
         assertEquals("关于", buttons.getLast().getText());
         double gap = buttons.get(1).getBoundsInParent().getMinY() - buttons.getFirst().getBoundsInParent().getMaxY();
         for (int i = 1; i < buttons.size(); i++) {
