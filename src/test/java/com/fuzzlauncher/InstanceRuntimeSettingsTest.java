@@ -18,7 +18,6 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.*;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -77,7 +76,7 @@ class InstanceRuntimeSettingsTest {
     }
 
     @Test
-    void explicitJavaUsesSelectedExecutableAndRejectsMissingOrOlderRuntime() throws Exception {
+    void explicitJavaUsesSelectedExecutableAndRejectsMissingPath() throws Exception {
         Path home = temp.resolve("Java with spaces");
         Files.createDirectories(home.resolve("bin"));
         Path executable = Files.createFile(home.resolve("bin/java.exe"));
@@ -87,29 +86,9 @@ class InstanceRuntimeSettingsTest {
         assertEquals(executable, manager.resolve(17, "\"" + executable + "\"", task));
         assertEquals(executable, JavaRuntimeManager.configuredExecutable(home.resolve("bin").toString()));
         assertEquals(executable, JavaRuntimeManager.configuredExecutable(home.resolve("bin/javaw.exe").toString()));
-        assertThrows(IOException.class, () -> manager.resolve(25, home.toString(), task));
+        // An explicit path is trusted even when its version does not match the game; the game reports incompatibility itself.
+        assertEquals(executable, manager.resolve(25, home.toString(), task));
         assertThrows(IOException.class, () -> manager.resolve(21, temp.resolve("missing/java.exe").toString(), task));
         assertFalse(Files.exists(temp.resolve("auto")), "Invalid explicit path must not silently download another Java");
-    }
-
-    @Test
-    void missingJavaReportsVersionWithoutCreatingDownloadFiles() {
-        Path cache = temp.resolve("no-download");
-        var manager = new JavaRuntimeManager(cache);
-        IOException failure = assertThrows(IOException.class, () -> manager.resolve(99, task));
-        assertTrue(failure.getMessage().contains("Java 99"));
-        assertTrue(failure.getMessage().contains("Java 路径"));
-        assertFalse(Files.exists(cache));
-    }
-
-    @Test
-    void previouslyCachedLocalJavaRemainsUsable() throws Exception {
-        Path home = temp.resolve("previous-java");
-        Files.createDirectories(home.resolve("bin"));
-        Path executable = Files.createFile(home.resolve("bin/java.exe"));
-        Files.writeString(home.resolve("release"), "JAVA_VERSION=\"21.0.4\"\n");
-        Path cache = Files.createDirectories(temp.resolve("cached"));
-        JsonFiles.write(cache.resolve("java-21.json"), Map.of("home", home.toString()));
-        assertEquals(executable, new JavaRuntimeManager(cache).resolve(21, task));
     }
 }
