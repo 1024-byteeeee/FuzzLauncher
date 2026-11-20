@@ -8,6 +8,13 @@ public final class ProcessCleanup {
     private ProcessCleanup() {
     }
 
+    public static void terminateQuietly(Process process) {
+        try {
+            terminate(process);
+        } catch (IOException ignored) {
+        }
+    }
+
     public static void terminate(Process process) throws IOException {
         boolean interrupted = Thread.interrupted();
         var children = process.descendants().toList();

@@ -67,7 +67,7 @@ public final class OfficialLoaderInstaller implements LoaderInstaller {
             }
         }
         JsonObject vanilla = new VersionResolver(baseVersions).resolve(root, game.id());
-        Path java = runtimes.resolve(Math.max(17, runtimes.requiredMajor(vanilla)), task);
+        Path java = runtimes.resolve(runtimes.requiredMajor(vanilla), null, task);
         JsonObject version = new ClientProcessors(http, baseVersions).execute(root, staging, installer, profile, vanilla, java, task);
         Path libraryDirectory = staging.resolve("libraries");
         if (Files.isDirectory(libraryDirectory)) {

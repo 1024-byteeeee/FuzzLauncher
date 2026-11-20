@@ -8,6 +8,7 @@ import com.fuzzlauncher.application.port.GameInstallation;
 import com.fuzzlauncher.application.port.GameLauncher;
 import com.fuzzlauncher.application.port.InstanceOperations;
 import com.fuzzlauncher.application.port.InstanceRepository;
+import com.fuzzlauncher.application.port.JavaRuntimeCatalog;
 import com.fuzzlauncher.application.port.ModpackOperations;
 import com.fuzzlauncher.application.port.SettingsOperations;
 import com.fuzzlauncher.application.port.SettingsRepository;
@@ -18,5 +19,5 @@ import com.fuzzlauncher.application.usecase.mod.ManageContent;
 public record LauncherServices(SettingsRepository settings, InstanceRepository repository, VersionCatalogPort catalog,
     AccountAuthenticator authentication, GameInstallation installation, GameLauncher launcher, AccountAvatars avatars,
     InstanceOperations instances, SettingsOperations settingsOperations, ModpackOperations modpacks, ManageContent mods, ManageContent resourcePacks,
-    ManageContent shaderPacks, ManageContent schematics, LauncherOptions options, FileBrowser browser) {
+    ManageContent shaderPacks, ManageContent schematics, LauncherOptions options, FileBrowser browser, JavaRuntimeCatalog javaRuntimes) {
 }

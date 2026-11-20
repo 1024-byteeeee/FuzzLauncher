@@ -8,6 +8,7 @@ import com.fuzzlauncher.application.port.AccountAvatars;
 import com.fuzzlauncher.application.port.FileBrowser;
 import com.fuzzlauncher.application.port.GameLauncher;
 import com.fuzzlauncher.application.port.InstanceRepository;
+import com.fuzzlauncher.application.port.JavaRuntimeCatalog;
 import com.fuzzlauncher.application.usecase.mod.ManageContent;
 import com.fuzzlauncher.domain.settings.DownloadSource;
 import com.fuzzlauncher.infrastructure.browser.LocalFileBrowser;
@@ -43,12 +44,18 @@ public final class ViewModels {
 
     public static LauncherViewModel create(SettingsStore settings, InstanceRepository repository, VersionCatalog catalog,
         AccountAuthenticator auth, LocalGameInstallation install, GameLauncher launch, AccountAvatars avatars) throws IOException {
-        return create(settings, repository, catalog, auth, install, launch, avatars, null, null);
+        return create(settings, repository, catalog, auth, install, launch, avatars, null, null, null);
     }
 
     public static LauncherViewModel create(SettingsStore settings, InstanceRepository repository, VersionCatalog catalog,
         AccountAuthenticator auth, LocalGameInstallation install, GameLauncher launch, AccountAvatars avatars, LocalModpacks modpacks,
         OperationJournal.Store recovery) throws IOException {
+        return create(settings, repository, catalog, auth, install, launch, avatars, modpacks, recovery, null);
+    }
+
+    public static LauncherViewModel create(SettingsStore settings, InstanceRepository repository, VersionCatalog catalog,
+        AccountAuthenticator auth, LocalGameInstallation install, GameLauncher launch, AccountAvatars avatars, LocalModpacks modpacks,
+        OperationJournal.Store recovery, JavaRuntimeCatalog javaRuntimes) throws IOException {
         BaseVersions versions = install == null ? new BaseVersions() : install.baseVersions();
         Map<DownloadSource, LauncherOptions.Source> sources = new EnumMap<>(DownloadSource.class);
         LauncherConfig config = LauncherConfig.get();
@@ -64,7 +71,7 @@ public final class ViewModels {
                 new LocalModpackOperations(modpacks), new ManageContent(new ContentFiles()),
                 new ManageContent(ContentKind.RESOURCE_PACKS, new ContentFiles(ContentKind.RESOURCE_PACKS)),
                 new ManageContent(ContentKind.SHADER_PACKS, new ContentFiles(ContentKind.SHADER_PACKS)),
-                new ManageContent(ContentKind.SCHEMATICS, new ContentFiles(ContentKind.SCHEMATICS)), options, fileBrowser())
+                new ManageContent(ContentKind.SCHEMATICS, new ContentFiles(ContentKind.SCHEMATICS)), options, fileBrowser(), javaRuntimes)
             );
     }
 }

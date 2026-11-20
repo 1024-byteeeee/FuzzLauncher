@@ -125,7 +125,7 @@ public final class FuzzApplication extends Application {
             LocalGameLauncher launch = new LocalGameLauncher(authentication, new IsolationPolicy(), resolver, files, runtimes,
                 new LaunchArguments(baseVersions), data.resolve("logs"));
             viewModel = ViewModels.create(settings, instances, catalog, authentication, install, launch,
-                new SkinAvatars(data, new HttpTransport()), new LocalModpacks(http, catalog, install, instances), recovery);
+                new SkinAvatars(data, new HttpTransport()), new LocalModpacks(http, catalog, install, instances), recovery, runtimes);
             viewModel.settingsModel().onRestartRequired(() -> {
                 try {
                     restartCommand = LauncherRestart.command();

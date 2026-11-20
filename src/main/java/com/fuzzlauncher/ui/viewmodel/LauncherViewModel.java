@@ -66,7 +66,7 @@ public final class LauncherViewModel implements AutoCloseable {
         schematicsViewModel = new ContentViewModel(state, tasks, services.schematics());
         accountsViewModel = new AccountsViewModel(state, tasks, services.authentication(), services.avatars());
         catalogViewModel = new CatalogViewModel(state, tasks, services.catalog());
-        instancesViewModel = new InstancesViewModel(state, tasks, services.instances());
+        instancesViewModel = new InstancesViewModel(state, tasks, services.instances(), services.javaRuntimes());
         settingsViewModel = new SettingsViewModel(state, tasks, services.settings(), services.settingsOperations());
         gamesViewModel = new GamesViewModel(state, tasks, services.catalog(), services.installation(), services.launcher(), services.modpacks());
         modpacksViewModel = new ModpacksViewModel(state, tasks, services.modpacks());

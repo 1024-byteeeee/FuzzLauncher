@@ -1,17 +1,23 @@
 package com.fuzzlauncher.infrastructure.game.runtime;
 
+import com.fuzzlauncher.application.model.JavaRuntimeInfo;
+import com.fuzzlauncher.application.port.JavaRuntimeCatalog;
 import com.fuzzlauncher.application.task.TaskContext;
 import com.fuzzlauncher.infrastructure.config.LauncherConfig;
 import com.fuzzlauncher.infrastructure.persistence.JsonFiles;
+import com.fuzzlauncher.infrastructure.platform.ProcessCleanup;
 
 import com.google.gson.*;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.*;
 
-/** Game runtimes are independent of the launcher's trimmed, bundled Java runtime. */
-public final class JavaRuntimeManager {
+/** Detects local Java runtimes and resolves the executable used to launch a game. */
+public final class JavaRuntimeManager implements JavaRuntimeCatalog {
     private final Path directory;
 
     public JavaRuntimeManager(Path directory) {
@@ -26,47 +32,53 @@ public final class JavaRuntimeManager {
         return LauncherConfig.get().java().requiredMajor(id);
     }
 
-    public Path findInstalled(int major) throws IOException {
-        Path marker = directory.resolve("java-" + major + ".json");
-        if (Files.exists(marker)) {
-            Path home = Path.of(JsonFiles.read(marker).get("home").getAsString());
-            if (major(home) == major && Files.isRegularFile(home.resolve("bin/java.exe"))) {
-                return home.resolve("bin/java.exe");
-            }
-        }
-        LinkedHashSet<Path> homes = new LinkedHashSet<>();
-        String env = System.getenv("JAVA_HOME");
-        if (env != null) {
-            homes.add(Path.of(env));
+    @Override
+    public List<JavaRuntimeInfo> detected() throws Exception {
+        Map<Path, JavaRuntimeInfo> runtimes = new LinkedHashMap<>();
+        addMarkedRuntimes(runtimes);
+        String javaHome = System.getenv("JAVA_HOME");
+        if (javaHome != null && !javaHome.isBlank()) {
+            addHome(Path.of(javaHome), runtimes);
         }
         Path current = Path.of(System.getProperty("java.home"));
         if (Files.isDirectory(current.resolve("jmods"))) {
-            homes.add(current);
+            addHome(current, runtimes);
         }
-        String programs = Objects.toString(System.getenv("ProgramFiles"), "C:/Program Files");
-        for (String vendor : LauncherConfig.get().java().vendorDirectories()) {
-            Path parent = Path.of(programs, vendor);
-            if (Files.isDirectory(parent)) {
-                try (var children = Files.list(parent)) {
-                    children.filter(Files::isDirectory).forEach(homes::add);
-                }
-            }
+        if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+            addRegistryRuntimes(runtimes);
+            addProgramFilesRuntimes(runtimes);
         }
-        for (Path home : homes) {
-            if (major(home) == major && Files.isRegularFile(home.resolve("bin/java.exe"))) {
-                return home.resolve("bin/java.exe");
-            }
-        }
-        return null;
+        addPathRuntimes(runtimes);
+        return List.copyOf(runtimes.values());
     }
 
-    public Path resolve(int major, TaskContext task) throws Exception {
+    public Path resolve(int requiredMajor, String configured, TaskContext task) throws Exception {
         task.checkCancelled();
-        Path installed = findInstalled(major);
-        if (installed != null) {
-            return installed;
+        if (configured != null && !configured.isBlank()) {
+            return configuredExecutable(configured);
         }
-        throw new IOException("未找到可用的 Java " + major + "。\n请先安装对应版本的 Java，或在实例详情的“Java 路径”中指定 java.exe 后重试。");
+        JavaRuntimeInfo chosen = choose(detected(), requiredMajor);
+        if (chosen == null) {
+            throw new IOException("未找到可用的 Java。\n请先安装 Java，或在实例详情中指定 java.exe 路径后重试。");
+        }
+        return chosen.executable();
+    }
+
+    public static JavaRuntimeInfo choose(List<JavaRuntimeInfo> candidates, int requiredMajor) {
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        Comparator<JavaRuntimeInfo> architectureFirst = Comparator.comparing(JavaRuntimeInfo::is64Bit).reversed();
+        List<JavaRuntimeInfo> satisfied = candidates.stream()
+            .filter(java -> java.major() >= requiredMajor)
+            .sorted(architectureFirst.thenComparingInt(JavaRuntimeInfo::major))
+            .toList();
+        if (!satisfied.isEmpty()) {
+            return satisfied.getFirst();
+        }
+        return candidates.stream()
+            .sorted(Comparator.comparingInt(JavaRuntimeInfo::major).reversed().thenComparing(architectureFirst))
+            .findFirst().orElse(null);
     }
 
     public static Path configuredExecutable(String configured) throws IOException {
@@ -88,38 +100,124 @@ public final class JavaRuntimeManager {
         return executable;
     }
 
-    public Path resolve(int required, String configured, TaskContext task) throws Exception {
-        if (configured == null || configured.isBlank()) {
-            return resolve(required, task);
+    private void addMarkedRuntimes(Map<Path, JavaRuntimeInfo> runtimes) {
+        if (!Files.isDirectory(directory)) {
+            return;
         }
-        task.checkCancelled();
-        Path executable = configuredExecutable(configured);
-        Path home = executable.getParent().getParent();
-        int actual = home == null ? -1 : major(home);
-        if (actual < 0) {
-            actual = JvmEnvironment.inspect(executable).major();
+        try (var markers = Files.newDirectoryStream(directory, "java-*.json")) {
+            for (Path marker : markers) {
+                try {
+                    JsonObject data = JsonFiles.read(marker);
+                    addHome(Path.of(data.get("home").getAsString()), runtimes);
+                } catch (IOException | RuntimeException ignored) {
+                }
+            }
+        } catch (IOException ignored) {
         }
-        if (actual < required) {
-            throw new IOException("此实例需要 Java " + required + " 或更高版本，所选 Java 为 " + actual);
-        }
-        task.report("使用实例指定的 Java " + actual, -1);
-        return executable;
     }
 
-    private static int major(Path home) throws IOException {
-        Path release = home.resolve("release");
-        if (!Files.isRegularFile(release)) {
-            return -1;
+    private void addProgramFilesRuntimes(Map<Path, JavaRuntimeInfo> runtimes) {
+        List<String> roots = List.of(Objects.toString(System.getenv("ProgramFiles"), "C:/Program Files"),
+            Objects.toString(System.getenv("ProgramFiles(x86)"), "C:/Program Files (x86)"));
+        for (String root : roots) {
+            Path parent = Path.of(root);
+            if (!Files.isDirectory(parent)) {
+                continue;
+            }
+            for (String vendor : LauncherConfig.get().java().vendorDirectories()) {
+                Path vendorDir = parent.resolve(vendor);
+                if (!Files.isDirectory(vendorDir)) {
+                    continue;
+                }
+                try (var children = Files.list(vendorDir)) {
+                    children.filter(Files::isDirectory).forEach(child -> addHome(child, runtimes));
+                } catch (IOException ignored) {
+                }
+            }
         }
-        Properties props = new Properties();
-        try (Reader reader = Files.newBufferedReader(release)) {
-            props.load(reader);
+    }
+
+    private void addPathRuntimes(Map<Path, JavaRuntimeInfo> runtimes) {
+        String path = System.getenv("PATH");
+        if (path == null) {
+            return;
         }
-        String version = props.getProperty("JAVA_VERSION", "").replace("\"", "");
-        if (version.startsWith("1.")) {
-            version = version.substring(2);
+        for (String entry : path.split(File.pathSeparator)) {
+            if (entry.isBlank()) {
+                continue;
+            }
+            try {
+                addExecutable(Path.of(entry, "java.exe"), runtimes);
+            } catch (InvalidPathException ignored) {
+            }
         }
-        String number = version.split("[.\\-+_]")[0];
-        return number.matches("[0-9]+") ? Integer.parseInt(number) : -1;
+    }
+
+    private void addRegistryRuntimes(Map<Path, JavaRuntimeInfo> runtimes) {
+        String[] keys = { "SOFTWARE\\JavaSoft\\Java Runtime Environment", "SOFTWARE\\JavaSoft\\Java Development Kit",
+            "SOFTWARE\\JavaSoft\\JRE", "SOFTWARE\\JavaSoft\\JDK", "SOFTWARE\\WOW6432Node\\JavaSoft\\Java Runtime Environment",
+            "SOFTWARE\\WOW6432Node\\JavaSoft\\JDK" };
+        for (String key : keys) {
+            for (String home : queryRegistryJavaHome(key)) {
+                addHome(Path.of(home), runtimes);
+            }
+        }
+    }
+
+    private List<String> queryRegistryJavaHome(String key) {
+        Process process = null;
+        try {
+            process = new ProcessBuilder("reg", "query", "HKLM\\" + key, "/s", "/v", "JavaHome")
+                .redirectErrorStream(true).start();
+            List<String> homes = new ArrayList<>();
+            Pattern pattern = Pattern.compile("JavaHome\\s+REG_SZ\\s+(.+)");
+            try (var reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.ISO_8859_1))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    Matcher matcher = pattern.matcher(line);
+                    if (matcher.find()) {
+                        homes.add(matcher.group(1).strip());
+                    }
+                }
+            }
+            if (!process.waitFor(3, TimeUnit.SECONDS)) {
+                ProcessCleanup.terminate(process);
+            }
+            return homes;
+        } catch (IOException | InterruptedException ignored) {
+            if (process != null && process.isAlive()) {
+                ProcessCleanup.terminateQuietly(process);
+            }
+            return List.of();
+        }
+    }
+
+    private void addHome(Path home, Map<Path, JavaRuntimeInfo> runtimes) {
+        if (home == null || !Files.isDirectory(home)) {
+            return;
+        }
+        Path executable = home.resolve("bin/java.exe");
+        if (!Files.isRegularFile(executable) && home.getFileName() != null
+            && home.getFileName().toString().equalsIgnoreCase("bin")) {
+            executable = home.resolve("java.exe");
+        }
+        addExecutable(executable, runtimes);
+    }
+
+    private void addExecutable(Path executable, Map<Path, JavaRuntimeInfo> runtimes) {
+        try {
+            if (!Files.isRegularFile(executable)) {
+                return;
+            }
+            Path real = executable.toRealPath();
+            if (runtimes.containsKey(real)) {
+                return;
+            }
+            JvmEnvironment environment = JvmEnvironment.inspect(real);
+            runtimes.put(real, new JavaRuntimeInfo(real, environment.major(), environment.is64Bit()));
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        } catch (IOException | RuntimeException ignored) {
+        }
     }
 }

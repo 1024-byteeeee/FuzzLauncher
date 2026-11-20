@@ -1,6 +1,8 @@
 package com.fuzzlauncher.ui.viewmodel;
 
+import com.fuzzlauncher.application.model.JavaRuntimeInfo;
 import com.fuzzlauncher.application.port.InstanceOperations;
+import com.fuzzlauncher.application.port.JavaRuntimeCatalog;
 import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.settings.LauncherSettings;
 import com.fuzzlauncher.ui.task.FxTaskCoordinator;
@@ -10,6 +12,8 @@ import javafx.collections.*;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 public final class InstancesViewModel {
     private final PresentationState state;
@@ -21,8 +25,10 @@ public final class InstancesViewModel {
     private final ObjectProperty<GameInstance> selected;
     private final BooleanProperty gameRunning;
     private final InstanceOperations instanceOperations;
+    private final JavaRuntimeCatalog javaRuntimes;
 
-    InstancesViewModel(PresentationState state, FxTaskCoordinator tasks, InstanceOperations instanceOperations) {
+    InstancesViewModel(PresentationState state, FxTaskCoordinator tasks, InstanceOperations instanceOperations,
+        JavaRuntimeCatalog javaRuntimes) {
         this.state = state;
         this.tasks = tasks;
         busy = tasks.busyProperty();
@@ -33,6 +39,11 @@ public final class InstancesViewModel {
         selected = state.selected;
         gameRunning = state.gameRunning;
         this.instanceOperations = instanceOperations;
+        this.javaRuntimes = javaRuntimes;
+    }
+
+    public Callable<List<JavaRuntimeInfo>> javaRuntimes() {
+        return () -> javaRuntimes == null ? List.of() : javaRuntimes.detected();
     }
 
     public void prepareInstanceDirectory(GameInstance instance) throws IOException {

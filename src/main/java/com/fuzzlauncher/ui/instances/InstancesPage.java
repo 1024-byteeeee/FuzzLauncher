@@ -1,5 +1,6 @@
 package com.fuzzlauncher.ui.instances;
 
+import com.fuzzlauncher.application.model.JavaRuntimeInfo;
 import com.fuzzlauncher.domain.game.LoaderType;
 import com.fuzzlauncher.domain.instance.GameInstance;
 import com.fuzzlauncher.domain.instance.InstancePaths;
@@ -130,13 +131,15 @@ public final class InstancesPage extends RetroPage {
         toolbar.setAlignment(Pos.CENTER_LEFT);
         VBox left = new VBox(12, toolbar, list);
         left.setPrefWidth(330);
-        left.setMinWidth(300);
+        left.setMinWidth(330);
         VBox.setVgrow(list, Priority.ALWAYS);
         left.getStyleClass().add("instances");
         BorderPane details = new BorderPane();
         details.setMinWidth(0);
+        details.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(details, Priority.ALWAYS);
         InstanceDetails editor = new InstanceDetails();
+        editor.setMaxWidth(Double.MAX_VALUE);
         VBox emptyDetails = new VBox(20, label("实例详情", "section-title"), new Label("安装一个游戏版本后，在这里配置并启动。"), button("下载游戏", () -> showPage(1)));
         emptyDetails.setPadding(new Insets(20));
         Consumer<GameInstance> select = item -> {
@@ -179,6 +182,12 @@ public final class InstancesPage extends RetroPage {
         private GameInstance instance;
         private Consumer<GameInstance> update;
         private Task<Boolean> packPreview;
+        private Task<List<JavaRuntimeInfo>> javaScan;
+        private final JavaOption autoOption = new JavaOption("自动选择（推荐）", "");
+        private final RetroComboBox<JavaOption> javaSelect = new RetroComboBox<>();
+        private List<JavaOption> detectedOptions = List.of();
+        private JavaOption customOption;
+        private String javaConfigured = "";
 
         private InstanceDetails() {
             ImageView landscape = new ImageView(image("landscape"));
@@ -216,6 +225,7 @@ public final class InstancesPage extends RetroPage {
             Button changeLoader = button("修改", () -> new LoaderVersionDialog(stage, vm, instance).show());
             changeLoader.setId("change-instance-loader");
             changeLoader.setMinWidth(Region.USE_PREF_SIZE);
+            changeLoader.setMaxHeight(Double.MAX_VALUE);
             HBox loaderControl = new HBox(6, loader, changeLoader);
             loaderControl.setAlignment(Pos.CENTER_LEFT);
             loaderControl.setMinWidth(0);
@@ -226,26 +236,45 @@ public final class InstancesPage extends RetroPage {
             minimumMemory.setId("instance-min-memory");
             Spinner<Integer> memory = memorySpinner(512, 4096, 512);
             memory.setId("instance-memory");
-            TextField javaPath = new TextField();
-            javaPath.setId("instance-java-path");
-            javaPath.setPromptText("留空自动选择，或输入 java.exe 路径");
-            javaPath.setMinWidth(0);
-            HBox.setHgrow(javaPath, Priority.ALWAYS);
+            javaSelect.setId("instance-java-path");
+            javaSelect.setMinWidth(0);
+            javaSelect.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(javaSelect, Priority.ALWAYS);
+            javaSelect.setCellFactory(list -> javaCell());
+            javaSelect.setButtonCell(javaCell());
             Button browseJava = button("浏览", () -> {
                 Path initial;
                 try {
-                    initial = javaPath.getText().isBlank() ? Path.of(System.getProperty("java.home")) : Path.of(javaPath.getText());
+                    initial = javaConfigured.isBlank() ? Path.of(System.getProperty("java.home")) : Path.of(javaConfigured);
                 } catch (InvalidPathException ex) {
                     initial = Path.of(System.getProperty("java.home"));
                 }
-                RetroPathDialog.javaExecutable(stage, initial, vm.browser()).ifPresent(chosen -> javaPath.setText(chosen.toString()));
+                RetroPathDialog.javaExecutable(stage, initial, vm.browser()).ifPresent(chosen -> chooseCustomJava(chosen.toString()));
             });
             browseJava.setMinWidth(Region.USE_PREF_SIZE);
-            HBox javaControl = new HBox(6, javaPath, browseJava);
+            browseJava.setMaxHeight(Double.MAX_VALUE);
+            browseJava.setId("browse-instance-java");
+            HBox javaControl = new HBox(6, javaSelect, browseJava);
             javaControl.setMinWidth(0);
+            javaControl.setFillHeight(true);
+            javaSelect.getItems().setAll(autoOption);
+            javaScan = new Task<>() {
+                @Override
+                protected List<JavaRuntimeInfo> call() throws Exception {
+                    return vm.instancesModel().javaRuntimes().call();
+                }
+            };
+            javaScan.setOnSucceeded(event -> {
+                detectedOptions = javaScan.getValue().stream().map(InstanceDetails::javaOption).toList();
+                refreshJavaOptions();
+            });
+            javaScan.setOnFailed(
+                event -> Logger.getLogger("com.fuzzlauncher.launcher").fine("无法扫描本机 Java：" + javaScan.getException()));
+            Thread.ofVirtual().name("instance-java-scan").start(javaScan);
             GridPane form = form(new String[] { "名称:", "游戏版本:", "加载器:", "版本隔离:", "最小内存 MB:", "最大内存 MB:", "Java 路径:" },
                 new Node[] { name, version, loaderControl, isolation, minimumMemory, memory, javaControl });
             form.setId("instance-settings-form");
+            form.setMaxWidth(Double.MAX_VALUE);
             form.disableProperty().bind(vm.busyProperty().or(vm.gameRunningProperty()));
             Label directory = new Label();
             directory.setWrapText(true);
@@ -260,7 +289,7 @@ public final class InstancesPage extends RetroPage {
                     vm.instancesModel()
                         .updateInstance(instance.withSettings(name.getText(), isolation.getValue(),
                             Integer.parseInt(minimumMemory.getEditor().getText()), Integer.parseInt(memory.getEditor().getText()),
-                            javaPath.getText()));
+                            javaSelect.getValue() == null ? "" : javaSelect.getValue().path()));
                 } catch (IllegalArgumentException ex) {
                     message(Alert.AlertType.ERROR, "设置无效", ex.getMessage());
                 }
@@ -302,7 +331,8 @@ public final class InstancesPage extends RetroPage {
                 minimumMemory.getEditor().setText(Integer.toString(instance.minMemoryMb()));
                 memory.getValueFactory().setValue(instance.memoryMb());
                 memory.getEditor().setText(Integer.toString(instance.memoryMb()));
-                javaPath.setText(instance.javaPath());
+                javaConfigured = instance.javaPath();
+                selectJavaOption(javaConfigured);
                 directory.setText("游戏目录: " + new IsolationPolicy().gameDirectory(Path.of(vm.settingsProperty().get().gameRoot()), instance,
                     vm.settingsProperty().get().isolation()));
                 if (packPreview != null) {
@@ -330,8 +360,13 @@ public final class InstancesPage extends RetroPage {
                 Thread.ofVirtual().name("instance-pack-preview").start(task);
             };
             sceneProperty().addListener((o, old, scene) -> {
-                if (scene == null && packPreview != null) {
-                    packPreview.cancel(true);
+                if (scene == null) {
+                    if (packPreview != null) {
+                        packPreview.cancel(true);
+                    }
+                    if (javaScan != null) {
+                        javaScan.cancel(true);
+                    }
                 }
             });
             HBox packActions = new HBox(8, updatePack);
@@ -339,7 +374,9 @@ public final class InstancesPage extends RetroPage {
             packActions.visibleProperty().bind(updatePack.visibleProperty());
             VBox panel = new VBox(12, label("实例详情", "section-title"), preview, form, directory, actions, packActions);
             panel.setMinWidth(0);
+            panel.setMaxWidth(Double.MAX_VALUE);
             panel.getStyleClass().add("details-box");
+            directory.prefWidthProperty().bind(Bindings.max(0, panel.widthProperty().subtract(28)));
             VBox.setVgrow(panel, Priority.ALWAYS);
             Button start = button("启动游戏", vm.gamesModel()::launch);
             start.setId("launch-game");
@@ -366,8 +403,83 @@ public final class InstancesPage extends RetroPage {
             HBox launchOptions = new HBox(10, loginHint, testMode);
             launchOptions.setAlignment(Pos.CENTER_LEFT);
             VBox right = new VBox(12, panel, start, launchOptions);
+            right.setMaxWidth(Double.MAX_VALUE);
             getChildren().setAll(right);
             VBox.setVgrow(right, Priority.ALWAYS);
+        }
+
+        private ListCell<JavaOption> javaCell() {
+            return new ListCell<>() {
+                @Override
+                protected void updateItem(JavaOption item, boolean empty) {
+                    super.updateItem(item, empty);
+                    setText(empty || item == null ? null : item.label());
+                    setTooltip(item == null || item.path().isBlank() ? null : new Tooltip(item.path()));
+                }
+            };
+        }
+
+        private void refreshJavaOptions() {
+            List<JavaOption> items = new ArrayList<>();
+            items.add(autoOption);
+            items.addAll(detectedOptions);
+            if (customOption != null) {
+                items.add(customOption);
+            }
+            javaSelect.getItems().setAll(items);
+            selectJavaOption(javaConfigured);
+        }
+
+        private void selectJavaOption(String configured) {
+            configured = configured == null ? "" : configured.strip();
+            JavaOption option = matchOption(configured);
+            if (option == null) {
+                customOption = configured.isBlank() ? null : new JavaOption("手动指定 — " + configured, configured);
+                option = configured.isBlank() ? autoOption : customOption;
+                if (customOption != null) {
+                    javaSelect.getItems().add(customOption);
+                }
+            }
+            javaSelect.setValue(option);
+        }
+
+        private JavaOption matchOption(String configured) {
+            if (configured.isBlank()) {
+                return autoOption;
+            }
+            return detectedOptions.stream().filter(o -> samePath(o.path(), configured)).findFirst()
+                .orElse(customOption != null && samePath(customOption.path(), configured) ? customOption : null);
+        }
+
+        private void chooseCustomJava(String path) {
+            String normalized = Path.of(path).toAbsolutePath().normalize().toString();
+            JavaOption existing = detectedOptions.stream().filter(o -> samePath(o.path(), normalized)).findFirst().orElse(null);
+            customOption = existing != null ? null : new JavaOption("手动指定 — " + normalized, normalized);
+            javaConfigured = normalized;
+            refreshJavaOptions();
+            javaSelect.setValue(existing != null ? existing : customOption);
+        }
+
+        private static boolean samePath(String a, String b) {
+            try {
+                return Path.of(a).toAbsolutePath().normalize().equals(Path.of(b).toAbsolutePath().normalize());
+            } catch (InvalidPathException ex) {
+                return a.equalsIgnoreCase(b);
+            }
+        }
+
+        private static JavaOption javaOption(JavaRuntimeInfo info) {
+            Path home = info.executable().getParent() == null ? null : info.executable().getParent().getParent();
+            String name = home != null && home.getFileName() != null ? home.getFileName().toString() : info.executable().toString();
+            String label = "Java " + info.major() + (info.is64Bit() ? "（64 位）" : "（32 位）") + " — " + name;
+            return new JavaOption(label, info.executable().toString());
+        }
+
+        private record JavaOption(String label, String path) {
+            @Override
+            public String toString() {
+                return label;
+            }
         }
     }
 

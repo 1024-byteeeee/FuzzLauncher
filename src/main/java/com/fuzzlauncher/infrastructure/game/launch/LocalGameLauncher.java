@@ -130,8 +130,13 @@ public final class LocalGameLauncher implements GameLauncher {
 
     public LaunchArguments.Preview previewJvm(Path root, GameInstance instance) throws Exception {
         JsonObject version = resolver.resolveInstance(root, instance);
-        Path executable = instance.javaPath().isBlank() ? runtimes.findInstalled(runtimes.requiredMajor(version))
-            : JavaRuntimeManager.configuredExecutable(instance.javaPath());
+        Path executable;
+        if (!instance.javaPath().isBlank()) {
+            executable = JavaRuntimeManager.configuredExecutable(instance.javaPath());
+        } else {
+            var chosen = JavaRuntimeManager.choose(runtimes.detected(), runtimes.requiredMajor(version));
+            executable = chosen == null ? null : chosen.executable();
+        }
         JsonObject arguments = version.has("arguments") ? version.getAsJsonObject("arguments") : new JsonObject();
         List<String> jvm = arguments.has("jvm") ? VersionResolver.argumentValues(arguments.getAsJsonArray("jvm")) : List.of();
         return new LaunchArguments.Preview(executable == null ? null : JvmEnvironment.inspect(executable), jvm);
